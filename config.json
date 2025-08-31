@@ -13,11 +13,10 @@
     "nightTheme":"dark_colorblind",
     "urlMode":"pinyin",
     "style":"<style>#postBody{font-size:20px}</style>",
-    "script":"<script async src='//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js'></script>",
     "head":"",
-    "allHead":"",
     "indexStyle":"",
     "indexScript":"",
     "bottomText":"❤️ 转载文章请注明出处，谢谢！❤️",
+    "allHead":"<script src='https://blog.meekdai.com/Gmeek/plugins/GmeekBSZ.js'></script><script async src='//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js'></script>",
     "primerCSS":"<link href='https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/Primer/21.0.7/primer.css' rel='stylesheet' />"
 }
