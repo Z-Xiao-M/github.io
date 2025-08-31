@@ -2,5 +2,21 @@
     "title":"小满",
     "subTitle":"待会去码头整点薯条🍟",
     "avatarUrl":"https://github.githubassets.com/favicons/favicon.svg",
-    "GMEEK_VERSION":"last"
+    "GMEEK_VERSION":"last",
+    "commentLabelColor":"#006b75",
+    "yearColorList":["#bc4c00", "#0969da", "#1f883d", "#A333D0"],
+    "i18n":"CN",
+    "UTC":8,
+    "startSite":"08/31/2025",
+    "singlePage":["about"],
+    "dayTheme":"light",
+    "nightTheme":"dark_colorblind",
+    "urlMode":"pinyin",
+    "style":"",
+    "script":"",
+    "head":"",
+    "allHead":"",
+    "indexStyle":"",
+    "indexScript":"",
+    "bottomText":"转载请注明出处"
 }
