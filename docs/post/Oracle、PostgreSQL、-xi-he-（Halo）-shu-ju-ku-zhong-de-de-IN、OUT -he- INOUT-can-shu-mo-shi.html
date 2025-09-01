@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html data-color-mode="light" data-dark-theme="dark_colorblind" data-light-theme="light" lang="zh-CN">
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="content-type" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link href='https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/Primer/21.0.7/primer.css' rel='stylesheet' />
+    <script src='https://blog.meekdai.com/Gmeek/plugins/GmeekVercount.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script>
+    <link rel="icon" href="https://z-xiao-m.github.io/github.io/avatar.svg"><script>
+        let theme = localStorage.getItem("meek_theme") || "light";
+        document.documentElement.setAttribute("data-color-mode", theme);
+    </script>
+<meta name="description" content="一、前言
+----
+
+前些天看到PostgreSQL分会在微信上的一则翻译分享，标题为Oracle 与 PostgreSQL 中的 IN、OUT 和 INOUT 参数。">
+<meta property="og:title" content="Oracle、PostgreSQL、羲和（Halo）数据库中的的IN、OUT 和 INOUT参数模式">
+<meta property="og:description" content="一、前言
+----
+
+前些天看到PostgreSQL分会在微信上的一则翻译分享，标题为Oracle 与 PostgreSQL 中的 IN、OUT 和 INOUT 参数。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/Oracle%E3%80%81PostgreSQL%E3%80%81-xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-zhong-de-de-IN%E3%80%81OUT%20-he-%20INOUT-can-shu-mo-shi.html">
+<meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
+<title>Oracle、PostgreSQL、羲和（Halo）数据库中的的IN、OUT 和 INOUT参数模式</title>
+
+
+
+</head>
+<style>
+body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;padding: 45px;font-size: 16px;font-family: sans-serif;line-height: 1.25;}
+#header{display:flex;padding-bottom:8px;border-bottom: 1px solid var(--borderColor-muted, var(--color-border-muted));margin-bottom: 16px;}
+#footer {margin-top:64px; text-align: center;font-size: small;}
+
+</style>
+
+<style>
+.postTitle{margin: auto 0;font-size:40px;font-weight:bold;}
+.title-right{display:flex;margin:auto 0 0 auto;}
+.title-right .circle{padding: 14px 16px;margin-right:8px;}
+#postBody{border-bottom: 1px solid var(--color-border-default);padding-bottom:36px;}
+#postBody hr{height:2px;}
+#cmButton{height:48px;margin-top:48px;}
+#comments{margin-top:64px;}
+.g-emoji{font-size:24px;}
+@media (max-width: 600px) {
+    body {padding: 8px;}
+    .postTitle{font-size:24px;}
+}
+.copy-feedback {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    color: var(--color-fg-on-emphasis);
+    background-color: var(--color-fg-muted);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+</style>
+<style>#postBody{font-size:20px}</style>
+
+
+
+<body>
+    <div id="header">
+<h1 class="postTitle">Oracle、PostgreSQL、羲和（Halo）数据库中的的IN、OUT 和 INOUT参数模式</h1>
+<div class="title-right">
+    <a href="https://Z-Xiao-M.github.io/github.io" id="buttonHome" class="btn btn-invisible circle" title="首页">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathHome" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+    <a href="https://github.com/Z-Xiao-M/github.io/issues/17" target="_blank" class="btn btn-invisible circle" title="Issue">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathIssue" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+
+    <a class="btn btn-invisible circle" onclick="modeSwitch();" title="切换主题">
+        <svg class="octicon" width="16" height="16" >
+            <path id="themeSwitch" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+
+</div>
+</div>
+    <div id="content">
+<div class="markdown-body" id="postBody"><h2>一、前言</h2>
+<p>前些天看到PostgreSQL分会在微信上的一则翻译分享，标题为Oracle 与 PostgreSQL 中的 IN、OUT 和 INOUT 参数。文章大概内容为，在针对Oracle迁移至PostgreSQL中，对于函数/存储过程的输入输出类型这一细节方面，双方处理的差异点，通过了解这些差异点，来提高迁移的成功率。</p>
+<p>恰好当处在实现这一块的时候，我也简单琢磨过一会，所以此处决定结合该文章，顺带拉上羲和数据库（以下简称Halo），结合Oracle、PostgreSQL数据库来做一次简单的分享，通过多则示例，加深一下大家对于这一块的理解。相关文章链接如下：</p>
+<p><a href="https://mp.weixin.qq.com/s/SFlvmPbWBoL4d-R9_QXCMQ" rel="nofollow">Oracle 与 PostgreSQL 中的 IN、OUT 和 INOUT 参数</a></p>
+<p><a href="https://hexacluster.ai/postgresql/oracle-vs-postgresql-pass-by-value-and-pass-by-reference-for-in-out-inout-parameters/" rel="nofollow">IN, OUT and INOUT parameters in Oracle vs PostgreSQL</a></p>
+<p>接下来就按照人家文章的节奏一步一步来吧。</p>
+<hr>
+<h2>二、按值传递和按引用传递？</h2>
+<p>在Oracle中，它的IN参数模式为引用传递，OUT以及IN OUT参数模式在默认的情况下，为值传递。更多详细内容如下图：</p>
+<blockquote>
+<p>当 OUT 或 IN OUT 参数在过程中更改时，它仅更改参数值的副本。仅当过程无错误地完成后，结果值才会复制回形式参数。</p>
+<p>如果将集合作为 OUT 或 IN OUT 参数发送，它将按值传递。这意味着在进入过程时，完整的集合将从形式参数复制到实际参数，并在退出过程时复制回形式参数。如果集合很大，这可能会消耗大量的 CPU 和内存。NOCOPY 参数模式提示通过指示运行时引擎尝试通过引用而不是通过值传递 OUT 或 IN OUT 参数来解决此问题。</p>
+</blockquote>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/4fe2325a7d80ec96fcd24b8a025a57e6b8e6eda664ef4ad4eb6f6e994049e928/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303331392d39656365643636622d666234322d343038632d623737662d3534303934623962353831632e706e67"><img src="https://camo.githubusercontent.com/4fe2325a7d80ec96fcd24b8a025a57e6b8e6eda664ef4ad4eb6f6e994049e928/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303331392d39656365643636622d666234322d343038632d623737662d3534303934623962353831632e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240319-9eced66b-fb42-408c-b77f-54094b9b581c.png" style="max-width: 100%;"></a></p>
+<p>而且在Oracle中，当参数使用了IN模式的话，不允许对该参数进行赋值操作。但是这方面没啥影响。</p>
+<pre class="notranslate"><code class="notranslate">CREATE FUNCTION func_test (va IN INTEGER) 
+RETURN INTEGER
+AS
+BEGIN
+   va := 1;    -- oracle不允许修改
+   RETURN 2;
+END ;
+/
+</code></pre>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/92909c74edc66be901d849d839b2eebbda800e43e12fc81aabf2a21134178d35/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303331392d34386139623833662d376265622d346235652d626632312d6665353637613961623761322e706e67"><img src="https://camo.githubusercontent.com/92909c74edc66be901d849d839b2eebbda800e43e12fc81aabf2a21134178d35/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303331392d34386139623833662d376265622d346235652d626632312d6665353637613961623761322e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240319-48a9b83f-7beb-4b5e-bf21-fe567a9ab7a2.png" style="max-width: 100%;"></a></p>
+<p>在PostgreSQL和Halo数据库中，这三种参数输入模式均为值传递。而当参数使用IN模式，允许对该参数进行赋值操作，由于参数的生命周期的原因，并不会对原有的输入产生任何动作。</p>
+<p>PostgreSQL创建相应函数：</p>
+<pre class="notranslate"><code class="notranslate">CREATE  FUNCTION func_test (va IN INTEGER) 
+RETURNS INTEGER
+AS $$
+DECLARE
+BEGIN
+   va := 1;
+   RETURN 2;
+END $$ LANGUAGE plpgsql;
+</code></pre>
+<p>执行以下DO语句，它调用了上述的func_test，传递了一个名为val_a的变量，初始值为0，观察执行后的打印结果</p>
+<pre class="notranslate"><code class="notranslate">DO $$ 
+DECLARE
+    val_a INT := 0;
+    result_value INT := 0;
+BEGIN
+    result_value = func_test(val_a);
+    RAISE NOTICE 'The result is: % val_a %', result_value, val_a;
+END $$;
+</code></pre>
+<p>输出结果：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/17852e71c4e1fed37b8bf79d36f70e00ecd3e09dc765fb427f62914b2edc6e62/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303331392d34306132396464612d616562372d343935302d386235612d3164373830353931393163312e706e67"><img src="https://camo.githubusercontent.com/17852e71c4e1fed37b8bf79d36f70e00ecd3e09dc765fb427f62914b2edc6e62/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303331392d34306132396464612d616562372d343935302d386235612d3164373830353931393163312e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240319-40a29dda-aeb7-4950-8b5a-1d78059191c1.png" style="max-width: 100%;"></a></p>
+<p>可以看到的是输入变量的值并没有并修改掉。Halo数据库在这方面没有进行变动，此处就不再演示了。</p>
+<hr>
+<h2>三、将Oracle存储过程迁移到PostgreSQL，若存储过程中存在OUT/INOUT参数是否需要大幅进行变动？</h2>
+<p>在<strong>Oracle</strong>执行如下语句，为创建一个带IN、OUT参数的存储过程，并通过匿名块调用执行，<strong>INOUT其实和OUT差不太多 后续我就不在描述INOUT了 直接使用OUT进行讲解</strong></p>
+<pre class="notranslate"><code class="notranslate">CREATE OR REPLACE PROCEDURE add_numbers(
+    a IN  INT,
+    b IN INT,
+    result OUT INT
+)
+AS 
+BEGIN
+	result := a + b;
+END;
+/
+
+-- 调用存储过程add_numbers
+DECLARE
+    va INT := 100;
+    vb INT := 200;
+    result_value INT := 0;
+BEGIN
+     add_numbers(va, vb, result_value);
+     DBMS_OUTPUT.PUT_LINE('va is:  ' || va || ' vb is:  ' || vb || ' result is:  ' ||  result_value);
+END;
+/
+</code></pre>
+<p>最终输出结果：</p>
+<pre class="notranslate"><code class="notranslate">va is:  100 vb is:  200 result is:  300
+</code></pre>
+<p>如果使用<strong>PostgreSQL</strong>替换的话，则需要改写成以下语句，并进行执行。</p>
+<pre class="notranslate"><code class="notranslate">CREATE OR REPLACE PROCEDURE add_numbers(
+   IN a   INT,
+   IN b  INT,
+   OUT result INT
+)
+AS $$
+DECLARE
+BEGIN
+	result = a + b;
+END $$ LANGUAGE plpgsql;
+
+-- 调用存储过程add_numbers
+DO $$
+DECLARE
+    va INT = 100;
+    vb INT = 200;
+    result_value INT = 0;
+BEGIN
+     CALL add_numbers(va, vb, result_value);
+    RAISE NOTICE 'va is: % vb is： %  result is： % ', va,  vb,  result_value;
+END $$  LANGUAGE plpgsql;
+</code></pre>
+<p>最终输出结果：</p>
+<pre class="notranslate"><code class="notranslate">NOTICE:  va is: 100 vb is： 200  result is： 300 
+DO
+</code></pre>
+<p>可以看到的是，<strong>如果是将Oracle数据中的带OUT参数的存储过程迁移至PostgreSQL中，在这种场景下，改写后的PostgreSQL的存储过程和原有的Oracle中的存储过程还是较为相似的，其迁移改写的成本还是能够接受的。</strong></p>
+<p><strong>那如果是带有OUT参数的函数呢？</strong></p>
+<hr>
+<h2>四、将Oracle函数迁移到PostgreSQL，若函数中存在OUT/INOUT参数是否需要大幅进行变动？</h2>
+<h3><strong>4.1、Oracle的带OUT参数的函数简单示例</strong></h3>
+<p>此处就直接使用以下人家文章中的示例吧</p>
+<pre class="notranslate"><code class="notranslate">CREATE OR REPLACE FUNCTION test_ro(x number, y OUT number) 
+RETURN boolean IS 
+BEGIN              
+    y := x; 
+    RETURN true; 
+END;                        
+/
+
+DECLARE               
+    vx number := 100;
+    vy number := 0;
+    ret boolean := false;
+BEGIN
+     ret := test_ro(vx, vy);
+     IF ret THEN
+        DBMS_OUTPUT.PUT_LINE('ret is true  vy is: ' || vy);
+     ELSE
+        DBMS_OUTPUT.PUT_LINE('ret is false  vy is: ' || vy);
+    END IF;
+END;
+/
+</code></pre>
+<p>最终输出结果：</p>
+<pre class="notranslate"><code class="notranslate">ret is true  vy is: 100
+</code></pre>
+<h3><strong>4.2、PostgreSQL中函数如何使用OUT/INOUT参数</strong></h3>
+<p>我们先来尝试一下直接将上述的函数改成PostgreSQL的写法，看看能否正常进行 改写之后大概长这样</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/869ddbde143bc2308166cf1870eacd0be93f38f776a4a7b3b8ec0e8d00f13b8e/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d38343635353665622d353533332d343932642d383565622d3933323031373535393938362e706e67"><img src="https://camo.githubusercontent.com/869ddbde143bc2308166cf1870eacd0be93f38f776a4a7b3b8ec0e8d00f13b8e/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d38343635353665622d353533332d343932642d383565622d3933323031373535393938362e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-846556eb-5533-492d-85eb-932017559986.png" style="max-width: 100%;"></a></p>
+<p>可以看到的是 这样子简单的进行改写是不行的 在PostgreSQL中在函数入参使用OUT这方面和Oracle相比还是大有不同 接下来我来用一些示例来详细描述一下PostgreSQL这方面的使用</p>
+<p>在Oracle中函数的OUT参数和RETUN构成两个输出，而在PostgreSQL中则不然。在PostgreSQL中则分为好几种情形，想要正确输出结果 ，必须要注意这几个点。</p>
+<h4>4.2.1、PostgreSQL函数单个OUT参数</h4>
+<p>就像上述的示例一样，如果是单个OUT参数的函数，想要创建成功 并且成功调用的话 那么RETURNS语句后面接的数据类型 必须和该单个OUT参数的数据类型保持一致 否则会报错</p>
+<p><strong>RETURNS语句后面接的数据类型与OUT参数类型不一致 报错如下</strong></p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/869ddbde143bc2308166cf1870eacd0be93f38f776a4a7b3b8ec0e8d00f13b8e/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d38343635353665622d353533332d343932642d383565622d3933323031373535393938362e706e67"><img src="https://camo.githubusercontent.com/869ddbde143bc2308166cf1870eacd0be93f38f776a4a7b3b8ec0e8d00f13b8e/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d38343635353665622d353533332d343932642d383565622d3933323031373535393938362e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-846556eb-5533-492d-85eb-932017559986.png" style="max-width: 100%;"></a></p>
+<p>正确的创建姿势 当<strong>RETURNS后接的数据类型和OUT参数一致时，由于PostgreSQL认为此种写法只存在一个返回值 所以逻辑块中的return语句，只能选择不写或者是return；</strong></p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/06ec391e0f34b5f01844a88748a9f44ddf0c614b1bd67ebc1de7cbaf4b335684/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d34383264373935612d666339642d343465322d396435642d3464393032383835633335632e706e67"><img src="https://camo.githubusercontent.com/06ec391e0f34b5f01844a88748a9f44ddf0c614b1bd67ebc1de7cbaf4b335684/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d34383264373935612d666339642d343465322d396435642d3464393032383835633335632e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-482d795a-fc9d-44e2-9d5d-4d902885c35c.png" style="max-width: 100%;"></a></p>
+<p>若此时存在return语句 且return语句不是return；则会报错</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/d8b7d4a5061d53373094739f11f067b3075bee029fb459383c84bef270e86f40/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d30343666383332662d373634662d346464392d616161332d3161306235623365306532622e706e67"><img src="https://camo.githubusercontent.com/d8b7d4a5061d53373094739f11f067b3075bee029fb459383c84bef270e86f40/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d30343666383332662d373634662d346464392d616161332d3161306235623365306532622e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-046f832f-764f-4dd9-aaa3-1a0b5b3e0e2b.png" style="max-width: 100%;"></a></p>
+<p>此时取调用该函数的话 仅返回一个值 且不允许在OUT参数的位置使用变量，由于内部函数的识别机制，这样子将会无法找到实际该要执行函数。</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/e8ed8e654b387034d4ab7bd274a0b387b4edce929c04bbabb0636296880fb02f/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d62336531323339342d336237352d343062342d613865302d6336326339356334383734382e706e67"><img src="https://camo.githubusercontent.com/e8ed8e654b387034d4ab7bd274a0b387b4edce929c04bbabb0636296880fb02f/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d62336531323339342d336237352d343062342d613865302d6336326339356334383734382e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-b3e12394-3b75-40b4-a8e0-c62c95c48748.png" style="max-width: 100%;"></a></p>
+<h4>4.2.2、PostgreSQL函数多个OUT参数</h4>
+<p>在这种情形下，RETURNS后接的数据类型必须是record类型，否则会报错</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/a2022a7de190abbc0d39594d2bdb5ba7a95068f76cdb8d7a5a04739909c1af47/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d31663238363739372d366533642d346336652d383961312d6435633866313530623764622e706e67"><img src="https://camo.githubusercontent.com/a2022a7de190abbc0d39594d2bdb5ba7a95068f76cdb8d7a5a04739909c1af47/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d31663238363739372d366533642d346336652d383961312d6435633866313530623764622e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-1f286797-6e3d-4c6e-89a1-d5c8f150b7db.png" style="max-width: 100%;"></a></p>
+<p>正确的创建 <strong>和单个OUT参数类似 此处只能不写return或者是写上return;</strong></p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/fbe5950cbd3f36269e2a3539e649a9b7fdb0fff8f35ffa2ea5877fb457dc8e1c/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d62363734636439382d303937642d346166632d623563352d3731646265613939313166382e706e67"><img src="https://camo.githubusercontent.com/fbe5950cbd3f36269e2a3539e649a9b7fdb0fff8f35ffa2ea5877fb457dc8e1c/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d62363734636439382d303937642d346166632d623563352d3731646265613939313166382e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-b674cd98-097d-4afc-b5c5-71dbea9911f8.png" style="max-width: 100%;"></a></p>
+<p>否则将会不允许创建</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/e604164b50aa2ef6c5a731b6256f994a0d3227a883b5a0964b70a00c06c40748/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d62343664636163372d666561392d346565352d613066342d3637363230633831326135342e706e67"><img src="https://camo.githubusercontent.com/e604164b50aa2ef6c5a731b6256f994a0d3227a883b5a0964b70a00c06c40748/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d62343664636163372d666561392d346565352d613066342d3637363230633831326135342e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-b46dcac7-fea9-4ee5-a0f4-67620c812a54.png" style="max-width: 100%;"></a></p>
+<p>此时的话该如何进行调用呢？可以考虑以下两种方式，一种是定义一个record变量接收返回数据 第二种是使用select into语句进行操作</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/d71c0953d36bd5f22d0257ca012e7e66551f2d4173e635433235d6fbc3709f78/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d37336164343535392d666237622d346632612d626235632d3263346433333063376161372e706e67"><img src="https://camo.githubusercontent.com/d71c0953d36bd5f22d0257ca012e7e66551f2d4173e635433235d6fbc3709f78/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d37336164343535392d666237622d346632612d626235632d3263346433333063376161372e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-73ad4559-fb7b-4f2a-bb5c-2c4d330c7aa7.png" style="max-width: 100%;"></a></p>
+<h4>4.2.3、迁移带out参数的函数解决方案</h4>
+<p>回到开头的Oracle的函数，那么该如何改写才能原本Oracle的功能保持一致呢？其实解决方案在上面已经给出来了。</p>
+<p>改写创建语句</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/3afa19efb27cafded002328a178d475a99e603f7194303e0704413651309b083/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d39326333633637332d646564372d346239352d616531332d3864373061343866386664382e706e67"><img src="https://camo.githubusercontent.com/3afa19efb27cafded002328a178d475a99e603f7194303e0704413651309b083/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d39326333633637332d646564372d346239352d616531332d3864373061343866386664382e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-92c3c673-ded7-4b95-ae13-8d70a48f8fd8.png" style="max-width: 100%;"></a></p>
+<p>改写调用语句</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/df6e95dbb0aaad0f3c2986cec87aef5f482e589118039995a4d56ba03964654d/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d37333039346431642d386336312d346632372d383761612d6662616264333763626535372e706e67"><img src="https://camo.githubusercontent.com/df6e95dbb0aaad0f3c2986cec87aef5f482e589118039995a4d56ba03964654d/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d37333039346431642d386336312d346632372d383761612d6662616264333763626535372e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-73094d1d-8c61-4f27-87aa-fbabd37cbe57.png" style="max-width: 100%;"></a></p>
+<p><strong>可以很明显的看出 如果是将Oracle中带OUT参数的函数迁移到PostgreSQL中，改写的成本还是非常非常大的。此处也是给出了迁移改写的解决的方案，供大家参考。</strong></p>
+<p>那麽是否是所有的函数/存储过程均能通过上述的改写来达成目的呢？接下来我们看看Oracle包中的关于此处内容的测试案例。</p>
+<h2>五、将Oracle的Package中的函数/存储过程迁移至PostgreSQL中</h2>
+<p>关于上面的那个问题，此处给出一个示例 当然此处的示例还进行了简化 实际上来说其实一般的包会更为复杂 你甚至能看到各种奇奇怪怪的写法</p>
+<p>这个Package内部存在两个名为pro_test的存储过程 一个不存在任何参数 另一个带有一个OUT参数 ，同时还存在两个名为func_test，这两函数 除OUT修饰的参数类型 一个为int 另一个为varchar2外 其余均一模一样</p>
+<pre class="notranslate"><code class="notranslate">CREATE OR REPLACE PACKAGE pkg_test AS 
+    -- 同名存储过程
+    PROCEDURE pro_test;
+    PROCEDURE pro_test(va out varchar2);
+
+    -- 同名同参函数 仅输出类型不一致
+    FUNCTION func_test(va int, vb int, vc out int) RETURN int;
+    FUNCTION func_test(va int, vb int, vc out varchar2) RETURN int;
+END;
+/
+
+CREATE OR REPLACE PACKAGE BODY pkg_test AS 
+  -- 无参存储过程
+  PROCEDURE pro_test
+    AS 
+  BEGIN  
+    DBMS_OUTPUT.PUT_LINE('pro_test'); 
+  END;
+  
+  -- 带out参数存储过程
+  PROCEDURE pro_test(va out varchar2)
+    AS 
+  BEGIN  
+    DBMS_OUTPUT.PUT_LINE('pro_test(out varchar2)'); 
+  END;
+
+  -- out参数类型为int
+  FUNCTION func_test(va int, vb int, vc out int) RETURN int
+    AS 
+  BEGIN  
+    DBMS_OUTPUT.PUT_LINE('func_test(out int)');
+    vc := va + vb;
+    RETURN 25;
+  END; 
+
+ -- out参数类型为varchar2
+ FUNCTION func_test(va int, vb int, vc out varchar2) RETURN int
+  AS 
+  BEGIN  
+    DBMS_OUTPUT.PUT_LINE('func_test(out varchar2)');
+    vc := 'func_test';
+    RETURN va + vb;
+  END; 
+END;
+/
+</code></pre>
+<p>执行以下匿名块</p>
+<pre class="notranslate"><code class="notranslate">DECLARE 
+  p_va varchar2(20);
+  f_va int;
+  f_vb varchar2(20);
+  f_ret int;
+BEGIN 
+  -- procedure
+  pkg_test.pro_test;
+  pkg_test.pro_test(p_va);
+
+  -- function
+  f_ret := pkg_test.func_test(25, 25, f_va);
+  f_ret := pkg_test.func_test(25, 25, f_vb);
+END;
+/ 
+</code></pre>
+<p>Oracle正常创建外加正常调用 输出最终结果</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/7799f7bf875dbb62510f0f0c45bb3d8c055716d09f321efe38222da05d7bf328/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d32613636366561662d623164652d343261372d393863332d3930386438346433616663312e706e67"><img src="https://camo.githubusercontent.com/7799f7bf875dbb62510f0f0c45bb3d8c055716d09f321efe38222da05d7bf328/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d32613636366561662d623164652d343261372d393863332d3930386438346433616663312e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-2a666eaf-b1de-42a7-98c3-908d84d3afc1.png" style="max-width: 100%;"></a></p>
+<p>接下来我们尝试按照上面的来进行改写 尝试将该Package迁移至PostgreSQL 看看能否成功</p>
+<p><strong>相关改写内容如下</strong></p>
+<pre class="notranslate"><code class="notranslate">-- 对于Oracle中的Package 我们可以选择创建一个同名的schema来现应付一下
+CREATE SCHEMA pkg_test;
+
+-- 尝试创建无参存储过程
+CREATE OR REPLACE PROCEDURE pkg_test.pro_test()
+  AS $$
+BEGIN  
+  RAISE NOTICE 'pro_test';
+END $$ LANGUAGE plpgsql;
+
+-- 尝试创建带OUT参数的同名存储过程  
+-- 此处由于PostgreSQL内核对于同名存储过程的判定
+-- 认为带out参数的存储过程 和 不带任何参数的存储过程是同一个
+-- 想要执行的是replace操作 而不是create操作 
+-- 最终报错
+CREATE OR REPLACE PROCEDURE pkg_test.pro_test(va out varchar)
+  AS $$
+BEGIN  
+  RAISE NOTICE 'pro_test(out varchar2)';
+END $$ LANGUAGE plpgsql;
+
+-- 接下来尝试迁移函数
+-- out参数类型为int
+CREATE OR REPLACE FUNCTION pkg_test.func_test(va int, vb int, vc out int, ret out int) 
+RETURNS record
+  AS $$
+DECLARE
+BEGIN  
+  RAISE NOTICE 'func_test(out int)';
+  vc := va + vb;
+  ret := 25;
+END $$ LANGUAGE plpgsql;
+
+-- out参数类型为varchar
+-- 此处和上述创建同名存储存储一样 最终会创建失败
+CREATE OR REPLACE FUNCTION pkg_test.func_test(va int, vb int, vc out varchar, ret out int) 
+RETURNS record
+  AS $$
+DECLARE
+BEGIN  
+  RAISE NOTICE 'func_test(out int)';
+  vc := 'func_test';
+  ret := va + vb;
+END $$ LANGUAGE plpgsql;
+</code></pre>
+<p>执行后输出：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/ee7eb76ec644b3e7e2cc066bcb21bb9f494f4382a1a048e6047facc579efcf1b/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d31373965626532392d396163332d346364372d616535642d3862363766326662343961322e706e67"><img src="https://camo.githubusercontent.com/ee7eb76ec644b3e7e2cc066bcb21bb9f494f4382a1a048e6047facc579efcf1b/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d31373965626532392d396163332d346364372d616535642d3862363766326662343961322e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-179ebe29-9ac3-4cd7-ae5d-8b67f2fb49a2.png" style="max-width: 100%;"></a></p>
+<p><strong>由于PostgreSQL内部对于同名函数和同名存储过程的判定，所以像这种通过改写就无法完成迁移。只能是重新修改逻辑来避免了。</strong></p>
+<blockquote>
+<p><strong>因此如果想要将Oracle成功迁移至原生PostgreSQL中，就单纯在IN、OUT 和 INOUT参数模式这一小细节上，</strong></p>
+<p><strong>首先你需要先整理整理是否在Oracle的Package中使用了文中所说的类似的写法，</strong></p>
+<p><strong>如果有使用的话，在不变更原有逻辑的情形之下，改写相关SQL是无法帮助你迁移成功的。</strong></p>
+<p><strong>如果没有使用的话，就能按照文中给出的改写的解决方案，通过消耗时间、精力、投入相关资源来将这一块改写成PostgreSQL能够支持处理的逻辑。</strong></p>
+</blockquote>
+<h2><strong>六、羲和（Halo）数据库在</strong>IN、OUT 和 INOUT的支持力度</h2>
+<blockquote>
+<p><strong>接下来的话，就和由Oracle迁移至PostgreSQL这个话题没有关系了，相关的改写方案和技术上面也说的差不多了，</strong></p>
+<p><strong>如果可以的话，或许可以考虑考虑由Oracle迁移至Halo数据库，也许能减轻不少关于迁移Oracle的压力。</strong></p>
+</blockquote>
+<h3><strong>6.1、将Oracle存储过程迁移到Halo，若存储过程中存在OUT/INOUT参数是否需要大幅进行变动？</strong></h3>
+<p>以第三节的示例 在Halo数据库Oracle模式进行测试 结果如图：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/46a961d54ddf2e0e488e2864406c8e0822a5e27cdc7c05864346098bc8c74800/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d34623630623561652d333136312d343732302d616239632d3566623831353563616436612e706e67"><img src="https://camo.githubusercontent.com/46a961d54ddf2e0e488e2864406c8e0822a5e27cdc7c05864346098bc8c74800/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d34623630623561652d333136312d343732302d616239632d3566623831353563616436612e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-4b60b5ae-3161-4720-ab9c-5fb8155cad6a.png" style="max-width: 100%;"></a></p>
+<h3><strong>6.2、将Oracle函数迁移到Halo，若函数中存在OUT/INOUT参数是否需要大幅进行变动？</strong></h3>
+<p>以第四节的示例 在Halo数据库Oracle模式进行测试 结果如图：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/68657a8317033d657efd7772f2004718d816b7cdd847c340932ea42648f5a9fb/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d38636134623534302d653934382d346665312d616133372d3832333234653331313465642e706e67"><img src="https://camo.githubusercontent.com/68657a8317033d657efd7772f2004718d816b7cdd847c340932ea42648f5a9fb/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d38636134623534302d653934382d346665312d616133372d3832333234653331313465642e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-8ca4b540-e948-4fe1-aa37-82324e3114ed.png" style="max-width: 100%;"></a></p>
+<h3><strong>6.3、将Oracle的Package中的函数/存储过程迁移至Halo中，是否需要大幅进行变动？</strong></h3>
+<p>以第五节的示例 在Halo数据库Oracle模式进行测试 结果如图：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/327ed6b9f9eebcac0d2eae6a676a21af10e79d1eb17d322647c32c9508b72698/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d65363637336661312d376634322d343439662d393962642d6436663163666139656166392e706e67"><img src="https://camo.githubusercontent.com/327ed6b9f9eebcac0d2eae6a676a21af10e79d1eb17d322647c32c9508b72698/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303332312d65363637336661312d376634322d343439662d393962642d6436663163666139656166392e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240321-e6673fa1-7f42-449f-99bd-d6f1cfa9eaf9.png" style="max-width: 100%;"></a></p>
+<p>可以看到的是在没有进行修改PL/SQL代码的情况下，原有的Oracle的PL/SQL代码在Halo数据库上依旧能够得到支持。</p>
+<p>使用Halo数据库，可以做到不需要花费大量的时间、精力和资源用于改写、改造原有的PL/SQL代码，一定程度上的应用，在不修改原有应用代码的前提上，甚至能做到无感知的迁移替换。</p>
+<h2>七、声明</h2>
+<p>若文中存在错误或不当之处，敬请指出，以便我进行修正和完善。希望这篇文章能够帮助到各位。</p>
+<p>如果您的Halo数据库未出现与文中的截图一致的现象，可能是由于版本问题，麻烦您联系我升级一下数据库版本。</p>
+<p>亦或者是在测试中发现了别的问题，欢迎大家向我提供问题信息，我将尽快在新的版本中处理和解决，完善相关功能，争取给大家带来更好的使用体验。</p>
+<p>文章转载请联系，谢谢合作。</p></div>
+<div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
+
+<button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
+<div class="comments" id="comments"></div>
+
+</div>
+    <div id="footer"><div id="footer1">Copyright © <span id="copyrightYear"></span> <a href="https://Z-Xiao-M.github.io/github.io">包里装着个卡比兽</a></div>
+<div id="footer2">
+    <span id="runday"></span><span>Powered by <a href="https://meekdai.com/Gmeek.html" target="_blank">Gmeek</a></span>
+</div>
+
+<script>
+var now=new Date();
+document.getElementById("copyrightYear").innerHTML=now.getFullYear();
+
+if("08/31/2025"!=""){
+    var startSite=new Date("08/31/2025");
+    var diff=now.getTime()-startSite.getTime();
+    var diffDay=Math.floor(diff/(1000*60*60*24));
+    document.getElementById("runday").innerHTML="网站运行"+diffDay+"天"+" • ";
+}
+</script></div>
+</body>
+<script>
+var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z', 'copy': 'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z', 'check': 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'};
+var utterancesLoad=0;
+
+let themeSettings={
+    "dark": ["dark","moon","#00f0ff","dark-blue"],
+    "light": ["light","sun","#ff5000","github-light"],
+    "auto": ["auto","sync","","preferred-color-scheme"]
+};
+function changeTheme(mode, icon, color, utheme){
+    document.documentElement.setAttribute("data-color-mode",mode);
+    document.getElementById("themeSwitch").setAttribute("d",value=IconList[icon]);
+    document.getElementById("themeSwitch").parentNode.style.color=color;
+    if(utterancesLoad==1){utterancesTheme(utheme);}
+}
+function modeSwitch(){
+    let currentMode=document.documentElement.getAttribute('data-color-mode');
+    let newMode = currentMode === "light" ? "dark" : currentMode === "dark" ? "auto" : "light";
+    localStorage.setItem("meek_theme", newMode);
+    if(themeSettings[newMode]){
+        changeTheme(...themeSettings[newMode]);
+    }
+}
+function utterancesTheme(theme){
+    const message={type:'set-theme',theme: theme};
+    const iframe=document.getElementsByClassName('utterances-frame')[0];
+    iframe.contentWindow.postMessage(message,'https://utteranc.es');
+}
+if(themeSettings[theme]){changeTheme(...themeSettings[theme]);}
+console.log("\n %c Gmeek last https://github.com/Meekdai/Gmeek \n","padding:5px 0;background:#02d81d;color:#fff");
+</script>
+
+<script>
+document.getElementById("pathHome").setAttribute("d",IconList["home"]);
+document.getElementById("pathIssue").setAttribute("d",IconList["github"]);
+
+
+
+function openComments(){
+    cm=document.getElementById("comments");
+    cmButton=document.getElementById("cmButton");
+    cmButton.innerHTML="loading";
+    span=document.createElement("span");
+    span.setAttribute("class","AnimatedEllipsis");
+    cmButton.appendChild(span);
+
+    script=document.createElement("script");
+    script.setAttribute("src","https://utteranc.es/client.js");
+    script.setAttribute("repo","Z-Xiao-M/github.io");
+    script.setAttribute("issue-term","title");
+    
+    if(localStorage.getItem("meek_theme")=="dark"){script.setAttribute("theme","dark-blue");}
+    else if(localStorage.getItem("meek_theme")=="light") {script.setAttribute("theme","github-light");}
+    else{script.setAttribute("theme","preferred-color-scheme");}
+    
+    script.setAttribute("crossorigin","anonymous");
+    script.setAttribute("async","");
+    cm.appendChild(script);
+
+    int=self.setInterval("iFrameLoading()",200);
+}
+
+function iFrameLoading(){
+    var utterances=document.getElementsByClassName('utterances');
+    if(utterances.length==1){
+        if(utterances[0].style.height!=""){
+            utterancesLoad=1;
+            int=window.clearInterval(int);
+            document.getElementById("cmButton").style.display="none";
+            console.log("utterances Load OK");
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const createClipboardHTML = (codeContent, additionalClasses = '') => `
+        <pre class="notranslate"><code class="notranslate">${codeContent}</code></pre>
+        <div class="clipboard-container position-absolute right-0 top-0 ${additionalClasses}">
+            <clipboard-copy class="ClipboardButton btn m-2 p-0" role="button" style="display: inherit;">
+                <svg height="16" width="16" class="octicon octicon-copy m-2"><path d="${IconList["copy"]}"></path></svg>
+                <svg height="16" width="16" class="octicon octicon-check color-fg-success m-2 d-none"><path d="${IconList["check"]}"></path></svg>
+            </clipboard-copy>
+            <div class="copy-feedback">Copied!</div>
+        </div>
+    `;
+
+    const handleCodeElements = (selector = '') => {
+        document.querySelectorAll(selector).forEach(codeElement => {
+            const codeContent = codeElement.innerHTML;
+            const newStructure = document.createElement('div');
+            newStructure.className = 'snippet-clipboard-content position-relative overflow-auto';
+            newStructure.innerHTML = createClipboardHTML(codeContent);
+
+            const parentElement = codeElement.parentElement;
+            if (selector.includes('highlight')) {
+                parentElement.insertBefore(newStructure, codeElement.nextSibling);
+                parentElement.removeChild(codeElement);
+            } else {
+                parentElement.parentElement.replaceChild(newStructure, parentElement);
+            }
+        });
+    };
+
+    handleCodeElements('pre.notranslate > code.notranslate');
+    handleCodeElements('div.highlight > pre.notranslate');
+
+    let currentFeedback = null;
+    document.querySelectorAll('clipboard-copy').forEach(copyButton => {
+        copyButton.addEventListener('click', () => {
+            const codeContent = copyButton.closest('.snippet-clipboard-content').innerText;
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = codeContent;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            const copyIcon = copyButton.querySelector('.octicon-copy');
+            const checkIcon = copyButton.querySelector('.octicon-check');
+            const copyFeedback = copyButton.nextElementSibling;
+
+            if (currentFeedback && currentFeedback !== copyFeedback) {currentFeedback.style.display = 'none';}
+            currentFeedback = copyFeedback;
+
+            copyIcon.classList.add('d-none');
+            checkIcon.classList.remove('d-none');
+            copyFeedback.style.display = 'block';
+            copyButton.style.borderColor = 'var(--color-success-fg)';
+
+            setTimeout(() => {
+                copyIcon.classList.remove('d-none');
+                checkIcon.classList.add('d-none');
+                copyFeedback.style.display = 'none';
+                copyButton.style.borderColor = '';
+            }, 2000);
+        });
+    });
+});
+
+</script>
+
+
+</html>
