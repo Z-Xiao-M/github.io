@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html data-color-mode="light" data-dark-theme="dark_colorblind" data-light-theme="light" lang="zh-CN">
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="content-type" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link href='https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/Primer/21.0.7/primer.css' rel='stylesheet' />
+    <script src='https://blog.meekdai.com/Gmeek/plugins/GmeekVercount.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script>
+    <link rel="icon" href="https://z-xiao-m.github.io/github.io/avatar.svg"><script>
+        let theme = localStorage.getItem("meek_theme") || "light";
+        document.documentElement.setAttribute("data-color-mode", theme);
+    </script>
+<meta name="description" content="本文将向大家展示如何在羲和（Halo）数据库中使用DBMS\_SQL，本文测试案例除部分表结构和部分测试数据之外，其余均来自ORACLE官方测试文档，所有测试案例放置文章末尾以供学习使用。">
+<meta property="og:title" content="羲和（Halo）数据库——DBMS_SQL浅尝">
+<meta property="og:description" content="本文将向大家展示如何在羲和（Halo）数据库中使用DBMS\_SQL，本文测试案例除部分表结构和部分测试数据之外，其余均来自ORACLE官方测试文档，所有测试案例放置文章末尾以供学习使用。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-%E2%80%94%E2%80%94DBMS_SQL-qian-chang.html">
+<meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
+<title>羲和（Halo）数据库——DBMS_SQL浅尝</title>
+
+
+
+</head>
+<style>
+body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;padding: 45px;font-size: 16px;font-family: sans-serif;line-height: 1.25;}
+#header{display:flex;padding-bottom:8px;border-bottom: 1px solid var(--borderColor-muted, var(--color-border-muted));margin-bottom: 16px;}
+#footer {margin-top:64px; text-align: center;font-size: small;}
+
+</style>
+
+<style>
+.postTitle{margin: auto 0;font-size:40px;font-weight:bold;}
+.title-right{display:flex;margin:auto 0 0 auto;}
+.title-right .circle{padding: 14px 16px;margin-right:8px;}
+#postBody{border-bottom: 1px solid var(--color-border-default);padding-bottom:36px;}
+#postBody hr{height:2px;}
+#cmButton{height:48px;margin-top:48px;}
+#comments{margin-top:64px;}
+.g-emoji{font-size:24px;}
+@media (max-width: 600px) {
+    body {padding: 8px;}
+    .postTitle{font-size:24px;}
+}
+.copy-feedback {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    color: var(--color-fg-on-emphasis);
+    background-color: var(--color-fg-muted);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+</style>
+<style>#postBody{font-size:20px}</style>
+
+
+
+<body>
+    <div id="header">
+<h1 class="postTitle">羲和（Halo）数据库——DBMS_SQL浅尝</h1>
+<div class="title-right">
+    <a href="https://Z-Xiao-M.github.io/github.io" id="buttonHome" class="btn btn-invisible circle" title="首页">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathHome" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+    <a href="https://github.com/Z-Xiao-M/github.io/issues/15" target="_blank" class="btn btn-invisible circle" title="Issue">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathIssue" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+
+    <a class="btn btn-invisible circle" onclick="modeSwitch();" title="切换主题">
+        <svg class="octicon" width="16" height="16" >
+            <path id="themeSwitch" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+
+</div>
+</div>
+    <div id="content">
+<div class="markdown-body" id="postBody"><p>本文将向大家展示如何在羲和（Halo）数据库中使用DBMS_SQL，本文测试案例除部分表结构和部分测试数据之外，其余均来自ORACLE官方测试文档，所有测试案例放置文章末尾以供学习使用。</p>
+<p><strong>一、DBMS_SQL</strong></p>
+<p>DBMS_SQL是ORACLE数据库提供的一个系统包，用于执行动态SQL，支持使用DDL和DML等。DBMS_SQL整体运行流程图如下：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/b9503ae497348fb7587c818e81b92f05801591fcaeede0906d8833bcbaa3c4a6/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d33646233613961652d313034332d343532342d383938382d3865616135363235623764622e676966"><img src="https://camo.githubusercontent.com/b9503ae497348fb7587c818e81b92f05801591fcaeede0906d8833bcbaa3c4a6/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d33646233613961652d313034332d343532342d383938382d3865616135363235623764622e676966" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-3db3a9ae-1043-4524-8988-8eaa5625b7db.gif" style="max-width: 100%;"></a></p>
+<p>下面简单介绍一下本文中所使用到的DBMS_SQL部分接口，如果查看更为详细的介绍，建议参考ORACLE官方文档。</p>
+<ul>
+<li>
+<p><strong>OPEN_CURSOR</strong>：要处理SQL语句，必须有一个打开的游标。通过调用OPEN_CURSOR ，获取一个数据库内部的维护游标编号。当不再需要使用的时候，需要调用CLOSE_CURSOR关闭</p>
+<p>c := DBMS_SQL.OPEN_CURSOR;</p>
+</li>
+<li>
+<p><strong>PARSE</strong>：解析待执行的动态SQL语句，检查语句语法是否存在问题，并将其与程序中的游标进行关联。</p>
+<p>DBMS_SQL.PARSE(c, 'INSERT INTO tab VALUES (:bnd1, :bnd2) ' ||<br>
+'RETURNING c1*c2 INTO :bnd3', DBMS_SQL.NATIVE);</p>
+</li>
+<li>
+<p><strong>BIND_VARIABLE</strong>：用于将特定的值或变量与待执行的SQL语句中的占位符关联起来。</p>
+<p>DBMS_SQL.BIND_VARIABLE(c, 'bnd1', c1);</p>
+</li>
+<li>
+<p><strong>BIND_ARRAY</strong>：用于将数组变量与待执行的SQL 语句中的占位符关联起来。</p>
+<p>DBMS_SQL.BIND_ARRAY(c, 'bnd3', r);</p>
+</li>
+<li>
+<p><strong>DEFINE_COLUMN</strong>：用于定义待执行的SELECT语句的最终返回结果集中的列。</p>
+<p>DBMS_SQL.DEFINE_COLUMN(source_cursor, 1, id_var);</p>
+</li>
+<li>
+<p><strong>EXECUTE</strong>：用于执行已解析SQL。</p>
+<p>n := DBMS_SQL.EXECUTE(c);</p>
+</li>
+<li>
+<p><strong>FETCH_ROWS</strong>：用于从指定游标中获取一行数据。</p>
+<p>IF DBMS_SQL.FETCH_ROWS(source_cursor)&gt;0 THEN<br>
+-- get column values of the row</p>
+</li>
+<li>
+<p><strong>EXECUTE_AND_FETCH</strong>：用于执行已解析的查询SQL，并获取一行数据。</p>
+<p>r := DBMS_SQL.EXECUTE_AND_FETCH(c);</p>
+</li>
+<li>
+<p><strong>VARIABLE_VALUE</strong>：用于从带有RETURNING的SQL语句中获取绑定变量的返回数据。</p>
+<p>DBMS_SQL.VARIABLE_VALUE(c, 'bnd3', r);</p>
+</li>
+<li>
+<p><strong>COLUMN_VALUE</strong>：用于获取查询结果集中指定列的数据。</p>
+<p>DBMS_SQL.COLUMN_VALUE(c, 1, some_dnames);</p>
+</li>
+<li>
+<p><strong>CLOSE_CURSOR</strong>：终章！关闭游标。</p>
+<p>DBMS_SQL.CLOSE_CURSOR(c);</p>
+</li>
+</ul>
+<p> 接下来我将使用羲和（Halo）数据库演示上述DBMS_SQL的各个接口。</p>
+<p><strong>二、环境准备</strong></p>
+<p>羲和（Halo）数据库设置为ORACLE模式，创建一个演示数据库test_db，创建内部所需的ORACLE拓展。</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/dd7ac9ee2d0c374e6890fab5aba39f0a4f27e0398922fc0f0f772577a00769b4/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d64663132353039332d363165352d343734632d613962392d6631366632346566653634372e706e67"><img src="https://camo.githubusercontent.com/dd7ac9ee2d0c374e6890fab5aba39f0a4f27e0398922fc0f0f772577a00769b4/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d64663132353039332d363165352d343734632d613962392d6631366632346566653634372e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-df125093-61e5-474c-a9b9-f16f24efe647.png" style="max-width: 100%;"></a></p>
+<p>当需要使用oracle相关的特性，建议直接使用hsql进行登录使用。所以此处使用hsql -dtest_db，登录test_db数据库进行接下来的相关操作。</p>
+<p><strong>三、实际内容演示</strong></p>
+<ul>
+<li><strong>single_Row_insert</strong>：单行插入，插入数据"一五一十"。</li>
+</ul>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/3b684f4f01480db8d4ddbe3e02f2fb875b559f1c3629d2fc4d039fc1b017fe3c/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d39396436353731332d383762302d343562352d616139332d3162373165613331316661392e706e67"><img src="https://camo.githubusercontent.com/3b684f4f01480db8d4ddbe3e02f2fb875b559f1c3629d2fc4d039fc1b017fe3c/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d39396436353731332d383762302d343562352d616139332d3162373165613331316661392e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-99d65713-87b0-45b5-aa93-1b71ea311fa9.png" style="max-width: 100%;"></a></p>
+<ul>
+<li><strong>single_Row_update</strong>：将数据更新成5，5。</li>
+</ul>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/075149a557e7d233be643a0ca661f44b06fddf073e758427aceae7458cb341e2/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d33333634303361392d336366312d343934652d623836312d3563396164623737653838342e706e67"><img src="https://camo.githubusercontent.com/075149a557e7d233be643a0ca661f44b06fddf073e758427aceae7458cb341e2/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d33333634303361392d336366312d343934652d623836312d3563396164623737653838342e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-336403a9-3cf1-494e-b861-5c9adb77e884.png" style="max-width: 100%;"></a></p>
+<ul>
+<li><strong>single_Row_Delete</strong>: 删除一行数据</li>
+</ul>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/e469a0a8b45de5ba10f3ee1d9c04028c12bd7c2ebee9e63d031caaa5048104bd/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d34303133653461342d616137382d343165322d396165612d6138306262363661323836302e706e67"><img src="https://camo.githubusercontent.com/e469a0a8b45de5ba10f3ee1d9c04028c12bd7c2ebee9e63d031caaa5048104bd/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d34303133653461342d616137382d343165322d396165612d6138306262363661323836302e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-4013e4a4-aa78-41e2-9aea-a80bb66a2860.png" style="max-width: 100%;"></a></p>
+<ul>
+<li><strong>Multiple-row insert</strong>: 往c1中插入10、20、30，c2中插入11、21、31</li>
+</ul>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/d45e6b68bdcd8c573e9bcbfd2b7c4425d98ca9f5e875542dace0a44658a86aa2/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d39396435646137372d313561302d343665612d393364332d3836656433663862633830322e706e67"><img src="https://camo.githubusercontent.com/d45e6b68bdcd8c573e9bcbfd2b7c4425d98ca9f5e875542dace0a44658a86aa2/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d39396435646137372d313561302d343665612d393364332d3836656433663862633830322e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-99d5da77-15a0-46ea-93d3-86ed3f8bc802.png" style="max-width: 100%;"></a></p>
+<p>为multi_Row_update做准备，再次运行multi_Row_insert插入重复数据。</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/b691bfd18e5bb72bf0c111f0a432d79b3c12649d78374a3ee831968c36003d8f/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d62663765663731362d346539352d343363372d393031392d6231663831616635653136322e706e67"><img src="https://camo.githubusercontent.com/b691bfd18e5bb72bf0c111f0a432d79b3c12649d78374a3ee831968c36003d8f/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d62663765663731362d346539352d343363372d393031392d6231663831616635653136322e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-bf7ef716-4e95-43c7-9019-b1f81af5e162.png" style="max-width: 100%;"></a></p>
+<ul>
+<li><strong>multi_Row_update</strong>：将c2为11，对应的c1更新成100</li>
+</ul>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/9db854c6e27d155d1397c73d39d8cec06fa3812cd6480f10ec78a6fee119f805/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d36643031656231652d363564362d343961662d623364372d3361353861313764616364362e706e67"><img src="https://camo.githubusercontent.com/9db854c6e27d155d1397c73d39d8cec06fa3812cd6480f10ec78a6fee119f805/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d36643031656231652d363564362d343961662d623364372d3361353861313764616364362e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-6d01eb1e-65d6-49af-b3d7-3a58a17dacd6.png" style="max-width: 100%;"></a></p>
+<ul>
+<li><strong>Multiple-row delete</strong>：多行删除</li>
+</ul>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/8f70378a6990128d338929aa57fee0b4cc4bdb02d0600ef25c6acdd1c6a24d32/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d65636536613939652d343763372d346134372d396461652d3963356162303239363930302e706e67"><img src="https://camo.githubusercontent.com/8f70378a6990128d338929aa57fee0b4cc4bdb02d0600ef25c6acdd1c6a24d32/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d65636536613939652d343763372d346134372d396461652d3963356162303239363930302e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-ece6a99e-47c7-4a47-9dae-9c5ab0296900.png" style="max-width: 100%;"></a></p>
+<ul>
+<li><strong>exec</strong>：支持运行DDL和没有绑定参数的DML语句。</li>
+</ul>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/f8edc0f3a2869ba9296c631c3e70c172fd3d0118e84e3b2d37849d3f0677a0ef/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d39316663623539362d633464312d343264332d386236332d6266343064383766653837632e706e67"><img src="https://camo.githubusercontent.com/f8edc0f3a2869ba9296c631c3e70c172fd3d0118e84e3b2d37849d3f0677a0ef/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d39316663623539362d633464312d343264332d386236332d6266343064383766653837632e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-91fcb596-c4d1-42d3-8b63-bf40d87fe87c.png" style="max-width: 100%;"></a></p>
+<ul>
+<li><strong>copy</strong>：将源表中的数据复制到目标表，这个存储过程有助于帮助大家理解和使用DBMS_SQL。</li>
+</ul>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/b362ea047d8fc22d4d3a395a8b601a2a5fd73cc2aedaf9ffa5a9f6ab40f33215/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d36643163616462312d653734372d343839382d616663622d3934343465396431623133362e706e67"><img src="https://camo.githubusercontent.com/b362ea047d8fc22d4d3a395a8b601a2a5fd73cc2aedaf9ffa5a9f6ab40f33215/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d36643163616462312d653734372d343839382d616663622d3934343465396431623133362e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-6d1cadb1-e747-4898-afcb-9444e9d1b136.png" style="max-width: 100%;"></a></p>
+<p>有点长...</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/63fdfbaf4e4f08063204c8c429a73ce7296d7da2d0923fa9c7de46d49a184cec/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d62313763323830382d656239312d346538332d393137352d6164633336313635326161632e706e67"><img src="https://camo.githubusercontent.com/63fdfbaf4e4f08063204c8c429a73ce7296d7da2d0923fa9c7de46d49a184cec/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303130362d62313763323830382d656239312d346538332d393137352d6164633336313635326161632e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240106-b17c2808-eb91-4e83-9175-adc361652aac.png" style="max-width: 100%;"></a></p>
+<p>至此，对于DBMS_SQL的相关简单演示就到此结束了。若文中存在错误或不当之处，敬请指出，以便我进行修正和完善。本文所有测试案例在文末供大家在ORACLE数据库上学习使用。</p>
+<p><strong>四、相关网站链接</strong></p>
+<blockquote>
+<p><a href="https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQL.html#GUID-E9BAA1FD-DBAC-453F-8674-162B10133505" rel="nofollow">https://docs.oracle.com/en/database/oracle/oracle-database/19/arpls/DBMS_SQL.html#GUID-E9BAA1FD-DBAC-453F-8674-162B10133505</a></p>
+</blockquote>
+<p><strong>五、测试SQL语句</strong></p>
+<p>本文所用SQL语句如下：</p>
+<pre class="notranslate"><code class="notranslate">-- 单行插入
+CREATE TABLE tab(c1 NUMBER, c2 NUMBER);  -- 依据ORACLE测试案例 创建tab表
+
+CREATE OR REPLACE PROCEDURE single_Row_insert
+     (c1 NUMBER, c2 NUMBER, r OUT NUMBER) is
+c NUMBER;
+n NUMBER;
+begin
+  c := DBMS_SQL.OPEN_CURSOR;
+  DBMS_SQL.PARSE(c, 'INSERT INTO tab VALUES (:bnd1, :bnd2) ' ||
+                    'RETURNING c1*c2 INTO :bnd3', DBMS_SQL.NATIVE);
+DBMS_SQL.BIND_VARIABLE(c, 'bnd1', c1);
+  DBMS_SQL.BIND_VARIABLE(c, 'bnd2', c2);
+  DBMS_SQL.BIND_VARIABLE(c, 'bnd3', r);
+  n := DBMS_SQL.EXECUTE(c); 
+  DBMS_SQL.VARIABLE_VALUE(c, 'bnd3', r); -- get value of outbind variable
+  DBMS_SQL.CLOSE_CURSOR(c);
+END;
+/
+
+declare
+c3 number(7,2);
+begin
+single_Row_insert(5, 10, c3);
+dbms_output.put_line('c3 = '|| c3);
+end;
+/
+
+select * from tab;
+
+-- 单行更新
+CREATE OR REPLACE PROCEDURE single_Row_update
+       (c1 NUMBER, c2 NUMBER, r out NUMBER) IS
+  c NUMBER;
+  n NUMBER;
+  BEGIN
+    c := DBMS_SQL.OPEN_CURSOR;
+    DBMS_SQL.PARSE(c, 'UPDATE tab SET c1 = :bnd1, c2 = :bnd2 ' ||
+                      'WHERE rownum &lt; 2' || 
+                      'RETURNING c1*c2 INTO :bnd3', DBMS_SQL.NATIVE);
+    DBMS_SQL.BIND_VARIABLE(c, 'bnd1', c1);
+    DBMS_SQL.BIND_VARIABLE(c, 'bnd2', c2);
+    DBMS_SQL.BIND_VARIABLE(c, 'bnd3', r);
+    n := DBMS_SQL.EXECUTE(c); 
+    DBMS_SQL.VARIABLE_VALUE(c, 'bnd3', r);-- get value of outbind variable
+    DBMS_SQL.CLOSE_CURSOR(c);
+  END;
+/
+
+-- 调用single_Row_update
+declare
+c3 number(7,2);
+begin
+single_Row_update(5, 5, c3);  
+dbms_output.put_line('c3 = '|| c3);
+end;
+/
+-- 查看数据是否更新成功
+select * from tab;
+
+
+
+-- 单行删除
+CREATE OR REPLACE PROCEDURE single_Row_Delete
+     (c1 NUMBER, r OUT NUMBER) is
+c NUMBER;
+n number;
+BEGIN
+  c := DBMS_SQL.OPEN_CURSOR;
+  DBMS_SQL.PARSE(c, 'DELETE FROM tab WHERE ROWNUM = :bnd1 ' ||
+                'RETURNING c1*c2 INTO :bnd2', DBMS_SQL.NATIVE);
+  DBMS_SQL.BIND_VARIABLE(c, 'bnd1', c1);
+  DBMS_SQL.BIND_VARIABLE(c, 'bnd2', r);
+  n := DBMS_SQL.EXECUTE(c); 
+  DBMS_SQL.VARIABLE_VALUE(c, 'bnd2', r);-- get value of outbind variable
+  DBMS_SQL.CLOSE_CURSOR(c);
+END;
+/
+ 
+-- 调用single_Row_Delete
+declare
+c3 number(7,2);
+begin
+single_Row_Delete(1, c3);  -- ROWNUM = 1 删除一行数据
+dbms_output.put_line('c3 = '|| c3);
+end;
+/
+-- 查看删除结果
+select * from tab;
+
+-- 插入多行
+CREATE OR REPLACE PROCEDURE multi_Row_insert
+     (c1 DBMS_SQL.NUMBER_TABLE, c2 DBMS_SQL.NUMBER_TABLE, 
+      r OUT DBMS_SQL.NUMBER_TABLE) is
+c NUMBER;
+n NUMBER;
+BEGIN
+  c := DBMS_SQL.OPEN_CURSOR;
+  DBMS_SQL.PARSE(c, 'insert into tab VALUES (:bnd1, :bnd2) ' ||
+                    'RETURNING c1*c2 INTO :bnd3', DBMS_SQL.NATIVE);
+  DBMS_SQL.BIND_ARRAY(c, 'bnd1', c1);
+  DBMS_SQL.BIND_ARRAY(c, 'bnd2', c2);
+  DBMS_SQL.BIND_ARRAY(c, 'bnd3', r);
+  n := DBMS_SQL.EXECUTE(c); 
+  DBMS_SQL.VARIABLE_VALUE(c, 'bnd3', r);-- get value of outbind variable
+  DBMS_SQL.CLOSE_CURSOR(c);
+END;
+/
+
+
+-- 调用multi_Row_insert
+DECLARE  
+  my_number_table DBMS_SQL.NUMBER_TABLE;  
+  my_number_table2 DBMS_SQL.NUMBER_TABLE;  
+  my_number_table3 DBMS_SQL.NUMBER_TABLE;  
+BEGIN  
+  my_number_table(1) := 10;  
+  my_number_table(2) := 20;  
+  my_number_table(3) := 30;  
+
+  my_number_table2(1) := 11;  
+  my_number_table2(2) := 21;  
+  my_number_table2(3) := 31;  
+  multi_Row_insert(my_number_table,my_number_table2,my_number_table3);
+
+  -- 查看my_number_table3数据
+  for i in 1 .. my_number_table3.count loop 
+  dbms_output.put_line('c1*c2 = ' || my_number_table3(i));
+  end loop;
+END;
+/
+
+-- 查看数据是否插入成功
+select * from tab;
+
+-- 再次调用multi_Row_insert 为multi_Row_update做准备
+DECLARE  
+  my_number_table DBMS_SQL.NUMBER_TABLE;  
+  my_number_table2 DBMS_SQL.NUMBER_TABLE;  
+  my_number_table3 DBMS_SQL.NUMBER_TABLE;  
+BEGIN  
+  my_number_table(1) := 10;  
+  my_number_table(2) := 20;  
+  my_number_table(3) := 30;  
+
+  my_number_table2(1) := 11;  
+  my_number_table2(2) := 21;  
+  my_number_table2(3) := 31;  
+  multi_Row_insert(my_number_table,my_number_table2,my_number_table3);
+
+  -- 查看my_number_table3数据
+  for i in 1 .. my_number_table3.count loop 
+  dbms_output.put_line('c1*c2 = ' || my_number_table3(i));
+  end loop;
+END;
+/
+
+-- 查看数据 
+select * from tab;
+
+
+
+-- 多行更新
+CREATE OR REPLACE PROCEDURE multi_Row_update
+     (c1 NUMBER, c2 NUMBER, r OUT DBMS_SQL.NUMBER_TABLE) IS
+c NUMBER;
+n NUMBER;
+BEGIN
+  c := DBMS_SQL.OPEN_CURSOR;
+  DBMS_SQL.PARSE(c, 'UPDATE tab SET c1 = :bnd1 WHERE c2 = :bnd2 ' ||
+                    'RETURNING c1*c2 INTO :bnd3', DBMS_SQL.NATIVE);
+  DBMS_SQL.BIND_VARIABLE(c, 'bnd1', c1);
+  DBMS_SQL.BIND_VARIABLE(c, 'bnd2', c2);
+  DBMS_SQL.BIND_ARRAY(c, 'bnd3', r);
+  n := DBMS_SQL.EXECUTE(c); 
+  DBMS_SQL.VARIABLE_VALUE(c, 'bnd3', r);-- get value of outbind variable
+  DBMS_SQL.CLOSE_CURSOR(c);
+END;
+/
+
+-- 调用multi_Row_update
+DECLARE   
+    my_number_table3 DBMS_SQL.NUMBER_TABLE;  
+BEGIN  
+  multi_Row_update(100, 11, my_number_table3);
+
+  for i in 1 .. my_number_table3.count loop 
+  dbms_output.put_line(' cur value := ' || my_number_table3(i));
+  end loop;
+END;
+/
+
+-- 查看是否更新成功
+select * from tab;
+
+-- 多行删除
+CREATE OR REPLACE PROCEDURE multi_row_delete
+     (c1 DBMS_SQL.NUMBER_TABLE,
+      r OUT DBMS_SQL.NUMBER_TABLE) is
+c NUMBER;
+n NUMBER;
+BEGIN
+  c := DBMS_SQL.OPEN_CURSOR;
+  DBMS_SQL.PARSE(c, 'DELETE FROM tab WHERE c1 = :bnd1 ' ||
+                    'RETURNING c1*c2 INTO :bnd2', DBMS_SQL.NATIVE);
+  DBMS_SQL.BIND_ARRAY(c, 'bnd1', c1);
+  DBMS_SQL.BIND_ARRAY(c, 'bnd2', r);
+  n := DBMS_SQL.EXECUTE(c); 
+  DBMS_SQL.VARIABLE_VALUE(c, 'bnd2', r);-- get value of outbind variable
+  DBMS_SQL.CLOSE_CURSOR(c);
+END;
+/
+
+-- 调用multi_Row_delete
+DECLARE                                  
+  my_number_table DBMS_SQL.NUMBER_TABLE;   
+    my_number_table3 DBMS_SQL.NUMBER_TABLE;  
+BEGIN                               
+  my_number_table(1) := 100;  
+  my_number_table(2) := 20;  
+  my_number_table(3) := 30;  
+                                 
+  multi_Row_delete(my_number_table, my_number_table3);
+   
+  for i in 1 .. my_number_table3.count loop 
+  dbms_output.put_line('c1*c2 = ' || my_number_table3(i));
+  end loop;
+END;
+/
+
+-- 查看是否删除成功
+select * from tab;
+
+-- exec 
+ CREATE OR REPLACE PROCEDURE exec(STRING IN varchar2) AS
+    cursor_name NUMBER;
+    ret INTEGER;
+BEGIN
+   cursor_name := DBMS_SQL.OPEN_CURSOR;
+   DBMS_SQL.PARSE(cursor_name, string, DBMS_SQL.NATIVE);
+   ret := DBMS_SQL.EXECUTE(cursor_name);
+   DBMS_SQL.CLOSE_CURSOR(cursor_name);
+END;
+/
+
+call exec('create table acct(id NUMBER, name VARCHAR2(30), birthdate DATE)');
+-- 2024年了...
+insert into acct values(1, 'acct1', TO_DATE('2024-01-01', 'YYYY-MM-DD'));
+insert into acct values(2, 'acct2', TO_DATE('2024-01-02', 'YYYY-MM-DD'));
+insert into acct values(3, 'acct3', TO_DATE('2024-01-03', 'YYYY-MM-DD'));
+insert into acct values(4, 'acct4', TO_DATE('2024-01-04', 'YYYY-MM-DD'));
+
+-- 设置date输出显示格式
+alter session set nls_date_format='DD-MON-YY';
+select * from acct;
+
+-- copy 
+-- 准备目标表
+create table acct_test(id NUMBER, name VARCHAR2(30), birthdate DATE);
+
+CREATE OR REPLACE PROCEDURE copy ( 
+     source      IN VARCHAR2, 
+     destination IN VARCHAR2) IS 
+     id_var             NUMBER; 
+     name_var           VARCHAR2(30); 
+     birthdate_var      DATE; 
+     source_cursor      INTEGER; 
+     destination_cursor INTEGER; 
+     ignore             INTEGER; 
+  BEGIN 
+ 
+  -- Prepare a cursor to select from the source table: 
+     source_cursor := dbms_sql.open_cursor; 
+     DBMS_SQL.PARSE(source_cursor, 
+         'SELECT id, name, birthdate FROM ' || source, 
+          DBMS_SQL.NATIVE); 
+     DBMS_SQL.DEFINE_COLUMN(source_cursor, 1, id_var); 
+     DBMS_SQL.DEFINE_COLUMN(source_cursor, 2, name_var, 30); 
+     DBMS_SQL.DEFINE_COLUMN(source_cursor, 3, birthdate_var); 
+     ignore := DBMS_SQL.EXECUTE(source_cursor); 
+ 
+  -- Prepare a cursor to insert into the destination table: 
+     destination_cursor := DBMS_SQL.OPEN_CURSOR; 
+     DBMS_SQL.PARSE(destination_cursor, 
+                  'INSERT INTO ' || destination || 
+                  ' VALUES (:id_bind, :name_bind, :birthdate_bind)', 
+                   DBMS_SQL.NATIVE); 
+ 
+  -- Fetch a row from the source table and insert it into the destination table: 
+     LOOP 
+       IF DBMS_SQL.FETCH_ROWS(source_cursor)&gt;0 THEN 
+         -- get column values of the row 
+         DBMS_SQL.COLUMN_VALUE(source_cursor, 1, id_var); 
+         DBMS_SQL.COLUMN_VALUE(source_cursor, 2, name_var); 
+         DBMS_SQL.COLUMN_VALUE(source_cursor, 3, birthdate_var); 
+ 
+  -- Bind the row into the cursor that inserts into the destination table. You 
+  -- could alter this example to require the use of dynamic SQL by inserting an 
+  -- if condition before the bind. 
+        DBMS_SQL.BIND_VARIABLE(destination_cursor, ':id_bind', id_var); 
+        DBMS_SQL.BIND_VARIABLE(destination_cursor, ':name_bind', name_var); 
+        DBMS_SQL.BIND_VARIABLE(destination_cursor, ':birthdate_bind', 
+                                                                   birthdate_var); 
+        ignore := DBMS_SQL.EXECUTE(destination_cursor); 
+      ELSE 
+ 
+  -- No more rows to copy: 
+        EXIT; 
+      END IF; 
+    END LOOP; 
+ 
+  -- Commit and close all cursors: 
+     COMMIT; 
+     DBMS_SQL.CLOSE_CURSOR(source_cursor); 
+     DBMS_SQL.CLOSE_CURSOR(destination_cursor); 
+   EXCEPTION 
+     WHEN OTHERS THEN 
+       IF DBMS_SQL.IS_OPEN(source_cursor) THEN 
+         DBMS_SQL.CLOSE_CURSOR(source_cursor); 
+       END IF; 
+       IF DBMS_SQL.IS_OPEN(destination_cursor) THEN 
+         DBMS_SQL.CLOSE_CURSOR(destination_cursor); 
+       END IF; 
+       RAISE; 
+  END; 
+/  
+
+-- 运行copy
+exec copy('acct','acct_test');
+select * from acct_test;
+</code></pre></div>
+<div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
+
+<button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
+<div class="comments" id="comments"></div>
+
+</div>
+    <div id="footer"><div id="footer1">Copyright © <span id="copyrightYear"></span> <a href="https://Z-Xiao-M.github.io/github.io">包里装着个卡比兽</a></div>
+<div id="footer2">
+    <span id="runday"></span><span>Powered by <a href="https://meekdai.com/Gmeek.html" target="_blank">Gmeek</a></span>
+</div>
+
+<script>
+var now=new Date();
+document.getElementById("copyrightYear").innerHTML=now.getFullYear();
+
+if("08/31/2025"!=""){
+    var startSite=new Date("08/31/2025");
+    var diff=now.getTime()-startSite.getTime();
+    var diffDay=Math.floor(diff/(1000*60*60*24));
+    document.getElementById("runday").innerHTML="网站运行"+diffDay+"天"+" • ";
+}
+</script></div>
+</body>
+<script>
+var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z', 'copy': 'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z', 'check': 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'};
+var utterancesLoad=0;
+
+let themeSettings={
+    "dark": ["dark","moon","#00f0ff","dark-blue"],
+    "light": ["light","sun","#ff5000","github-light"],
+    "auto": ["auto","sync","","preferred-color-scheme"]
+};
+function changeTheme(mode, icon, color, utheme){
+    document.documentElement.setAttribute("data-color-mode",mode);
+    document.getElementById("themeSwitch").setAttribute("d",value=IconList[icon]);
+    document.getElementById("themeSwitch").parentNode.style.color=color;
+    if(utterancesLoad==1){utterancesTheme(utheme);}
+}
+function modeSwitch(){
+    let currentMode=document.documentElement.getAttribute('data-color-mode');
+    let newMode = currentMode === "light" ? "dark" : currentMode === "dark" ? "auto" : "light";
+    localStorage.setItem("meek_theme", newMode);
+    if(themeSettings[newMode]){
+        changeTheme(...themeSettings[newMode]);
+    }
+}
+function utterancesTheme(theme){
+    const message={type:'set-theme',theme: theme};
+    const iframe=document.getElementsByClassName('utterances-frame')[0];
+    iframe.contentWindow.postMessage(message,'https://utteranc.es');
+}
+if(themeSettings[theme]){changeTheme(...themeSettings[theme]);}
+console.log("\n %c Gmeek last https://github.com/Meekdai/Gmeek \n","padding:5px 0;background:#02d81d;color:#fff");
+</script>
+
+<script>
+document.getElementById("pathHome").setAttribute("d",IconList["home"]);
+document.getElementById("pathIssue").setAttribute("d",IconList["github"]);
+cmButton=document.getElementById("cmButton");
+    span=document.createElement("span");
+    span.setAttribute("class","Counter");
+    span.innerHTML="1";
+    cmButton.appendChild(span);
+
+
+function openComments(){
+    cm=document.getElementById("comments");
+    cmButton=document.getElementById("cmButton");
+    cmButton.innerHTML="loading";
+    span=document.createElement("span");
+    span.setAttribute("class","AnimatedEllipsis");
+    cmButton.appendChild(span);
+
+    script=document.createElement("script");
+    script.setAttribute("src","https://utteranc.es/client.js");
+    script.setAttribute("repo","Z-Xiao-M/github.io");
+    script.setAttribute("issue-term","title");
+    
+    if(localStorage.getItem("meek_theme")=="dark"){script.setAttribute("theme","dark-blue");}
+    else if(localStorage.getItem("meek_theme")=="light") {script.setAttribute("theme","github-light");}
+    else{script.setAttribute("theme","preferred-color-scheme");}
+    
+    script.setAttribute("crossorigin","anonymous");
+    script.setAttribute("async","");
+    cm.appendChild(script);
+
+    int=self.setInterval("iFrameLoading()",200);
+}
+
+function iFrameLoading(){
+    var utterances=document.getElementsByClassName('utterances');
+    if(utterances.length==1){
+        if(utterances[0].style.height!=""){
+            utterancesLoad=1;
+            int=window.clearInterval(int);
+            document.getElementById("cmButton").style.display="none";
+            console.log("utterances Load OK");
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const createClipboardHTML = (codeContent, additionalClasses = '') => `
+        <pre class="notranslate"><code class="notranslate">${codeContent}</code></pre>
+        <div class="clipboard-container position-absolute right-0 top-0 ${additionalClasses}">
+            <clipboard-copy class="ClipboardButton btn m-2 p-0" role="button" style="display: inherit;">
+                <svg height="16" width="16" class="octicon octicon-copy m-2"><path d="${IconList["copy"]}"></path></svg>
+                <svg height="16" width="16" class="octicon octicon-check color-fg-success m-2 d-none"><path d="${IconList["check"]}"></path></svg>
+            </clipboard-copy>
+            <div class="copy-feedback">Copied!</div>
+        </div>
+    `;
+
+    const handleCodeElements = (selector = '') => {
+        document.querySelectorAll(selector).forEach(codeElement => {
+            const codeContent = codeElement.innerHTML;
+            const newStructure = document.createElement('div');
+            newStructure.className = 'snippet-clipboard-content position-relative overflow-auto';
+            newStructure.innerHTML = createClipboardHTML(codeContent);
+
+            const parentElement = codeElement.parentElement;
+            if (selector.includes('highlight')) {
+                parentElement.insertBefore(newStructure, codeElement.nextSibling);
+                parentElement.removeChild(codeElement);
+            } else {
+                parentElement.parentElement.replaceChild(newStructure, parentElement);
+            }
+        });
+    };
+
+    handleCodeElements('pre.notranslate > code.notranslate');
+    handleCodeElements('div.highlight > pre.notranslate');
+
+    let currentFeedback = null;
+    document.querySelectorAll('clipboard-copy').forEach(copyButton => {
+        copyButton.addEventListener('click', () => {
+            const codeContent = copyButton.closest('.snippet-clipboard-content').innerText;
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = codeContent;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            const copyIcon = copyButton.querySelector('.octicon-copy');
+            const checkIcon = copyButton.querySelector('.octicon-check');
+            const copyFeedback = copyButton.nextElementSibling;
+
+            if (currentFeedback && currentFeedback !== copyFeedback) {currentFeedback.style.display = 'none';}
+            currentFeedback = copyFeedback;
+
+            copyIcon.classList.add('d-none');
+            checkIcon.classList.remove('d-none');
+            copyFeedback.style.display = 'block';
+            copyButton.style.borderColor = 'var(--color-success-fg)';
+
+            setTimeout(() => {
+                copyIcon.classList.remove('d-none');
+                checkIcon.classList.add('d-none');
+                copyFeedback.style.display = 'none';
+                copyButton.style.borderColor = '';
+            }, 2000);
+        });
+    });
+});
+
+</script>
+
+
+</html>
