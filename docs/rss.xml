@@ -1,5 +1,26 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Mon, 01 Sep 2025 06:30:19 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>外国CTO也感兴趣的开源数据库项目——openHalo</title><link>https://Z-Xiao-M.github.io/github.io/post/wai-guo-CTO-ye-gan-xing-qu-de-kai-yuan-shu-ju-ku-xiang-mu-%E2%80%94%E2%80%94openHalo.html</link><description>一、openHalo
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Mon, 01 Sep 2025 06:30:53 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>没有from是否能够执行count操作</title><link>https://Z-Xiao-M.github.io/github.io/post/mei-you-from-shi-fou-neng-gou-zhi-xing-count-cao-zuo.html</link><description>一、场景构建
+======
+
+这是一个非常简单的场景，这里存在一张表，表名t，往其中随便插入三行数据，然后执行查询语句：`select count(*) from t;`
+
+    create table t(id integer);
+    insert into t values(1),(2),(3);
+    select count(*) from t;
+
+执行结果
+
+    postgres=# create table t(id integer);
+    CREATE TABLE
+    postgres=# insert into t values(1),(2),(3);
+    INSERT 0 3
+    postgres=# select count(*) from t;
+     count 
+    -------
+         3
+    (1 row)
+
+可以看到执行count结果为3，这在正常不过了。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/mei-you-from-shi-fou-neng-gou-zhi-xing-count-cao-zuo.html</guid><pubDate>Mon, 01 Sep 2025 06:30:27 +0000</pubDate></item><item><title>外国CTO也感兴趣的开源数据库项目——openHalo</title><link>https://Z-Xiao-M.github.io/github.io/post/wai-guo-CTO-ye-gan-xing-qu-de-kai-yuan-shu-ju-ku-xiang-mu-%E2%80%94%E2%80%94openHalo.html</link><description>一、openHalo
 ==========
 
 大概三个礼拜前，也就是四月一（愚人节）的时候，我们将羲和（Halo）数据库关于MySQL兼容能力这一块，独立做成了一个项目，并且在github上开源了出去。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wai-guo-CTO-ye-gan-xing-qu-de-kai-yuan-shu-ju-ku-xiang-mu-%E2%80%94%E2%80%94openHalo.html</guid><pubDate>Mon, 01 Sep 2025 06:29:44 +0000</pubDate></item><item><title>PostgreSQL——关于autocommit功能的实现</title><link>https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%E2%80%94%E2%80%94-guan-yu-autocommit-gong-neng-de-shi-xian.html</link><description>一、前言
