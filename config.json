@@ -13,12 +13,12 @@
     "dayTheme":"dark",
     "nightTheme":"dark-blue",
     "urlMode":"pinyin",
-    "style":"",
+    "style":"<style>#postBody{font-size:20px}</style>",
     "head":"",
-    "indexStyle":"<style>#postBody {font-size: 20px;}.postTitle {white-space: normal;word-wrap: break-word;max-width: 100%;}</style>",
+    "indexStyle":"",
     "indexScript":"",
     "onePageListNum":20,
     "bottomText":"❤️ 转载文章请注明出处，谢谢！❤️",
-    "allHead":"<script src='https://blog.meekdai.com/Gmeek/plugins/GmeekVercount.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script>",
+    "allHead":"<script src='https://blog.meekdai.com/Gmeek/plugins/GmeekVercount.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script><style>body[data-ui-pending] #content {opacity:0;transition:opacity 0.3s ease;}</style><script>document.documentElement.setAttribute('data-ui-pending','true');</script><link rel='stylesheet' href='https://code.buxiantang.top/assets/GmeekBaseTheme.css'><script src='https://code.buxiantang.top/assets/GmeekCustomizeCss.js' defer></script>",
     "primerCSS":"<link href='https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/Primer/21.0.7/primer.css' rel='stylesheet' />"
 }
