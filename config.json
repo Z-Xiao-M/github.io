@@ -13,7 +13,7 @@
     "dayTheme":"dark",
     "nightTheme":"dark-blue",
     "urlMode":"pinyin",
-    "style":"<style>#postBody{font-size:20px}</style>",
+    "style":"<style>#postBody{font-size:20px}<style>.postTitle{white-space: normal; word-wrap: break-word; max-width: 100%;}</style>",
     "head":"",
     "indexStyle":"",
     "indexScript":"",
