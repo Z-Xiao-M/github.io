@@ -1,5 +1,89 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Mon, 01 Sep 2025 07:15:30 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>Oracle"特色"——常量/变量充当函数入参默认值</title><link>https://Z-Xiao-M.github.io/github.io/post/Oracle--te-se--%E2%80%94%E2%80%94-chang-liang---bian-liang-chong-dang-han-shu-ru-can-mo-ren-zhi.html</link><description>诚如今天的主题所言：'同学，你能接受常量/变量充当函数入参默认值吗？'
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Mon, 01 Sep 2025 08:11:55 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>两表别名一致能做关联查询吗？</title><link>https://Z-Xiao-M.github.io/github.io/post/liang-biao-bie-ming-yi-zhi-neng-zuo-guan-lian-cha-xun-ma-%EF%BC%9F.html</link><description>### 两表别名一致能做关联查询吗
+按照正常的理解，一般是不能的，就像PostgreSQL
+```sql
+postgres=# create table t10(id1 int, name1 varchar(32));
+CREATE TABLE
+postgres=# create table t11(id2 int, name2 varchar(32));
+CREATE TABLE
+postgres=# insert into t10 values(1,'test1');
+INSERT 0 1
+postgres=# insert into t10 values(2,'test2');
+INSERT 0 1
+postgres=# insert into t11 values(1,'test3');
+INSERT 0 1
+postgres=# select bc.name2 from t10 bc left join t11 bc on bc.id1 = bc.id2;
+ERROR:  table name 'bc' specified more than once
+postgres=# 
+```
+但是Oracle不一样，它还真能执行，执行结果如下
+
+```sql
+SQL&gt; create table t10(id1 int, name1 varchar2(32));
+
+Table created.
+
+SQL&gt; create table t11(id2 int, name2 varchar2(32));
+
+Table created.
+
+SQL&gt; insert into t10 values(1,'test1');
+
+1 row created.
+
+SQL&gt; insert into t10 values(2,'test2');
+
+1 row created.
+
+SQL&gt; insert into t11 values(1,'test3');
+
+1 row created.
+
+SQL&gt; EXPLAIN PLAN FOR select bc.name2 from t10 bc left join t11 bc on bc.id1 = bc.id2;
+
+Explained.
+
+SQL&gt; SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+
+PLAN_TABLE_OUTPUT
+--------------------------------------------------------------------------------
+Plan hash value: 1151093956
+
+---------------------------------------------------------------------------
+| Id  | Operation          | Name | Rows  | Bytes | Cost (%CPU)| Time     |
+---------------------------------------------------------------------------
+|   0 | SELECT STATEMENT   |      |     2 |    88 |     6   (0)| 00:00:01 |
+|*  1 |  HASH JOIN OUTER   |      |     2 |    88 |     6   (0)| 00:00:01 |
+|   2 |   TABLE ACCESS FULL| T10  |     2 |    26 |     3   (0)| 00:00:01 |
+|   3 |   TABLE ACCESS FULL| T11  |     1 |    31 |     3   (0)| 00:00:01 |
+---------------------------------------------------------------------------
+
+
+PLAN_TABLE_OUTPUT
+--------------------------------------------------------------------------------
+Predicate Information (identified by operation id):
+---------------------------------------------------
+
+   1 - access('BC'.'ID1'='BC'.'ID2'(+))
+
+Note
+-----
+   - dynamic statistics used: dynamic sampling (level=2)
+
+19 rows selected.
+
+SQL&gt; select bc.name2 from t10 bc left join t11 bc on bc.id1 = bc.id2;
+
+NAME2
+--------------------------------------------------------------------------------
+test3
+
+
+SQL&gt; 
+``` 
+想不通oracle为什么要支持这种写法，此处用作记录~
+
+。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/liang-biao-bie-ming-yi-zhi-neng-zuo-guan-lian-cha-xun-ma-%EF%BC%9F.html</guid><pubDate>Mon, 01 Sep 2025 08:11:22 +0000</pubDate></item><item><title>Oracle"特色"——常量/变量充当函数入参默认值</title><link>https://Z-Xiao-M.github.io/github.io/post/Oracle--te-se--%E2%80%94%E2%80%94-chang-liang---bian-liang-chong-dang-han-shu-ru-can-mo-ren-zhi.html</link><description>诚如今天的主题所言：'同学，你能接受常量/变量充当函数入参默认值吗？'
 
 在PL/SQL中，函数入参默认值不就是输入参数类型后面的DEFAULT，就好比示例中的256，通常来说都是一个写定了的数据值。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/Oracle--te-se--%E2%80%94%E2%80%94-chang-liang---bian-liang-chong-dang-han-shu-ru-can-mo-ren-zhi.html</guid><pubDate>Mon, 01 Sep 2025 07:15:05 +0000</pubDate></item><item><title>Oracle"特色"——自定义带默认值的复合类型</title><link>https://Z-Xiao-M.github.io/github.io/post/Oracle--te-se--%E2%80%94%E2%80%94-zi-ding-yi-dai-mo-ren-zhi-de-fu-he-lei-xing.html</link><description>今天的这个主题就很显而易见了，这个我觉得怪怪的想要进行分享的原因是：
 
