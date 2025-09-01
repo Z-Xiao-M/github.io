@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Mon, 01 Sep 2025 06:33:28 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>聊聊pg_bulkload的大概的实现逻辑</title><link>https://Z-Xiao-M.github.io/github.io/post/liao-liao-pg_bulkload-de-da-gai-de-shi-xian-luo-ji.html</link><description>&gt; 好好好，好久不见，最近偶然了解到了pg\_bulkload这一插件，然后花了点时间看了看它是如何实现的，又想到好久没有写东西了，咕了太久，有点怪不好意思的，所以决定写点东西，摆脱鸽子🕊的嫌疑。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/liao-liao-pg_bulkload-de-da-gai-de-shi-xian-luo-ji.html</guid><pubDate>Mon, 01 Sep 2025 06:32:59 +0000</pubDate></item><item><title>没有from是否能够执行count操作</title><link>https://Z-Xiao-M.github.io/github.io/post/mei-you-from-shi-fou-neng-gou-zhi-xing-count-cao-zuo.html</link><description>一、场景构建
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Mon, 01 Sep 2025 06:36:47 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>聊聊pg_bulkload的大概的实现逻辑</title><link>https://Z-Xiao-M.github.io/github.io/post/liao-liao-pg_bulkload-de-da-gai-de-shi-xian-luo-ji.html</link><description>&gt; 好好好，好久不见，最近偶然了解到了pg\_bulkload这一插件，然后花了点时间看了看它是如何实现的，又想到好久没有写东西了，咕了太久，有点怪不好意思的，所以决定写点东西，摆脱鸽子🕊的嫌疑。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/liao-liao-pg_bulkload-de-da-gai-de-shi-xian-luo-ji.html</guid><pubDate>Mon, 01 Sep 2025 06:32:59 +0000</pubDate></item><item><title>没有from是否能够执行count操作</title><link>https://Z-Xiao-M.github.io/github.io/post/mei-you-from-shi-fou-neng-gou-zhi-xing-count-cao-zuo.html</link><description>一、场景构建
 ======
 
 这是一个非常简单的场景，这里存在一张表，表名t，往其中随便插入三行数据，然后执行查询语句：`select count(*) from t;`
@@ -38,7 +38,69 @@
 本文仅记录和分享一下关于PostgreSQL的FDW（外部数据包装器）的简单介绍和使用，此次不包含源码分析。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-postgres_fdw.html</guid><pubDate>Mon, 01 Sep 2025 06:21:16 +0000</pubDate></item><item><title>玩一玩系列——玩玩login_hook</title><link>https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-login_hook.html</link><description>一、PostgreSQL登录事件触发器
 ===================
 
-在PostgreSQL17版本引入了登录事件触发器，可以用于登录之后记录一些信息或者完成一些初始化动作。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-login_hook.html</guid><pubDate>Mon, 01 Sep 2025 06:20:15 +0000</pubDate></item><item><title>在PostgreSQL中，你不仅可以看到Bad Apple，还可以看故人唱跳、rap、打篮球</title><link>https://Z-Xiao-M.github.io/github.io/post/zai-PostgreSQL-zhong-%EF%BC%8C-ni-bu-jin-ke-yi-kan-dao-Bad%20Apple%EF%BC%8C-huan-ke-yi-kan-gu-ren-chang-tiao-%E3%80%81rap%E3%80%81-da-lan-qiu.html</link><description>一、前言
+在PostgreSQL17版本引入了登录事件触发器，可以用于登录之后记录一些信息或者完成一些初始化动作。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-login_hook.html</guid><pubDate>Mon, 01 Sep 2025 06:20:15 +0000</pubDate></item><item><title>明明想执行的SQL是DELETE、UPDATE，但为什么看到的是SELECT（FDW的实现原理解析）</title><link>https://Z-Xiao-M.github.io/github.io/post/ming-ming-xiang-zhi-xing-de-SQL-shi-DELETE%E3%80%81UPDATE%EF%BC%8C-dan-wei-shen-me-kan-dao-de-shi-SELECT%EF%BC%88FDW-de-shi-xian-yuan-li-jie-xi-%EF%BC%89.html</link><description>一、场景复现
+======
+
+开门见山，一个关于oracle\_fdw的简单场景如下：
+
+    halo0root=# \d+ emp
+                                                   Foreign table 'public.emp'
+     Column |         Type          | Collation | Nullable | Default | FDW options  | Storage  | Stats target | Description 
+    --------+-----------------------+-----------+----------+---------+--------------+----------+--------------+-------------
+     name   | character varying(20) |           | not null |         | (key 'true') | extended |              | 
+     age    | numeric               |           |          |         |              | main     |              | 
+    Server: oradb
+    FDW options: (schema 'ZM', 'table' 'EMP')
+    
+    halo0root=# \des+
+                                                          List of foreign servers
+     Name  | Owner | Foreign-data wrapper | Access privileges | Type | Version |               FDW options                | Description 
+    -------+-------+----------------------+-------------------+------+---------+------------------------------------------+-------------
+     oradb | halo  | oracle_fdw           |                   |      |         | (dbserver '//10.16.6.188:1521/orclpdb1') | 
+    (1 row)
+    
+    halo0root=# EXPLAIN VERBOSE DELETE FROM emp WHERE age = 25;
+                                                            QUERY PLAN                                                         
+    ---------------------------------------------------------------------------------------------------------------------------
+     Delete on public.emp  (cost=10000.00..20000.00 rows=0 width=0)
+       Oracle statement: DELETE FROM 'ZM'.'EMP' WHERE 'NAME' = :k1
+       -&gt;  Foreign Scan on public.emp  (cost=10000.00..20000.00 rows=1000 width=58)
+             Output: name
+             Oracle query: SELECT /*9ad36f25074bd711*/ r1.'NAME', r1.'AGE' FROM 'ZM'.'EMP' r1 WHERE (r1.'AGE' = 25) FOR UPDATE
+             Oracle plan: SELECT STATEMENT
+             Oracle plan:   FOR UPDATE
+             Oracle plan:     BUFFER SORT
+             Oracle plan:       TABLE ACCESS FULL EMP  (filter 'R1'.'AGE'=25)
+     Query Identifier: -1174117518881599247
+    (10 rows)
+
+这里可以很明显的看到，虽然我们敲得是EXPLAIN VERBOSE DELETE ...，但是实际的Oracle query却是SELECT，同时UPDATE也是如此
+
+    halo0root=# EXPLAIN VERBOSE UPDATE emp SET name = 'zzz' WHERE age = 25;
+                                                            QUERY PLAN                                                         
+    ---------------------------------------------------------------------------------------------------------------------------
+     Update on public.emp  (cost=10000.00..20000.00 rows=0 width=0)
+       Oracle statement: UPDATE 'ZM'.'EMP' SET 'NAME' = :p1 WHERE 'NAME' = :k1
+       -&gt;  Foreign Scan on public.emp  (cost=10000.00..20000.00 rows=1000 width=230)
+             Output: 'zzz'::character varying(20), name, emp.*
+             Oracle query: SELECT /*9ad36f25074bd711*/ r1.'NAME', r1.'AGE' FROM 'ZM'.'EMP' r1 WHERE (r1.'AGE' = 25) FOR UPDATE
+             Oracle plan: SELECT STATEMENT
+             Oracle plan:   FOR UPDATE
+             Oracle plan:     BUFFER SORT
+             Oracle plan:       TABLE ACCESS FULL EMP  (filter 'R1'.'AGE'=25)
+     Query Identifier: -2711433616002583057
+    (10 rows)
+
+那么问题就如文章标题所述了，这是为什么呢？
+
+  
+
+二、原理分析
+======
+
+原因其实也很简单，因为对于PostgreSQL而言，外部表是一种很特殊的存在，它仅仅只是一个远端表的映射，实际的数据依旧还是存储在远端，
+
+当我们在本地的PostgreSQL访问外部表的时候，实际上就是将当前的查询语句，下发至远端数据库，再将查询到的数据传回本地的PostgreSQL中参与实际的计算之类的。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/ming-ming-xiang-zhi-xing-de-SQL-shi-DELETE%E3%80%81UPDATE%EF%BC%8C-dan-wei-shen-me-kan-dao-de-shi-SELECT%EF%BC%88FDW-de-shi-xian-yuan-li-jie-xi-%EF%BC%89.html</guid><pubDate>Mon, 01 Sep 2025 06:19:02 +0000</pubDate></item><item><title>在PostgreSQL中，你不仅可以看到Bad Apple，还可以看故人唱跳、rap、打篮球</title><link>https://Z-Xiao-M.github.io/github.io/post/zai-PostgreSQL-zhong-%EF%BC%8C-ni-bu-jin-ke-yi-kan-dao-Bad%20Apple%EF%BC%8C-huan-ke-yi-kan-gu-ren-chang-tiao-%E3%80%81rap%E3%80%81-da-lan-qiu.html</link><description>一、前言
 ====
 
 也是在前不久，我翻到了一个“有趣”的项目，如标题所言，这个PostgreSQL插件项目就是可能做到在psql客户端播放Bad Apple，和鸽鸽的唱跳、rap、打篮球的名场面。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/zai-PostgreSQL-zhong-%EF%BC%8C-ni-bu-jin-ke-yi-kan-dao-Bad%20Apple%EF%BC%8C-huan-ke-yi-kan-gu-ren-chang-tiao-%E3%80%81rap%E3%80%81-da-lan-qiu.html</guid><pubDate>Mon, 01 Sep 2025 06:18:11 +0000</pubDate></item><item><title>简单聊聊PostgreSQL中的多态伪类型</title><link>https://Z-Xiao-M.github.io/github.io/post/jian-dan-liao-liao-PostgreSQL-zhong-de-duo-tai-wei-lei-xing.html</link><description>一、前言
