@@ -10,11 +10,11 @@
         let theme = localStorage.getItem("meek_theme") || "light";
         document.documentElement.setAttribute("data-color-mode", theme);
     </script>
-<meta name="description" content="### 文件分支
+<meta name="description" content="# 文件分支
 
 在 PostgreSQL 中，一个表的所有信息分别存储在几个不同的分支中，每个分支包含特定类型的数据，分支文件的存放路径通常为\$PGDATA/base/\[数据库OID]/xxx，当其大小达到 1GB （默认值，可以编译时修改）时，就会创建该分支的另一个文件 (这些文件有时被称为段)。">
 <meta property="og:title" content="CREATE TABLE和文件分支">
-<meta property="og:description" content="### 文件分支
+<meta property="og:description" content="# 文件分支
 
 在 PostgreSQL 中，一个表的所有信息分别存储在几个不同的分支中，每个分支包含特定类型的数据，分支文件的存放路径通常为\$PGDATA/base/\[数据库OID]/xxx，当其大小达到 1GB （默认值，可以编译时修改）时，就会创建该分支的另一个文件 (这些文件有时被称为段)。">
 <meta property="og:type" content="article">
@@ -87,7 +87,7 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 </div>
 </div>
     <div id="content">
-<div class="markdown-body" id="postBody"><h3>文件分支</h3>
+<div class="markdown-body" id="postBody"><h1>文件分支</h1>
 <p>在 PostgreSQL 中，一个表的所有信息分别存储在几个不同的分支中，每个分支包含特定类型的数据，分支文件的存放路径通常为$PGDATA/base/[数据库OID]/xxx，当其大小达到 1GB （默认值，可以编译时修改）时，就会创建该分支的另一个文件 (这些文件有时被称为段)。段的序列号会被添加到文件名的末尾。</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-k">typedef</span> <span class="pl-k">enum</span> <span class="pl-smi">ForkNumber</span>
 {
@@ -106,7 +106,7 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 <blockquote>
 <p>更多详细内容请参考 <a href="https://postgres-internals.cn/docs/chapter01/" rel="nofollow">第 1 章：介绍 – PostgreSQL 14 Internals</a></p>
 </blockquote>
-<h3>UNLOGGED TABLE</h3>
+<h1>UNLOGGED TABLE</h1>
 <p>通过上面的表述，我们了解到对于postgresql而言，存在四种分支语句，而UNLOGGED TABLE是唯一一个同时拥有四种分支的表。接下来让我们简单瞅瞅并验证一下上面的内容。</p>
 <div class="highlight highlight-source-sql"><pre class="notranslate">psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
 Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
@@ -188,9 +188,9 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-k">-</span>rw<span class="pl-c"><span class="pl-c">--</span>----- 1 postgres postgres     0  9月  2 15:43 /data/16/base/5/157241_init</span>
 <span class="pl-k">-</span>rw<span class="pl-c"><span class="pl-c">--</span>----- 1 postgres postgres  8192  9月  2 15:44 /data/16/base/5/157241_vm</span>
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
-<h3>瞅瞅CREATA TABLE代码逻辑</h3>
+<h1>瞅瞅CREATA TABLE代码逻辑</h1>
 <p>词法语法略过，只简单介绍部分重要的函数或代码片段</p>
-<h4>获取relfilenode和表的oid</h4>
+<h2>获取relfilenode和表的oid</h2>
 <p>获取relfilenode和表的oid，调用堆栈就不展示了，对应的函数GetNewRelFileNumber具体逻辑如下：</p>
 <div class="highlight highlight-source-sql"><pre class="notranslate">RelFileNumber
 GetNewRelFileNumber(<span class="pl-k">Oid</span> reltablespace, Relation pg_class, <span class="pl-k">char</span> relpersistence)
@@ -272,7 +272,7 @@ GetNewRelFileNumber(<span class="pl-k">Oid</span> reltablespace, Relation pg_cla
 }</pre></div>
 <p>按照生成的oid，生成相对的文件路径并检查对应的文件是否存在</p>
 <p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/bf01c9dd-ba8c-4464-9c30-4223d4c0a8a2"><img width="980" height="197" alt="Image" src="https://github.com/user-attachments/assets/bf01c9dd-ba8c-4464-9c30-4223d4c0a8a2" style="max-width: 100%; height: auto; max-height: 197px;"></a></p>
-<h4>分支文件创建</h4>
+<h2>分支文件创建</h2>
 <p>分支文件创建对应的函数heapam_relation_set_new_filelocator逻辑如下：</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-k">static</span> <span class="pl-smi">void</span>
 <span class="pl-en">heapam_relation_set_new_filelocator</span>(<span class="pl-smi">Relation</span> <span class="pl-s1">rel</span>,
@@ -388,6 +388,7 @@ GetNewRelFileNumber(<span class="pl-k">Oid</span> reltablespace, Relation pg_cla
 	<span class="pl-k">return</span> <span class="pl-s1">srel</span>;
 }</pre></div>
 <p>涉及到外存管理那块太过细节的内容就不在此处展示了。</p>
+<h2>其他工作</h2>
 <p>在完成了文件创建之后，还有一些工作需要处理，比方说维护元数据（将相关信息插入pg<em>class，将表中的字段信息插入值pg</em>_attribute，相关依赖信息）、创建相关对象（同名数据类型以及对应的数组类型）和TOAST。</p>
 <p>heap_create_with_catalog部分代码片段：</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">/*</span>
@@ -605,7 +606,7 @@ GetNewRelFileNumber(<span class="pl-k">Oid</span> reltablespace, Relation pg_cla
                 <span class="pl-s1">toast_options</span>);
 }</pre></div>
 <p>还有很多细节的内容，感兴趣的同学可以自己动手调试着玩玩。</p>
-<h4>验证一下最终结果</h4>
+<h2>验证一下最终结果</h2>
 <div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT pg_relation_filepath('test_unlogged_table');</span>
  pg_relation_filepath 
 <span class="pl-c"><span class="pl-c">--</span>--------------------</span>
@@ -651,7 +652,310 @@ relacl              |
 reloptions          | 
 relpartbound        | 
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div></div>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+<h1>玩一玩初始分支</h1>
+<p>让我们来尝试着删除UNLOGGED TABLE的主分支文件，然后重启，看看是否能够进行查询</p>
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 创建测试表</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE UNLOGGED TABLE test_unlogged_table(a int);</span>
+CREATE TABLE
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 获取主分支文件路径  </span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT pg_relation_filepath('test_unlogged_table');</span>
+ pg_relation_filepath 
+<span class="pl-c"><span class="pl-c">--</span>--------------------</span>
+ base<span class="pl-k">/</span><span class="pl-c1">5</span><span class="pl-k">/</span><span class="pl-c1">173637</span>
+(<span class="pl-c1">1</span> row)
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \q</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ rm $PGDATA<span class="pl-k">/</span>base<span class="pl-k">/</span><span class="pl-c1">5</span><span class="pl-k">/</span><span class="pl-c1">173637</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ ls $PGDATA<span class="pl-k">/</span>base<span class="pl-k">/</span><span class="pl-c1">5</span><span class="pl-k">/</span><span class="pl-c1">173637</span><span class="pl-k">*</span> <span class="pl-k">-</span>al 
+<span class="pl-k">-</span>rw<span class="pl-c"><span class="pl-c">--</span>----- 1 postgres postgres 0  9月  2 19:17 /data/16/base/5/173637_init</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ pg_ctl restart
+waiting for server to shut down.... done
+server stopped
+waiting for server to start....<span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">02</span> <span class="pl-c1">19</span>:<span class="pl-c1">18</span>:<span class="pl-c1">15</span>.<span class="pl-c1">616</span> CST [<span class="pl-c1">12493</span>] LOG:  redirecting log output to logging collector process
+<span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">02</span> <span class="pl-c1">19</span>:<span class="pl-c1">18</span>:<span class="pl-c1">15</span>.<span class="pl-c1">616</span> CST [<span class="pl-c1">12493</span>] HINT:  Future log output will appear <span class="pl-k">in</span> directory <span class="pl-s"><span class="pl-pds">"</span>log<span class="pl-pds">"</span></span>.
+ done
+server started
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from test_unlogged_table;</span>
+ a 
+<span class="pl-c"><span class="pl-c">--</span>-</span>
+(<span class="pl-c1">0</span> rows)
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT pg_relation_filepath('test_unlogged_table');</span>
+ pg_relation_filepath 
+<span class="pl-c"><span class="pl-c">--</span>--------------------</span>
+ base<span class="pl-k">/</span><span class="pl-c1">5</span><span class="pl-k">/</span><span class="pl-c1">173637</span>
+(<span class="pl-c1">1</span> row)
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+<p>可以看到是可以的，如果我们在退出前，在运行一下checkpoint呢？</p>
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 创建测试表</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE UNLOGGED TABLE test_unlogged_table(a int);</span>
+CREATE TABLE
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 获取主分支文件路径  </span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT pg_relation_filepath('test_unlogged_table');</span>
+ pg_relation_filepath 
+<span class="pl-c"><span class="pl-c">--</span>--------------------</span>
+ base<span class="pl-k">/</span><span class="pl-c1">5</span><span class="pl-k">/</span><span class="pl-c1">181829</span>
+(<span class="pl-c1">1</span> row)
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> checkpoint;</span>
+CHECKPOINT
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \q</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ rm $PGDATA<span class="pl-k">/</span>base<span class="pl-k">/</span><span class="pl-c1">5</span><span class="pl-k">/</span><span class="pl-c1">181829</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ ls $PGDATA<span class="pl-k">/</span>base<span class="pl-k">/</span><span class="pl-c1">5</span><span class="pl-k">/</span><span class="pl-c1">181829</span><span class="pl-k">*</span> <span class="pl-k">-</span>al
+<span class="pl-k">-</span>rw<span class="pl-c"><span class="pl-c">--</span>----- 1 postgres postgres 0  9月  2 19:19 /data/16/base/5/181829_init</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ pg_ctl restart
+waiting for server to shut down.... done
+server stopped
+waiting for server to start....<span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">02</span> <span class="pl-c1">19</span>:<span class="pl-c1">19</span>:<span class="pl-c1">59</span>.<span class="pl-c1">113</span> CST [<span class="pl-c1">12510</span>] LOG:  redirecting log output to logging collector process
+<span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">02</span> <span class="pl-c1">19</span>:<span class="pl-c1">19</span>:<span class="pl-c1">59</span>.<span class="pl-c1">113</span> CST [<span class="pl-c1">12510</span>] HINT:  Future log output will appear <span class="pl-k">in</span> directory <span class="pl-s"><span class="pl-pds">"</span>log<span class="pl-pds">"</span></span>.
+ done
+server started
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from test_unlogged_table;</span>
+ERROR:  could not open file <span class="pl-s"><span class="pl-pds">"</span>base/5/181829<span class="pl-pds">"</span></span>: 没有那个文件或目录
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+<p>可以看到就不行了，这是为什么呢？<br>
+关键在于<strong>Recovery</strong>，这里就不细说了，可以考虑看看代码或者将日志级别调低查看一下，就能明白了。<br>
+同时那现在怎么办呢？查询不了了<br>
+这里有两个解决方法，一个就是kill一下会话，触发异常，另一个就是手动创建一下文件即可</p>
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from test_unlogged_table;</span>
+ERROR:  could not open file <span class="pl-s"><span class="pl-pds">"</span>base/5/181829<span class="pl-pds">"</span></span>: 没有那个文件或目录
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \! touch $PGDATA/base/5/181829</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from test_unlogged_table;</span>
+ a 
+<span class="pl-c"><span class="pl-c">--</span>-</span>
+(<span class="pl-c1">0</span> rows)
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+<p>相关"恢复"代码如下，其实就是unlink，然后create，感兴趣的朋友可以看看</p>
+<div class="highlight highlight-source-sql"><pre class="notranslate">static void
+ResetUnloggedRelationsInDbspaceDir(const <span class="pl-k">char</span> <span class="pl-k">*</span>dbspacedirname, <span class="pl-k">int</span> op)
+{
+	DIR		   <span class="pl-k">*</span>dbspace_dir;
+	struct dirent <span class="pl-k">*</span>de;
+	<span class="pl-k">char</span>		rm_path[MAXPGPATH <span class="pl-k">*</span> <span class="pl-c1">2</span>];
+
+	<span class="pl-c"><span class="pl-c">/*</span> Caller must specify at least one operation. <span class="pl-c">*/</span></span>
+	Assert((op &amp; (UNLOGGED_RELATION_CLEANUP | UNLOGGED_RELATION_INIT)) <span class="pl-k">!=</span> <span class="pl-c1">0</span>);
+
+	<span class="pl-c"><span class="pl-c">/*</span></span>
+<span class="pl-c">	 * Cleanup is a two-pass operation.  First, we go through and identify all</span>
+<span class="pl-c">	 * the files with init forks.  Then, we go through again and nuke</span>
+<span class="pl-c">	 * everything with the same OID except the init fork.</span>
+<span class="pl-c">	 <span class="pl-c">*/</span></span>
+	if ((op &amp; UNLOGGED_RELATION_CLEANUP) <span class="pl-k">!=</span> <span class="pl-c1">0</span>)
+	{
+		HTAB	   <span class="pl-k">*</span>hash;
+		HASHCTL		ctl;
+
+		<span class="pl-c"><span class="pl-c">/*</span></span>
+<span class="pl-c">		 * It's possible that someone could create a ton of unlogged relations</span>
+<span class="pl-c">		 * in the same database &amp; tablespace, so we'd better use a hash table</span>
+<span class="pl-c">		 * rather than an array or linked list to keep track of which files</span>
+<span class="pl-c">		 * need to be reset.  Otherwise, this cleanup operation would be</span>
+<span class="pl-c">		 * O(n^2).</span>
+<span class="pl-c">		 <span class="pl-c">*/</span></span>
+		<span class="pl-c1">ctl</span>.<span class="pl-c1">keysize</span> <span class="pl-k">=</span> sizeof(<span class="pl-k">Oid</span>);
+		<span class="pl-c1">ctl</span>.<span class="pl-c1">entrysize</span> <span class="pl-k">=</span> sizeof(unlogged_relation_entry);
+		<span class="pl-c1">ctl</span>.<span class="pl-c1">hcxt</span> <span class="pl-k">=</span> CurrentMemoryContext;
+		hash <span class="pl-k">=</span> hash_create(<span class="pl-s"><span class="pl-pds">"</span>unlogged relation OIDs<span class="pl-pds">"</span></span>, <span class="pl-c1">32</span>, &amp;ctl,
+						   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+
+		<span class="pl-c"><span class="pl-c">/*</span> Scan the directory. <span class="pl-c">*/</span></span>
+		dbspace_dir <span class="pl-k">=</span> AllocateDir(dbspacedirname);
+		while ((de <span class="pl-k">=</span> ReadDir(dbspace_dir, dbspacedirname)) <span class="pl-k">!=</span> <span class="pl-k">NULL</span>)
+		{
+			ForkNumber	forkNum;
+			<span class="pl-k">int</span>			relnumchars;
+			unlogged_relation_entry ent;
+
+			<span class="pl-c"><span class="pl-c">/*</span> Skip anything that doesn't look like a relation data file. <span class="pl-c">*/</span></span>
+			if (!parse_filename_for_nontemp_relation(de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name, &amp;relnumchars,
+													 &amp;forkNum))
+				continue;
+
+			<span class="pl-c"><span class="pl-c">/*</span> Also skip it unless this is the init fork. <span class="pl-c">*/</span></span>
+			if (forkNum <span class="pl-k">!=</span> INIT_FORKNUM)
+				continue;
+
+			<span class="pl-c"><span class="pl-c">/*</span></span>
+<span class="pl-c">			 * Put the OID portion of the name into the hash table, if it</span>
+<span class="pl-c">			 * isn't already.</span>
+<span class="pl-c">			 <span class="pl-c">*/</span></span>
+			<span class="pl-c1">ent</span>.<span class="pl-c1">reloid</span> <span class="pl-k">=</span> atooid(de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name);
+			(void) hash_search(hash, &amp;ent, HASH_ENTER, <span class="pl-k">NULL</span>);
+		}
+
+		<span class="pl-c"><span class="pl-c">/*</span> Done with the first pass. <span class="pl-c">*/</span></span>
+		FreeDir(dbspace_dir);
+
+		<span class="pl-c"><span class="pl-c">/*</span></span>
+<span class="pl-c">		 * If we didn't find any init forks, there's no point in continuing;</span>
+<span class="pl-c">		 * we can bail out now.</span>
+<span class="pl-c">		 <span class="pl-c">*/</span></span>
+		if (hash_get_num_entries(hash) <span class="pl-k">==</span> <span class="pl-c1">0</span>)
+		{
+			hash_destroy(hash);
+			return;
+		}
+
+		<span class="pl-c"><span class="pl-c">/*</span></span>
+<span class="pl-c">		 * Now, make a second pass and remove anything that matches.</span>
+<span class="pl-c">		 <span class="pl-c">*/</span></span>
+		dbspace_dir <span class="pl-k">=</span> AllocateDir(dbspacedirname);
+		while ((de <span class="pl-k">=</span> ReadDir(dbspace_dir, dbspacedirname)) <span class="pl-k">!=</span> <span class="pl-k">NULL</span>)
+		{
+			ForkNumber	forkNum;
+			<span class="pl-k">int</span>			relnumchars;
+			unlogged_relation_entry ent;
+
+			<span class="pl-c"><span class="pl-c">/*</span> Skip anything that doesn't look like a relation data file. <span class="pl-c">*/</span></span>
+			if (!parse_filename_for_nontemp_relation(de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name, &amp;relnumchars,
+													 &amp;forkNum))
+				continue;
+
+			<span class="pl-c"><span class="pl-c">/*</span> We never remove the init fork. <span class="pl-c">*/</span></span>
+			if (forkNum <span class="pl-k">==</span> INIT_FORKNUM)
+				continue;
+
+			<span class="pl-c"><span class="pl-c">/*</span></span>
+<span class="pl-c">			 * See whether the OID portion of the name shows up in the hash</span>
+<span class="pl-c">			 * table.  If so, nuke it!</span>
+<span class="pl-c">			 <span class="pl-c">*/</span></span>
+			<span class="pl-c1">ent</span>.<span class="pl-c1">reloid</span> <span class="pl-k">=</span> atooid(de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name);
+			if (hash_search(hash, &amp;ent, HASH_FIND, <span class="pl-k">NULL</span>))
+			{
+				snprintf(rm_path, sizeof(rm_path), <span class="pl-s"><span class="pl-pds">"</span>%s/%s<span class="pl-pds">"</span></span>,
+						 dbspacedirname, de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name);
+				if (unlink(rm_path) <span class="pl-k">&lt;</span> <span class="pl-c1">0</span>)
+					ereport(ERROR,
+							(errcode_for_file_access(),
+							 errmsg(<span class="pl-s"><span class="pl-pds">"</span>could not remove file \<span class="pl-pds">"</span></span>%s\<span class="pl-s"><span class="pl-pds">"</span>: %m<span class="pl-pds">"</span></span>,
+									rm_path)));
+				else
+					elog(DEBUG2, <span class="pl-s"><span class="pl-pds">"</span>unlinked file \<span class="pl-pds">"</span></span>%s\<span class="pl-s"><span class="pl-pds">"</span><span class="pl-pds">"</span></span>, rm_path);
+			}
+		}
+
+		<span class="pl-c"><span class="pl-c">/*</span> Cleanup is complete. <span class="pl-c">*/</span></span>
+		FreeDir(dbspace_dir);
+		hash_destroy(hash);
+	}
+
+	<span class="pl-c"><span class="pl-c">/*</span></span>
+<span class="pl-c">	 * Initialization happens after cleanup is complete: we copy each init</span>
+<span class="pl-c">	 * fork file to the corresponding main fork file.  Note that if we are</span>
+<span class="pl-c">	 * asked to do both cleanup and init, we may never get here: if the</span>
+<span class="pl-c">	 * cleanup code determines that there are no init forks in this dbspace,</span>
+<span class="pl-c">	 * it will return before we get to this point.</span>
+<span class="pl-c">	 <span class="pl-c">*/</span></span>
+	if ((op &amp; UNLOGGED_RELATION_INIT) <span class="pl-k">!=</span> <span class="pl-c1">0</span>)
+	{
+		<span class="pl-c"><span class="pl-c">/*</span> Scan the directory. <span class="pl-c">*/</span></span>
+		dbspace_dir <span class="pl-k">=</span> AllocateDir(dbspacedirname);
+		while ((de <span class="pl-k">=</span> ReadDir(dbspace_dir, dbspacedirname)) <span class="pl-k">!=</span> <span class="pl-k">NULL</span>)
+		{
+			ForkNumber	forkNum;
+			<span class="pl-k">int</span>			relnumchars;
+			<span class="pl-k">char</span>		relnumbuf[OIDCHARS <span class="pl-k">+</span> <span class="pl-c1">1</span>];
+			<span class="pl-k">char</span>		srcpath[MAXPGPATH <span class="pl-k">*</span> <span class="pl-c1">2</span>];
+			<span class="pl-k">char</span>		dstpath[MAXPGPATH];
+
+			<span class="pl-c"><span class="pl-c">/*</span> Skip anything that doesn't look like a relation data file. <span class="pl-c">*/</span></span>
+			if (!parse_filename_for_nontemp_relation(de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name, &amp;relnumchars,
+													 &amp;forkNum))
+				continue;
+
+			<span class="pl-c"><span class="pl-c">/*</span> Also skip it unless this is the init fork. <span class="pl-c">*/</span></span>
+			if (forkNum <span class="pl-k">!=</span> INIT_FORKNUM)
+				continue;
+
+			<span class="pl-c"><span class="pl-c">/*</span> Construct source pathname. <span class="pl-c">*/</span></span>
+			snprintf(srcpath, sizeof(srcpath), <span class="pl-s"><span class="pl-pds">"</span>%s/%s<span class="pl-pds">"</span></span>,
+					 dbspacedirname, de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name);
+
+			<span class="pl-c"><span class="pl-c">/*</span> Construct destination pathname. <span class="pl-c">*/</span></span>
+			memcpy(relnumbuf, de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name, relnumchars);
+			relnumbuf[relnumchars] <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">'</span><span class="pl-cce">\0</span><span class="pl-pds">'</span></span>;
+			snprintf(dstpath, sizeof(dstpath), <span class="pl-s"><span class="pl-pds">"</span>%s/%s%s<span class="pl-pds">"</span></span>,
+					 dbspacedirname, relnumbuf, de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name <span class="pl-k">+</span> relnumchars <span class="pl-k">+</span> <span class="pl-c1">1</span> <span class="pl-k">+</span>
+					 strlen(forkNames[INIT_FORKNUM]));
+
+			<span class="pl-c"><span class="pl-c">/*</span> OK, we're ready to perform the actual copy. <span class="pl-c">*/</span></span>
+			elog(DEBUG2, <span class="pl-s"><span class="pl-pds">"</span>copying %s to %s<span class="pl-pds">"</span></span>, srcpath, dstpath);
+			copy_file(srcpath, dstpath);
+		}
+
+		FreeDir(dbspace_dir);
+
+		<span class="pl-c"><span class="pl-c">/*</span></span>
+<span class="pl-c">		 * copy_file() above has already called pg_flush_data() on the files</span>
+<span class="pl-c">		 * it created. Now we need to fsync those files, because a checkpoint</span>
+<span class="pl-c">		 * won't do it for us while we're in recovery. We do this in a</span>
+<span class="pl-c">		 * separate pass to allow the kernel to perform all the flushes</span>
+<span class="pl-c">		 * (especially the metadata ones) at once.</span>
+<span class="pl-c">		 <span class="pl-c">*/</span></span>
+		dbspace_dir <span class="pl-k">=</span> AllocateDir(dbspacedirname);
+		while ((de <span class="pl-k">=</span> ReadDir(dbspace_dir, dbspacedirname)) <span class="pl-k">!=</span> <span class="pl-k">NULL</span>)
+		{
+			ForkNumber	forkNum;
+			<span class="pl-k">int</span>			relnumchars;
+			<span class="pl-k">char</span>		relnumbuf[OIDCHARS <span class="pl-k">+</span> <span class="pl-c1">1</span>];
+			<span class="pl-k">char</span>		mainpath[MAXPGPATH];
+
+			<span class="pl-c"><span class="pl-c">/*</span> Skip anything that doesn't look like a relation data file. <span class="pl-c">*/</span></span>
+			if (!parse_filename_for_nontemp_relation(de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name, &amp;relnumchars,
+													 &amp;forkNum))
+				continue;
+
+			<span class="pl-c"><span class="pl-c">/*</span> Also skip it unless this is the init fork. <span class="pl-c">*/</span></span>
+			if (forkNum <span class="pl-k">!=</span> INIT_FORKNUM)
+				continue;
+
+			<span class="pl-c"><span class="pl-c">/*</span> Construct main fork pathname. <span class="pl-c">*/</span></span>
+			memcpy(relnumbuf, de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name, relnumchars);
+			relnumbuf[relnumchars] <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">'</span><span class="pl-cce">\0</span><span class="pl-pds">'</span></span>;
+			snprintf(mainpath, sizeof(mainpath), <span class="pl-s"><span class="pl-pds">"</span>%s/%s%s<span class="pl-pds">"</span></span>,
+					 dbspacedirname, relnumbuf, de<span class="pl-k">-</span><span class="pl-k">&gt;</span>d_name <span class="pl-k">+</span> relnumchars <span class="pl-k">+</span> <span class="pl-c1">1</span> <span class="pl-k">+</span>
+					 strlen(forkNames[INIT_FORKNUM]));
+
+			fsync_fname(mainpath, false);
+		}
+
+		FreeDir(dbspace_dir);
+
+		<span class="pl-c"><span class="pl-c">/*</span></span>
+<span class="pl-c">		 * Lastly, fsync the database directory itself, ensuring the</span>
+<span class="pl-c">		 * filesystem remembers the file creations and deletions we've done.</span>
+<span class="pl-c">		 * We don't bother with this during a call that does only</span>
+<span class="pl-c">		 * UNLOGGED_RELATION_CLEANUP, because if recovery crashes before we</span>
+<span class="pl-c">		 * get to doing UNLOGGED_RELATION_INIT, we'll redo the cleanup step</span>
+<span class="pl-c">		 * too at the next startup attempt.</span>
+<span class="pl-c">		 <span class="pl-c">*/</span></span>
+		fsync_fname(dbspacedirname, true);
+	}
+}</pre></div></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>

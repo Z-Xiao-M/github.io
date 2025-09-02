@@ -1,4 +1,4 @@
-### 文件分支
+# 文件分支
 
 在 PostgreSQL 中，一个表的所有信息分别存储在几个不同的分支中，每个分支包含特定类型的数据，分支文件的存放路径通常为\$PGDATA/base/\[数据库OID]/xxx，当其大小达到 1GB （默认值，可以编译时修改）时，就会创建该分支的另一个文件 (这些文件有时被称为段)。段的序列号会被添加到文件名的末尾。
 
@@ -22,7 +22,7 @@ typedef enum ForkNumber
 
 
 
-### UNLOGGED TABLE
+# UNLOGGED TABLE
 
 通过上面的表述，我们了解到对于postgresql而言，存在四种分支语句，而UNLOGGED TABLE是唯一一个同时拥有四种分支的表。接下来让我们简单瞅瞅并验证一下上面的内容。
 
@@ -111,11 +111,11 @@ postgres=#
 
 
 
-### 瞅瞅CREATA TABLE代码逻辑
+# 瞅瞅CREATA TABLE代码逻辑
 
 词法语法略过，只简单介绍部分重要的函数或代码片段
 
-#### 获取relfilenode和表的oid
+## 获取relfilenode和表的oid
 
 获取relfilenode和表的oid，调用堆栈就不展示了，对应的函数GetNewRelFileNumber具体逻辑如下：
 
@@ -205,7 +205,7 @@ GetNewRelFileNumber(Oid reltablespace, Relation pg_class, char relpersistence)
 <img width="980" height="197" alt="Image" src="https://github.com/user-attachments/assets/bf01c9dd-ba8c-4464-9c30-4223d4c0a8a2" />
 
 
-#### 分支文件创建
+## 分支文件创建
 
 分支文件创建对应的函数heapam\_relation\_set\_new\_filelocator逻辑如下：
 
@@ -331,6 +331,7 @@ RelationCreateStorage(RelFileLocator rlocator, char relpersistence,
 
 涉及到外存管理那块太过细节的内容就不在此处展示了。
 
+## 其他工作
 在完成了文件创建之后，还有一些工作需要处理，比方说维护元数据（将相关信息插入pg*class，将表中的字段信息插入值pg*\_attribute，相关依赖信息）、创建相关对象（同名数据类型以及对应的数组类型）和TOAST。
 
 heap\_create\_with\_catalog部分代码片段：
@@ -558,7 +559,7 @@ if (IsA(stmt, CreateStmt))
 
 还有很多细节的内容，感兴趣的同学可以自己动手调试着玩玩。
 
-#### 验证一下最终结果
+## 验证一下最终结果
 
 ```sql
 postgres=# SELECT pg_relation_filepath('test_unlogged_table');
@@ -608,4 +609,322 @@ relpartbound        |
 
 postgres=# 
 ```
+# 玩一玩初始分支
 
+让我们来尝试着删除UNLOGGED TABLE的主分支文件，然后重启，看看是否能够进行查询
+
+```sql
+postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type "help" for help.
+
+postgres=# -- 创建测试表
+postgres=# CREATE UNLOGGED TABLE test_unlogged_table(a int);
+CREATE TABLE
+postgres=# -- 获取主分支文件路径  
+postgres=# SELECT pg_relation_filepath('test_unlogged_table');
+ pg_relation_filepath 
+----------------------
+ base/5/173637
+(1 row)
+
+postgres=# \q
+postgres@zxm-VMware-Virtual-Platform:~$ rm $PGDATA/base/5/173637
+postgres@zxm-VMware-Virtual-Platform:~$ ls $PGDATA/base/5/173637* -al 
+-rw------- 1 postgres postgres 0  9月  2 19:17 /data/16/base/5/173637_init
+postgres@zxm-VMware-Virtual-Platform:~$ pg_ctl restart
+waiting for server to shut down.... done
+server stopped
+waiting for server to start....2025-09-02 19:18:15.616 CST [12493] LOG:  redirecting log output to logging collector process
+2025-09-02 19:18:15.616 CST [12493] HINT:  Future log output will appear in directory "log".
+ done
+server started
+postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type "help" for help.
+
+postgres=# select * from test_unlogged_table;
+ a 
+---
+(0 rows)
+
+postgres=# SELECT pg_relation_filepath('test_unlogged_table');
+ pg_relation_filepath 
+----------------------
+ base/5/173637
+(1 row)
+
+postgres=# 
+```
+
+可以看到是可以的，如果我们在退出前，在运行一下checkpoint呢？
+
+```sql
+postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type "help" for help.
+
+postgres=# -- 创建测试表
+postgres=# CREATE UNLOGGED TABLE test_unlogged_table(a int);
+CREATE TABLE
+postgres=# -- 获取主分支文件路径  
+postgres=# SELECT pg_relation_filepath('test_unlogged_table');
+ pg_relation_filepath 
+----------------------
+ base/5/181829
+(1 row)
+
+postgres=# checkpoint;
+CHECKPOINT
+postgres=# \q
+postgres@zxm-VMware-Virtual-Platform:~$ rm $PGDATA/base/5/181829
+postgres@zxm-VMware-Virtual-Platform:~$ ls $PGDATA/base/5/181829* -al
+-rw------- 1 postgres postgres 0  9月  2 19:19 /data/16/base/5/181829_init
+postgres@zxm-VMware-Virtual-Platform:~$ pg_ctl restart
+waiting for server to shut down.... done
+server stopped
+waiting for server to start....2025-09-02 19:19:59.113 CST [12510] LOG:  redirecting log output to logging collector process
+2025-09-02 19:19:59.113 CST [12510] HINT:  Future log output will appear in directory "log".
+ done
+server started
+postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type "help" for help.
+
+postgres=# select * from test_unlogged_table;
+ERROR:  could not open file "base/5/181829": 没有那个文件或目录
+postgres=# 
+```
+
+可以看到就不行了，这是为什么呢？
+关键在于**Recovery**，这里就不细说了，可以考虑看看代码或者将日志级别调低查看一下，就能明白了。
+同时那现在怎么办呢？查询不了了
+这里有两个解决方法，一个就是kill一下会话，触发异常，另一个就是手动创建一下文件即可
+
+```sql
+postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type "help" for help.
+
+postgres=# select * from test_unlogged_table;
+ERROR:  could not open file "base/5/181829": 没有那个文件或目录
+postgres=# \! touch $PGDATA/base/5/181829
+postgres=# select * from test_unlogged_table;
+ a 
+---
+(0 rows)
+
+postgres=# 
+```
+
+相关"恢复"代码如下，其实就是unlink，然后create，感兴趣的朋友可以看看
+
+```sql
+static void
+ResetUnloggedRelationsInDbspaceDir(const char *dbspacedirname, int op)
+{
+	DIR		   *dbspace_dir;
+	struct dirent *de;
+	char		rm_path[MAXPGPATH * 2];
+
+	/* Caller must specify at least one operation. */
+	Assert((op & (UNLOGGED_RELATION_CLEANUP | UNLOGGED_RELATION_INIT)) != 0);
+
+	/*
+	 * Cleanup is a two-pass operation.  First, we go through and identify all
+	 * the files with init forks.  Then, we go through again and nuke
+	 * everything with the same OID except the init fork.
+	 */
+	if ((op & UNLOGGED_RELATION_CLEANUP) != 0)
+	{
+		HTAB	   *hash;
+		HASHCTL		ctl;
+
+		/*
+		 * It's possible that someone could create a ton of unlogged relations
+		 * in the same database & tablespace, so we'd better use a hash table
+		 * rather than an array or linked list to keep track of which files
+		 * need to be reset.  Otherwise, this cleanup operation would be
+		 * O(n^2).
+		 */
+		ctl.keysize = sizeof(Oid);
+		ctl.entrysize = sizeof(unlogged_relation_entry);
+		ctl.hcxt = CurrentMemoryContext;
+		hash = hash_create("unlogged relation OIDs", 32, &ctl,
+						   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+
+		/* Scan the directory. */
+		dbspace_dir = AllocateDir(dbspacedirname);
+		while ((de = ReadDir(dbspace_dir, dbspacedirname)) != NULL)
+		{
+			ForkNumber	forkNum;
+			int			relnumchars;
+			unlogged_relation_entry ent;
+
+			/* Skip anything that doesn't look like a relation data file. */
+			if (!parse_filename_for_nontemp_relation(de->d_name, &relnumchars,
+													 &forkNum))
+				continue;
+
+			/* Also skip it unless this is the init fork. */
+			if (forkNum != INIT_FORKNUM)
+				continue;
+
+			/*
+			 * Put the OID portion of the name into the hash table, if it
+			 * isn't already.
+			 */
+			ent.reloid = atooid(de->d_name);
+			(void) hash_search(hash, &ent, HASH_ENTER, NULL);
+		}
+
+		/* Done with the first pass. */
+		FreeDir(dbspace_dir);
+
+		/*
+		 * If we didn't find any init forks, there's no point in continuing;
+		 * we can bail out now.
+		 */
+		if (hash_get_num_entries(hash) == 0)
+		{
+			hash_destroy(hash);
+			return;
+		}
+
+		/*
+		 * Now, make a second pass and remove anything that matches.
+		 */
+		dbspace_dir = AllocateDir(dbspacedirname);
+		while ((de = ReadDir(dbspace_dir, dbspacedirname)) != NULL)
+		{
+			ForkNumber	forkNum;
+			int			relnumchars;
+			unlogged_relation_entry ent;
+
+			/* Skip anything that doesn't look like a relation data file. */
+			if (!parse_filename_for_nontemp_relation(de->d_name, &relnumchars,
+													 &forkNum))
+				continue;
+
+			/* We never remove the init fork. */
+			if (forkNum == INIT_FORKNUM)
+				continue;
+
+			/*
+			 * See whether the OID portion of the name shows up in the hash
+			 * table.  If so, nuke it!
+			 */
+			ent.reloid = atooid(de->d_name);
+			if (hash_search(hash, &ent, HASH_FIND, NULL))
+			{
+				snprintf(rm_path, sizeof(rm_path), "%s/%s",
+						 dbspacedirname, de->d_name);
+				if (unlink(rm_path) < 0)
+					ereport(ERROR,
+							(errcode_for_file_access(),
+							 errmsg("could not remove file \"%s\": %m",
+									rm_path)));
+				else
+					elog(DEBUG2, "unlinked file \"%s\"", rm_path);
+			}
+		}
+
+		/* Cleanup is complete. */
+		FreeDir(dbspace_dir);
+		hash_destroy(hash);
+	}
+
+	/*
+	 * Initialization happens after cleanup is complete: we copy each init
+	 * fork file to the corresponding main fork file.  Note that if we are
+	 * asked to do both cleanup and init, we may never get here: if the
+	 * cleanup code determines that there are no init forks in this dbspace,
+	 * it will return before we get to this point.
+	 */
+	if ((op & UNLOGGED_RELATION_INIT) != 0)
+	{
+		/* Scan the directory. */
+		dbspace_dir = AllocateDir(dbspacedirname);
+		while ((de = ReadDir(dbspace_dir, dbspacedirname)) != NULL)
+		{
+			ForkNumber	forkNum;
+			int			relnumchars;
+			char		relnumbuf[OIDCHARS + 1];
+			char		srcpath[MAXPGPATH * 2];
+			char		dstpath[MAXPGPATH];
+
+			/* Skip anything that doesn't look like a relation data file. */
+			if (!parse_filename_for_nontemp_relation(de->d_name, &relnumchars,
+													 &forkNum))
+				continue;
+
+			/* Also skip it unless this is the init fork. */
+			if (forkNum != INIT_FORKNUM)
+				continue;
+
+			/* Construct source pathname. */
+			snprintf(srcpath, sizeof(srcpath), "%s/%s",
+					 dbspacedirname, de->d_name);
+
+			/* Construct destination pathname. */
+			memcpy(relnumbuf, de->d_name, relnumchars);
+			relnumbuf[relnumchars] = '\0';
+			snprintf(dstpath, sizeof(dstpath), "%s/%s%s",
+					 dbspacedirname, relnumbuf, de->d_name + relnumchars + 1 +
+					 strlen(forkNames[INIT_FORKNUM]));
+
+			/* OK, we're ready to perform the actual copy. */
+			elog(DEBUG2, "copying %s to %s", srcpath, dstpath);
+			copy_file(srcpath, dstpath);
+		}
+
+		FreeDir(dbspace_dir);
+
+		/*
+		 * copy_file() above has already called pg_flush_data() on the files
+		 * it created. Now we need to fsync those files, because a checkpoint
+		 * won't do it for us while we're in recovery. We do this in a
+		 * separate pass to allow the kernel to perform all the flushes
+		 * (especially the metadata ones) at once.
+		 */
+		dbspace_dir = AllocateDir(dbspacedirname);
+		while ((de = ReadDir(dbspace_dir, dbspacedirname)) != NULL)
+		{
+			ForkNumber	forkNum;
+			int			relnumchars;
+			char		relnumbuf[OIDCHARS + 1];
+			char		mainpath[MAXPGPATH];
+
+			/* Skip anything that doesn't look like a relation data file. */
+			if (!parse_filename_for_nontemp_relation(de->d_name, &relnumchars,
+													 &forkNum))
+				continue;
+
+			/* Also skip it unless this is the init fork. */
+			if (forkNum != INIT_FORKNUM)
+				continue;
+
+			/* Construct main fork pathname. */
+			memcpy(relnumbuf, de->d_name, relnumchars);
+			relnumbuf[relnumchars] = '\0';
+			snprintf(mainpath, sizeof(mainpath), "%s/%s%s",
+					 dbspacedirname, relnumbuf, de->d_name + relnumchars + 1 +
+					 strlen(forkNames[INIT_FORKNUM]));
+
+			fsync_fname(mainpath, false);
+		}
+
+		FreeDir(dbspace_dir);
+
+		/*
+		 * Lastly, fsync the database directory itself, ensuring the
+		 * filesystem remembers the file creations and deletions we've done.
+		 * We don't bother with this during a call that does only
+		 * UNLOGGED_RELATION_CLEANUP, because if recovery crashes before we
+		 * get to doing UNLOGGED_RELATION_INIT, we'll redo the cleanup step
+		 * too at the next startup attempt.
+		 */
+		fsync_fname(dbspacedirname, true);
+	}
+}
+```
