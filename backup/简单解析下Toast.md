@@ -173,8 +173,12 @@ postgres=# select length(chunk_data) from pg_toast.pg_toast_41561;
 (2 rows)
 ```
 
-值得关注的宏`TOAST_MAX_CHUNK_SIZE`，可以直接通过运行pg\_controldata读取Maximum size of a TOAST chunk获得
-
+可以直接通过运行pg\_controldata读取Maximum size of a TOAST chunk获得
+```shell
+postgres@zxm-VMware-Virtual-Platform:~$ pg_controldata | grep 'Maximum size of a TOAST chunk' 
+Maximum size of a TOAST chunk:        1996
+``` 
+也可以通过计算宏`TOAST_MAX_CHUNK_SIZE`，
 ```c
 /*
  * When we store an oversize datum externally, we divide it into chunks

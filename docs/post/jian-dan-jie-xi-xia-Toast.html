@@ -236,7 +236,10 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
    <span class="pl-c1">1996</span>
       <span class="pl-c1">9</span>
 (<span class="pl-c1">2</span> rows)</pre></div>
-<p>值得关注的宏<code class="notranslate">TOAST_MAX_CHUNK_SIZE</code>，可以直接通过运行pg_controldata读取Maximum size of a TOAST chunk获得</p>
+<p>可以直接通过运行pg_controldata读取Maximum size of a TOAST chunk获得</p>
+<div class="highlight highlight-source-shell"><pre class="notranslate">postgres@zxm-VMware-Virtual-Platform:<span class="pl-k">~</span>$ pg_controldata <span class="pl-k">|</span> grep <span class="pl-s"><span class="pl-pds">'</span>Maximum size of a TOAST chunk<span class="pl-pds">'</span></span> 
+Maximum size of a TOAST chunk:        1996</pre></div>
+<p>也可以通过计算宏<code class="notranslate">TOAST_MAX_CHUNK_SIZE</code>，</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">/*</span>
 <span class="pl-c"> * When we store an oversize datum externally, we divide it into chunks</span>
 <span class="pl-c"> * containing at most TOAST_MAX_CHUNK_SIZE data bytes.  This number *must*</span>
