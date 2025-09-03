@@ -1,6 +1,12 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Wed, 03 Sep 2025 09:46:29 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>查询语句耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>内容演示：
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Wed, 03 Sep 2025 10:01:31 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>查询语句耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>内容演示：
 ```sql
+postgres=# select * from pg_database;
+Time: 0.491 ms
+postgres=# select * from pg_database;
+Time: 0.676 ms
+postgres=# select * from pg_database;
+Time: 0.573 ms
 postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
 Time: 5.771 ms
 postgres=# select * from a_gtt;
@@ -26,8 +32,12 @@ postgres=# select * from a_gtt;
 Time: 1239.305 ms (00:01.239)
 postgres=# select * from a_gtt;
 Time: 1213.000 ms (00:01.213)
-postgres=# select * from a_gtt;
-Time: 1230.897 ms (00:01.231)
+postgres=# select * from pg_database;
+Time: 1.975 ms
+postgres=# select * from pg_database;
+Time: 0.981 ms
+postgres=# select * from pg_database;
+Time: 0.758 ms
 ```
 关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
 ```c

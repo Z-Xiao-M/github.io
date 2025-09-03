@@ -12,6 +12,12 @@
     </script>
 <meta name="description" content="内容演示：
 ```sql
+postgres=# select * from pg_database;
+Time: 0.491 ms
+postgres=# select * from pg_database;
+Time: 0.676 ms
+postgres=# select * from pg_database;
+Time: 0.573 ms
 postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
 Time: 5.771 ms
 postgres=# select * from a_gtt;
@@ -37,8 +43,12 @@ postgres=# select * from a_gtt;
 Time: 1239.305 ms (00:01.239)
 postgres=# select * from a_gtt;
 Time: 1213.000 ms (00:01.213)
-postgres=# select * from a_gtt;
-Time: 1230.897 ms (00:01.231)
+postgres=# select * from pg_database;
+Time: 1.975 ms
+postgres=# select * from pg_database;
+Time: 0.981 ms
+postgres=# select * from pg_database;
+Time: 0.758 ms
 ```
 关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
 ```c
@@ -195,6 +205,12 @@ heap_truncate_check_FKs中还存在遍历，调试可以看到：
 <meta property="og:title" content="查询语句耗时同临时表的数量呈线性增长">
 <meta property="og:description" content="内容演示：
 ```sql
+postgres=# select * from pg_database;
+Time: 0.491 ms
+postgres=# select * from pg_database;
+Time: 0.676 ms
+postgres=# select * from pg_database;
+Time: 0.573 ms
 postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
 Time: 5.771 ms
 postgres=# select * from a_gtt;
@@ -220,8 +236,12 @@ postgres=# select * from a_gtt;
 Time: 1239.305 ms (00:01.239)
 postgres=# select * from a_gtt;
 Time: 1213.000 ms (00:01.213)
-postgres=# select * from a_gtt;
-Time: 1230.897 ms (00:01.231)
+postgres=# select * from pg_database;
+Time: 1.975 ms
+postgres=# select * from pg_database;
+Time: 0.981 ms
+postgres=# select * from pg_database;
+Time: 0.758 ms
 ```
 关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
 ```c
@@ -446,7 +466,13 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 </div>
     <div id="content">
 <div class="markdown-body" id="postBody"><p>内容演示：</p>
-<div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;</span>
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">491</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">676</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">573</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;</span>
 <span class="pl-k">Time</span>: <span class="pl-c1">5</span>.<span class="pl-c1">771</span> ms
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
 <span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">721</span> ms
@@ -471,8 +497,12 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-k">Time</span>: <span class="pl-c1">1239</span>.<span class="pl-c1">305</span> ms (<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">239</span>)
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
 <span class="pl-k">Time</span>: <span class="pl-c1">1213</span>.<span class="pl-c1">000</span> ms (<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">213</span>)
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">1230</span>.<span class="pl-c1">897</span> ms (<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">231</span>)</pre></div>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+<span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">975</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">981</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">758</span> ms</pre></div>
 <p>关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次<code class="notranslate">PreCommit_on_commit_actions</code>的<code class="notranslate">foreach(l, on_commits)</code>遍历</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-k">static</span> <span class="pl-smi">List</span> <span class="pl-c1">*</span><span class="pl-s1">on_commits</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;
 
