@@ -928,3 +928,4 @@ ResetUnloggedRelationsInDbspaceDir(const char *dbspacedirname, int op)
 	}
 }
 ```
+还有一件事，最好不要随便学我这样子玩，去删除别的表的物理文件😀
