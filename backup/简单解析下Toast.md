@@ -435,7 +435,7 @@ x'07d5'::int as va_extinfo, x'02e6d2'::int as va_valueid, x'02e6d0'::int as va_t
 
 postgres=# 
 ```
-- va_header 是标识大端还是小端，决定了我们需要怎么去解析数据
+- va_header 是标识大端还是小端，决定了我们需要怎么去解析数据，这里是小端0x01，对于大端应该是0x80
 - va_tag 标识"TOAST pointer"的状态
 - va_rawsize 带有变长数据头(4 字节) + 原始数据长度
 - va_extinfo 原始数据长度
@@ -590,7 +590,8 @@ BackendMain(const void * startup_data, size_t startup_data_len) (\home\postgres\
 ```
 
 # 为什么不推荐使用SELECT *
-这是一个老生常谈的问题，就是在应用程序开发中，推荐需要获取什么数据就去查询对应的字段，而不是直接SELECT * 一把梭。可是还是有人觉得无所谓，这里可以用toast构建个简单的场景，演示一下为什么不推荐使用SELECT *。
+这是一个老生常谈的问题，就是在应用程序开发中，推荐需要获取什么数据就去查询对应的字段，而不是直接SELECT * 一把梭。可是还是有人觉得无所谓，觉得我直接查询更多的数据给前端，前端想用哪个字段就用哪个字段，emmmm~
+这里可以用toast构建个简单的场景，演示一下为什么不推荐使用SELECT *。
 ```sql
 postgres@zxm-VMware-Virtual-Platform:~$ psql
 psql (16.10)
