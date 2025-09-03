@@ -40,7 +40,7 @@ Time: 1213.000 ms (00:01.213)
 postgres=# select * from a_gtt;
 Time: 1230.897 ms (00:01.231)
 ```
-关注代码，原因在于需要多次遍历大的list：
+关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
 ```c
 static List *on_commits = NIL;
 
@@ -149,9 +149,10 @@ PreCommit_on_commit_actions(void)
 	}
 }
 ``` 
-
+调试可以看到：
 <img width='1062' height='1040' alt='Image' src='https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2' />
 
+对于ON COMMIT DELETE ROWS的临时表而言，主要耗时应该还是`heap_truncate`
 ```c
 void
 heap_truncate(List *relids)
@@ -185,12 +186,11 @@ heap_truncate(List *relids)
 	}
 }
 ```
-
+调试可以看到：
 <img width='1011' height='766' alt='Image' src='https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338' />
 
 
-heap_truncate_check_FKs中还存在遍历
-
+heap_truncate_check_FKs中还存在遍历，调试可以看到：
 <img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' />。">
 <meta property="og:title" content="查询语句耗时同临时表的数量呈线性增长">
 <meta property="og:description" content="内容演示：
@@ -223,7 +223,7 @@ Time: 1213.000 ms (00:01.213)
 postgres=# select * from a_gtt;
 Time: 1230.897 ms (00:01.231)
 ```
-关注代码，原因在于需要多次遍历大的list：
+关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
 ```c
 static List *on_commits = NIL;
 
@@ -332,9 +332,10 @@ PreCommit_on_commit_actions(void)
 	}
 }
 ``` 
-
+调试可以看到：
 <img width='1062' height='1040' alt='Image' src='https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2' />
 
+对于ON COMMIT DELETE ROWS的临时表而言，主要耗时应该还是`heap_truncate`
 ```c
 void
 heap_truncate(List *relids)
@@ -368,12 +369,11 @@ heap_truncate(List *relids)
 	}
 }
 ```
-
+调试可以看到：
 <img width='1011' height='766' alt='Image' src='https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338' />
 
 
-heap_truncate_check_FKs中还存在遍历
-
+heap_truncate_check_FKs中还存在遍历，调试可以看到：
 <img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' />。">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html">
@@ -473,7 +473,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-k">Time</span>: <span class="pl-c1">1213</span>.<span class="pl-c1">000</span> ms (<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">213</span>)
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
 <span class="pl-k">Time</span>: <span class="pl-c1">1230</span>.<span class="pl-c1">897</span> ms (<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">231</span>)</pre></div>
-<p>关注代码，原因在于需要多次遍历大的list：</p>
+<p>关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次<code class="notranslate">PreCommit_on_commit_actions</code>的<code class="notranslate">foreach(l, on_commits)</code>遍历</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-k">static</span> <span class="pl-smi">List</span> <span class="pl-c1">*</span><span class="pl-s1">on_commits</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;
 
 <span class="pl-c">/*</span>
@@ -580,7 +580,9 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-k">#endif</span>
 	}
 }</pre></div>
-<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2"><img width="1062" height="1040" alt="Image" src="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2" style="max-width: 100%; height: auto; max-height: 1040px;"></a></p>
+<p>调试可以看到：<br>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2"><img width="1062" height="1040" alt="Image" src="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2" style="max-width: 100%; height: auto; max-height: 1040px;"></a></p>
+<p>对于ON COMMIT DELETE ROWS的临时表而言，主要耗时应该还是<code class="notranslate">heap_truncate</code></p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-smi">void</span>
 <span class="pl-en">heap_truncate</span>(<span class="pl-smi">List</span> <span class="pl-c1">*</span><span class="pl-s1">relids</span>)
 {
@@ -612,9 +614,10 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 		<span class="pl-en">table_close</span>(<span class="pl-s1">rel</span>, <span class="pl-s1">NoLock</span>);
 	}
 }</pre></div>
-<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338"><img width="1011" height="766" alt="Image" src="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338" style="max-width: 100%; height: auto; max-height: 766px;"></a></p>
-<p>heap_truncate_check_FKs中还存在遍历</p>
-<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb"><img width="1038" height="478" alt="Image" src="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb" style="max-width: 100%; height: auto; max-height: 478px;"></a></p></div>
+<p>调试可以看到：<br>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338"><img width="1011" height="766" alt="Image" src="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338" style="max-width: 100%; height: auto; max-height: 766px;"></a></p>
+<p>heap_truncate_check_FKs中还存在遍历，调试可以看到：<br>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb"><img width="1038" height="478" alt="Image" src="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb" style="max-width: 100%; height: auto; max-height: 478px;"></a></p></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
