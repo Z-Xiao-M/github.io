@@ -2,13 +2,123 @@
 
 PostgreSQL 的 TOAST（The Oversized-Attribute Storage Technique，超大属性存储技术）是针对大尺寸数据（如长文本、二进制数据等）的存储优化机制，当字段数据超过阈值时，会自动将其压缩或拆分后存储到独立的 TOAST 表中，主表仅保留引用指针，既解决了单条记录存储容量受限问题，又通过透明操作、多种存储策略和独立表设计，平衡了存储效率与访问性能，对 TEXT、BYTEA、JSONB 等可能存储大数据的类型尤为有效。
 
-# 环境准备
+# 基础内容演示
 
 ```sql
-CREATE TABLE t (c text);
+postgres=# -- 创建一个带有text字段的测试表
+postgres=# create table t(a text);
+CREATE TABLE
+postgres=# -- 查询相关元数据信息 可以看到reltoastrelid不为0
+postgres=# select * from pg_class where relname = 't' \gx
+-[ RECORD 1 ]-------+-------
+oid                 | 190095
+relname             | t
+relnamespace        | 2200
+reltype             | 190097
+reloftype           | 0
+relowner            | 10
+relam               | 2
+relfilenode         | 190095
+reltablespace       | 0
+relpages            | 0
+reltuples           | -1
+relallvisible       | 0
+reltoastrelid       | 190098
+relhasindex         | f
+relisshared         | f
+relpersistence      | p
+relkind             | r
+relnatts            | 1
+relchecks           | 0
+relhasrules         | f
+relhastriggers      | f
+relhassubclass      | f
+relrowsecurity      | f
+relforcerowsecurity | f
+relispopulated      | t
+relreplident        | d
+relispartition      | f
+relrewrite          | 0
+relfrozenxid        | 7322
+relminmxid          | 1
+relacl              | 
+reloptions          | 
+relpartbound        | 
 
--- 生成指定长度的随机字符串数据
-CREATE OR REPLACE FUNCTION random_string(length integer)
+postgres=# -- 依据reltoastrelid 查询元数据信息
+postgres=# -- 大致可以看到toast表是没有同名数据类型的
+postgres=# select * from pg_class where oid = 190098 \gx
+-[ RECORD 1 ]-------+----------------
+oid                 | 190098
+relname             | pg_toast_190095
+relnamespace        | 99
+reltype             | 0
+reloftype           | 0
+relowner            | 10
+relam               | 2
+relfilenode         | 190098
+reltablespace       | 0
+relpages            | 0
+reltuples           | -1
+relallvisible       | 0
+reltoastrelid       | 0
+relhasindex         | t
+relisshared         | f
+relpersistence      | p
+relkind             | t
+relnatts            | 3
+relchecks           | 0
+relhasrules         | f
+relhastriggers      | f
+relhassubclass      | f
+relrowsecurity      | f
+relforcerowsecurity | f
+relispopulated      | t
+relreplident        | n
+relispartition      | f
+relrewrite          | 0
+relfrozenxid        | 7322
+relminmxid          | 1
+relacl              | 
+reloptions          | 
+relpartbound        | 
+
+postgres=# -- 查看toast表 附加上pg_toast
+postgres=# \d+ pg_toast.pg_toast_190095
+TOAST table "pg_toast.pg_toast_190095"
+   Column   |  Type   | Storage 
+------------+---------+---------
+ chunk_id   | oid     | plain
+ chunk_seq  | integer | plain
+ chunk_data | bytea   | plain
+Owning table: "public.t"
+Indexes:
+    "pg_toast_190095_index" PRIMARY KEY, btree (chunk_id, chunk_seq)
+Access method: heap
+
+postgres=# -- 查询表对应的toast表名
+postgres=# SELECT 
+  oid AS main_table_oid,
+  reltoastrelid AS toast_table_oid,
+  reltoastrelid::regclass::text AS toast_table_name
+FROM pg_class WHERE relname='t'; 
+ main_table_oid | toast_table_oid |     toast_table_name     
+----------------+-----------------+--------------------------
+         190095 |          190098 | pg_toast.pg_toast_190095
+(1 row)
+
+postgres=# -- 删除表
+postgres=# drop table t;
+DROP TABLE
+```
+# 尝试触发toast机制
+
+```sql
+postgres=# -- 创建一个带有text字段的测试表
+postgres=# CREATE TABLE t (c text);
+CREATE TABLE
+postgres=# -- 生成指定长度的随机字符串数据
+postgres=# CREATE OR REPLACE FUNCTION random_string(length integer)
  RETURNS text
  LANGUAGE sql
  IMMUTABLE
@@ -20,46 +130,43 @@ SELECT
            'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z']) [floor(random() * 62 + 1)::INTEGER],
     '') FROM generate_series(1, GREATEST(length, 1));
 $function$;
-
-insert into t select random_string(2005);
-
--- 或者使用下面的方式插入数据 触发toast
--- ALTER TABLE t ALTER COLUMN c SET STORAGE external;
--- INSERT INTO t VALUES (repeat('a',2005));
-```
-
-# 触发toast
-
-```sql
-postgres=# CREATE TABLE t (c text);
-CREATE TABLE
-postgres=# ALTER TABLE t ALTER COLUMN c SET STORAGE external; -- 如果是使用repeat('a',2005)则需要这一步 因为数据重复，更方便压缩
-ALTER TABLE
-postgres=# INSERT INTO t VALUES (repeat('a',2005)); -- 2005触发toast
-INSERT 0 1
+CREATE FUNCTION
+postgres=# -- 查看对应的toast表名
 postgres=# SELECT 
   oid AS main_table_oid,
   reltoastrelid AS toast_table_oid,
   reltoastrelid::regclass::text AS toast_table_name
 FROM pg_class WHERE relname='t'; 
- main_table_oid | toast_table_oid |    toast_table_name     
-----------------+-----------------+-------------------------
-          41561 |           41564 | pg_toast.pg_toast_41561
+ main_table_oid | toast_table_oid |     toast_table_name     
+----------------+-----------------+--------------------------
+         190100 |          190103 | pg_toast.pg_toast_190100
 (1 row)
 
-postgres=# select count(*) from t;
- count 
--------
-     1
+postgres=# -- 插入长度为2004的数据看是否触发
+postgres=# insert into t select random_string(2004);
+INSERT 0 1
+postgres=# -- 可以看到对应的toast表大小为0 没有触发
+postgres=# select pg_relation_size('t'), pg_relation_size('pg_toast.pg_toast_190100');
+ pg_relation_size | pg_relation_size 
+------------------+------------------
+             8192 |                0
 (1 row)
 
-postgres=# select count(*) from pg_toast.pg_toast_41561;
- count 
--------
-     2
+postgres=# -- 插入长度为2005的数据看是否触发
+postgres=# insert into t select random_string(2005);
+INSERT 0 1
+postgres=# -- 成功触发
+postgres=# select pg_relation_size('t'), pg_relation_size('pg_toast.pg_toast_190100');
+ pg_relation_size | pg_relation_size 
+------------------+------------------
+             8192 |             8192
+(1 row)
+
+postgres=# 
 ```
+# 为什么2005长度才能触发
 
-值得关注的宏`TOAST_TUPLE_THRESHOLD`，计算最终结果2032
+有的资料写的是2KB触发，有的资料写的是2000字节触发，当然这是可以配置的，这里是2005，至于为什么是2005，那么需要我们来瞅瞅代码，值得关注的宏为`TOAST_TUPLE_THRESHOLD`
 
 ```c
 /*
@@ -94,8 +201,8 @@ postgres=# select count(*) from pg_toast.pg_toast_41561;
 
 #define TOAST_TUPLE_TARGET		TOAST_TUPLE_THRESHOLD
 ```
-
-<img width="847" height="935" alt="Image" src="https://github.com/user-attachments/assets/6a62109b-9092-4866-aebb-ebf16d10cb8d" />
+AI说的比我写的好，这里就直接贴一下好了
+<img width="799" height="589" alt="Image" src="https://github.com/user-attachments/assets/1f1f2d17-4a40-45fc-af1d-32ff113d80e6" />
 
 代码逻辑
 
@@ -143,37 +250,47 @@ heap_prepare_insert(Relation relation, HeapTuple tup, TransactionId xid,
 		return tup;
 }
 ```
+在64位系统，默认page为8KB的场景，需要2005字节长度触发，因为2005 + 24（HeapTupleHeaderData堆元组头对齐） + 4（变长数据四字节VARHDRSZ） = 2033，而TOAST\_TUPLE\_THRESHOLD刚好是2032。
 
-# 为什么2005长度才能触发
-
-有的资料写的是2KB触发，有的资料写的是2000字节触发，当然这是可以配置的，此处不讨论配置的情况，在64位系统，默认page为8KB的场景，需要2005字节长度触发，因为2005 + 24（HeapTupleHeaderData堆元组头对齐） + 4（变长数据四字节VARHDRSZ） = 2033，2033大于TOAST\_TUPLE\_THRESHOLD
-
-可以关注函数`SET_VARSIZE、heap_form_tuple`
+对更多细节感兴趣的同学，还可以关注函数`SET_VARSIZE、heap_form_tuple`，应该可以解决你的疑惑。
 
 # 明明仅仅插入了一条数据，为什么显示toast的表中存在两条
 
 ```sql
+postgres=# CREATE TABLE t (c text);
+CREATE TABLE
+postgres=# insert into t select random_string(2005);
+INSERT 0 1
+postgres=# SELECT 
+  oid AS main_table_oid,
+  reltoastrelid AS toast_table_oid,
+  reltoastrelid::regclass::text AS toast_table_name
+FROM pg_class WHERE relname='t'; 
+ main_table_oid | toast_table_oid |     toast_table_name     
+----------------+-----------------+--------------------------
+         190106 |          190109 | pg_toast.pg_toast_190106
+(1 row)
+
 postgres=# select count(*) from t;
  count 
 -------
      1
 (1 row)
 
-postgres=# select count(*) from pg_toast.pg_toast_41561;
+postgres=# select count(*) from pg_toast.pg_toast_190106;
  count 
 -------
      2
 (1 row)
 
-postgres=# select length(chunk_data) from pg_toast.pg_toast_41561;
+postgres=# select length(chunk_data) from pg_toast.pg_toast_190106;
  length 
 --------
    1996
       9
 (2 rows)
 ```
-
-可以直接通过运行pg\_controldata读取Maximum size of a TOAST chunk获得
+因为数据太长被切片了，可以直接通过运行pg\_controldata读取Maximum size of a TOAST chunk获得chunk大小
 ```shell
 postgres@zxm-VMware-Virtual-Platform:~$ pg_controldata | grep 'Maximum size of a TOAST chunk' 
 Maximum size of a TOAST chunk:        1996
@@ -201,10 +318,9 @@ Maximum size of a TOAST chunk:        1996
 	 sizeof(int32) -									\
 	 VARHDRSZ)
 
-// 2032 - 24（行头）- 4（chunk_id）- 4 (chunk_seq) - 4 (chunk_data变长类型四字节头) = 1996
 ```
+2032 - 24（元组头）- 4（chunk_id）- 4 (chunk_seq) - 4 (变长类型四字节头) = 1996
 
-<img width="977" height="368" alt="Image" src="https://github.com/user-attachments/assets/a29a31c4-3b94-427e-a84d-5006094a2077" />
 
 实际处理逻辑位于 `src/backend/access/common/toast_internals.c` `toast_save_datum`
 
@@ -273,64 +389,75 @@ Maximum size of a TOAST chunk:        1996
 
 # 数据都在toast表中那么主表里面存了个啥
 
-主表插入了一条18字节长度的TOAST pointer
+主表插入了一条18字节长度的"TOAST pointer"
 
 ```sql
-postgres=# SELECT encode(t_data,'hex')
-FROM   heap_page_items(get_raw_page('t',0))
-WHERE  t_ctid = '(0,1)';
-                encode                
---------------------------------------
- 0112d9070000d50700005ea200005ca20000
+postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type "help" for help.
+
+postgres=# create extension pageinspect;
+CREATE EXTENSION
+postgres=# CREATE TABLE t (c text);
+CREATE TABLE
+postgres=# insert into t select random_string(2005);
+INSERT 0 1
+postgres=# SELECT 
+  oid AS main_table_oid,
+  reltoastrelid AS toast_table_oid,
+  reltoastrelid::regclass::text AS toast_table_name
+FROM pg_class WHERE relname='t'; 
+ main_table_oid | toast_table_oid |     toast_table_name     
+----------------+-----------------+--------------------------
+         190157 |          190160 | pg_toast.pg_toast_190157
 (1 row)
 
-postgres=# select chunk_id from pg_toast.pg_toast_41561;
+postgres=# select chunk_id from pg_toast.pg_toast_190157;
  chunk_id 
 ----------
-    41566
-    41566
+   190162
+   190162
 (2 rows)
 
-postgres=# select x'a25c'::int;  -- toast_table_oid
- int4  
--------
- 41564
+postgres=# SELECT encode(t_data,'hex')
+FROM   heap_page_items(get_raw_page('t',0));
+                encode                
+--------------------------------------
+ 0112d9070000d5070000d2e60200d0e60200
 (1 row)
 
-postgres=# select x'a25e'::int;  -- chunk_id 
- int4  
--------
- 41566
+postgres=# select x'01'::int as va_header, x'12'::int as va_tag, x'07d9'::int as va_rawsize,
+x'07d5'::int as va_extinfo, x'02e6d2'::int as va_valueid, x'02e6d0'::int as va_toastrelid;
+ va_header | va_tag | va_rawsize | va_extinfo | va_valueid | va_toastrelid 
+-----------+--------+------------+------------+------------+---------------
+         1 |     18 |       2009 |       2005 |     190162 |        190160
 (1 row)
 
-postgres=# select x'07d5'::int;  -- 数据长度
- int4 
-------
- 2005
-(1 row)
-
-postgres=# select x'07d9'::int;	 -- 总数据长度
- int4 
-------
- 2009
-(1 row)
-
-postgres=# select x'12'::int; -- varattrib_1b_e va_tag VARTAG_ONDISK
- int4 
-------
-   18
-(1 row)
-
-postgres=# select x'01'::int; -- varattrib_1b_e va_header
- int4 
-------
-    1
-(1 row)
+postgres=# 
 ```
+- va_header 是标识大端还是小端，决定了我们需要怎么去解析数据
+- va_tag 标识"TOAST pointer"的状态
+- va_rawsize 带有变长数据头(4 字节) + 原始数据长度
+- va_extinfo 原始数据长度
+- va_valueid 对应chunk_id 
+- va_toastrelid 就显而易见了，是toast表的oid
 
 相关数据结构和接口
 
 ```c
+/*
+ * Type tag for the various sorts of "TOAST pointer" datums.  The peculiar
+ * value for VARTAG_ONDISK comes from a requirement for on-disk compatibility
+ * with a previous notion that the tag field was the pointer datum's length.
+ */
+typedef enum vartag_external
+{
+	VARTAG_INDIRECT = 1,
+	VARTAG_EXPANDED_RO = 2,
+	VARTAG_EXPANDED_RW = 3,
+	VARTAG_ONDISK = 18
+} vartag_external;
+
 /*
  * struct varatt_external is a traditional "TOAST pointer", that is, the
  * information needed to fetch a Datum stored out-of-line in a TOAST table.
@@ -424,13 +551,13 @@ toast_save_datum(Relation rel, Datum value,
 	else
 		toast_pointer.va_toastrelid = RelationGetRelid(toastrel);
 
-    // ......
+      // ......
 
 	/*
 	 * Create the TOAST pointer value that we'll return
 	 */
 	result = (struct varlena *) palloc(TOAST_POINTER_SIZE);
-	SET_VARTAG_EXTERNAL(result, VARTAG_ONDISK);
+	SET_VARTAG_EXTERNAL(result, VARTAG_ONDISK);  // 这里设置VARTAG_ONDISK
 	memcpy(VARDATA_EXTERNAL(result), &toast_pointer, sizeof(toast_pointer));
 
 	return PointerGetDatum(result);
@@ -462,106 +589,84 @@ PostgresMain(const char * dbname, const char * username) (\home\postgres\code\18
 BackendMain(const void * startup_data, size_t startup_data_len) (\home\postgres\code\18\src\backend\tcop\backend_startup.c:124)
 ```
 
-# 完整的测试结果
-
+# 为什么不推荐使用SELECT *
+这是一个老生常谈的问题，就是在应用程序开发中，推荐需要获取什么数据就去查询对应的字段，而不是直接SELECT * 一把梭。可是还是有人觉得无所谓，这里可以用toast构建个简单的场景，演示一下为什么不推荐使用SELECT *。
 ```sql
-postgres=# CREATE TABLE t (c text);
-CREATE TABLE
-postgres=# ALTER TABLE t ALTER COLUMN c SET STORAGE external; -- 如果是使用repeat('a',2005)则需要这一步 因为数据重复，更方便压缩
-ALTER TABLE
-postgres=# INSERT INTO t VALUES (repeat('a',2005)); -- 2005触发toast
-INSERT 0 1
-postgres=# SELECT 
-  oid AS main_table_oid,
-  reltoastrelid AS toast_table_oid,
-  reltoastrelid::regclass::text AS toast_table_name
-FROM pg_class WHERE relname='t'; 
- main_table_oid | toast_table_oid |    toast_table_name     
-----------------+-----------------+-------------------------
-          41561 |           41564 | pg_toast.pg_toast_41561
-(1 row)
+postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type "help" for help.
 
+postgres=# create table t(a int, b text);
+CREATE TABLE
+postgres=# DO $$
+begin
+for i in 1 .. 1000 loop
+insert into t values(i, random_string(2005));
+end loop;
+end; $$ language plpgsql;
+DO
 postgres=# select count(*) from t;
  count 
 -------
-     1
+  1000
 (1 row)
 
-postgres=# select count(*) from pg_toast.pg_toast_41561;
- count 
--------
-     2
-(1 row)
+postgres=# \q
+postgres@zxm-VMware-Virtual-Platform:~$ psql -o /dev/null
+psql (16.10)
+Type "help" for help.
 
-postgres=# \d pg_toast.pg_toast_41561
-TOAST table "pg_toast.pg_toast_41561"
-   Column   |  Type   
-------------+---------
- chunk_id   | oid
- chunk_seq  | integer
- chunk_data | bytea
-Owning table: "public.t"
-Indexes:
-    "pg_toast_41561_index" PRIMARY KEY, btree (chunk_id, chunk_seq)
+postgres=# \timing
+Timing is on.
+postgres=# select a from t;
+Time: 2.137 ms
+postgres=# select a from t;
+Time: 1.180 ms
+postgres=# select a from t;
+Time: 1.095 ms
+postgres=# select a from t;
+Time: 0.867 ms
+postgres=# select a from t;
+Time: 0.863 ms
+postgres=# select a from t;
+Time: 1.111 ms
+postgres=# select a from t;
+Time: 1.045 ms
+postgres=# select a from t;
+Time: 0.892 ms
+postgres=# select a from t;
+Time: 1.259 ms
+postgres=# select a from t;
+Time: 0.776 ms
+postgres=# \q
+postgres@zxm-VMware-Virtual-Platform:~$ psql -o /dev/null
+psql (16.10)
+Type "help" for help.
 
-postgres=# select length(chunk_data) from pg_toast.pg_toast_41561;
- length 
---------
-   1996
-      9
-(2 rows)
-
-postgres=# SELECT encode(t_data,'hex')
-FROM   heap_page_items(get_raw_page('t',0))
-WHERE  t_ctid = '(0,1)';
-                encode                
---------------------------------------
- 0112d9070000d50700005ea200005ca20000
-(1 row)
-
-postgres=# select chunk_id from pg_toast.pg_toast_41561;
- chunk_id 
-----------
-    41566
-    41566
-(2 rows)
-
-postgres=# select x'a25c'::int;  -- toast_table_oid
- int4  
--------
- 41564
-(1 row)
-
-postgres=# select x'a25e'::int;  -- chunk_id 
- int4  
--------
- 41566
-(1 row)
-
-postgres=# select x'07d5'::int;  -- 数据长度
- int4 
-------
- 2005
-(1 row)
-
-postgres=# select x'07d9'::int;	 -- 总数据长度
- int4 
-------
- 2009
-(1 row)
-
-postgres=# select x'12'::int; -- varattrib_1b_e va_tag VARTAG_ONDISK
- int4 
-------
-   18
-(1 row)
-
-postgres=# select x'01'::int; -- varattrib_1b_e va_header
- int4 
-------
-    1
-(1 row)
-
+postgres=# \timing
+Timing is on.
+postgres=# select * from t;
+Time: 27.057 ms
+postgres=# select * from t;
+Time: 26.083 ms
+postgres=# select * from t;
+Time: 19.612 ms
+postgres=# select * from t;
+Time: 19.230 ms
+postgres=# select * from t;
+Time: 19.653 ms
+postgres=# select * from t;
+Time: 14.698 ms
+postgres=# select * from t;
+Time: 13.891 ms
+postgres=# select * from t;
+Time: 14.165 ms
+postgres=# select * from t;
+Time: 14.738 ms
+postgres=# select * from t;
+Time: 18.510 ms
 postgres=# 
-```
+``` 
+感觉这都不需要再解释了。
 
+> 更多内容参考灿灿老师翻译的 https://postgres-internals.cn/docs/chapter01/#118-toast
