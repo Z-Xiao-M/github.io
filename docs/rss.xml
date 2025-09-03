@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Wed, 03 Sep 2025 09:19:35 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>查询语句耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>用作备忘，内容演示：
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Wed, 03 Sep 2025 09:32:49 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>查询语句耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>内容演示：
 ```sql
 postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
 Time: 5.771 ms
@@ -29,7 +29,7 @@ Time: 1213.000 ms (00:01.213)
 postgres=# select * from a_gtt;
 Time: 1230.897 ms (00:01.231)
 ```
-关注代码：
+关注代码，原因在于需要多次遍历大的list：
 ```c
 static List *on_commits = NIL;
 
@@ -137,7 +137,50 @@ PreCommit_on_commit_actions(void)
 #endif
 	}
 }
-``` 。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</guid><pubDate>Wed, 03 Sep 2025 09:19:04 +0000</pubDate></item><item><title>简单解析下Toast</title><link>https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-Toast.html</link><description># 什么是TOAST
+``` 
+
+&lt;img width='1062' height='1040' alt='Image' src='https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2' /&gt;
+
+```c
+void
+heap_truncate(List *relids)
+{
+	List	   *relations = NIL;
+	ListCell   *cell;
+
+	/* Open relations for processing, and grab exclusive access on each */
+	foreach(cell, relids)
+	{
+		Oid			rid = lfirst_oid(cell);
+		Relation	rel;
+
+		rel = table_open(rid, AccessExclusiveLock);
+		relations = lappend(relations, rel);
+	}
+
+	/* Don't allow truncate on tables that are referenced by foreign keys */
+	heap_truncate_check_FKs(relations, true);
+
+	/* OK to do it */
+	foreach(cell, relations)
+	{
+		Relation	rel = lfirst(cell);
+
+		/* Truncate the relation */
+		heap_truncate_one_rel(rel);
+
+		/* Close the relation, but keep exclusive lock on it until commit */
+		table_close(rel, NoLock);
+	}
+}
+```
+
+&lt;img width='1011' height='766' alt='Image' src='https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338' /&gt;
+
+
+heap_truncate_check_FKs中还存在遍历
+
+&lt;img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' /&gt;。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</guid><pubDate>Wed, 03 Sep 2025 09:19:04 +0000</pubDate></item><item><title>简单解析下Toast</title><link>https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-Toast.html</link><description># 什么是TOAST
 
 PostgreSQL 的 TOAST（The Oversized-Attribute Storage Technique，超大属性存储技术）是针对大尺寸数据（如长文本、二进制数据等）的存储优化机制，当字段数据超过阈值时，会自动将其压缩或拆分后存储到独立的 TOAST 表中，主表仅保留引用指针，既解决了单条记录存储容量受限问题，又通过透明操作、多种存储策略和独立表设计，平衡了存储效率与访问性能，对 TEXT、BYTEA、JSONB 等可能存储大数据的类型尤为有效。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-Toast.html</guid><pubDate>Wed, 03 Sep 2025 05:42:58 +0000</pubDate></item><item><title>CREATE TABLE和文件分支</title><link>https://Z-Xiao-M.github.io/github.io/post/CREATE%20TABLE-he-wen-jian-fen-zhi.html</link><description># 文件分支
 
