@@ -1,5 +1,143 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Wed, 03 Sep 2025 05:43:28 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>简单解析下Toast</title><link>https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-Toast.html</link><description># 什么是TOAST
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Wed, 03 Sep 2025 09:19:35 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>查询语句耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>用作备忘，内容演示：
+```sql
+postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
+Time: 5.771 ms
+postgres=# select * from a_gtt;
+Time: 1.721 ms
+postgres=# select * from a_gtt;
+Time: 1.383 ms
+postgres=# select * from a_gtt;
+Time: 1.703 ms
+postgres=# DO $$
+DECLARE
+  v_sql VARCHAR(100);
+BEGIN
+  FOR i IN 1..3000 LOOP
+    v_sql := 'CREATE TEMP TABLE a_gtt'||i||'(n numeric) ON COMMIT DELETE ROWS';
+    EXECUTE v_sql;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+Time: 4150.059 ms (00:04.150)
+postgres=# select * from a_gtt;
+Time: 1250.611 ms (00:01.251)
+postgres=# select * from a_gtt;
+Time: 1239.305 ms (00:01.239)
+postgres=# select * from a_gtt;
+Time: 1213.000 ms (00:01.213)
+postgres=# select * from a_gtt;
+Time: 1230.897 ms (00:01.231)
+```
+关注代码：
+```c
+static List *on_commits = NIL;
+
+/*
+ * Perform ON COMMIT actions.
+ *
+ * This is invoked just before actually committing, since it's possible
+ * to encounter errors.
+ */
+void
+PreCommit_on_commit_actions(void)
+{
+	ListCell   *l;
+	List	   *oids_to_truncate = NIL;
+	List	   *oids_to_drop = NIL;
+
+	foreach(l, on_commits)
+	{
+		OnCommitItem *oc = (OnCommitItem *) lfirst(l);
+
+		/* Ignore entry if already dropped in this xact */
+		if (oc-&gt;deleting_subid != InvalidSubTransactionId)
+			continue;
+
+		switch (oc-&gt;oncommit)
+		{
+			case ONCOMMIT_NOOP:
+			case ONCOMMIT_PRESERVE_ROWS:
+				/* Do nothing (there shouldn't be such entries, actually) */
+				break;
+			case ONCOMMIT_DELETE_ROWS:
+
+				/*
+				 * If this transaction hasn't accessed any temporary
+				 * relations, we can skip truncating ON COMMIT DELETE ROWS
+				 * tables, as they must still be empty.
+				 */
+				if ((MyXactFlags &amp; XACT_FLAGS_ACCESSEDTEMPNAMESPACE))
+					oids_to_truncate = lappend_oid(oids_to_truncate, oc-&gt;relid);
+				break;
+			case ONCOMMIT_DROP:
+				oids_to_drop = lappend_oid(oids_to_drop, oc-&gt;relid);
+				break;
+		}
+	}
+
+	/*
+	 * Truncate relations before dropping so that all dependencies between
+	 * relations are removed after they are worked on.  Doing it like this
+	 * might be a waste as it is possible that a relation being truncated will
+	 * be dropped anyway due to its parent being dropped, but this makes the
+	 * code more robust because of not having to re-check that the relation
+	 * exists at truncation time.
+	 */
+	if (oids_to_truncate != NIL)
+		heap_truncate(oids_to_truncate);
+
+	if (oids_to_drop != NIL)
+	{
+		ObjectAddresses *targetObjects = new_object_addresses();
+
+		foreach(l, oids_to_drop)
+		{
+			ObjectAddress object;
+
+			object.classId = RelationRelationId;
+			object.objectId = lfirst_oid(l);
+			object.objectSubId = 0;
+
+			Assert(!object_address_present(&amp;object, targetObjects));
+
+			add_exact_object_address(&amp;object, targetObjects);
+		}
+
+		/*
+		 * Object deletion might involve toast table access (to clean up
+		 * toasted catalog entries), so ensure we have a valid snapshot.
+		 */
+		PushActiveSnapshot(GetTransactionSnapshot());
+
+		/*
+		 * Since this is an automatic drop, rather than one directly initiated
+		 * by the user, we pass the PERFORM_DELETION_INTERNAL flag.
+		 */
+		performMultipleDeletions(targetObjects, DROP_CASCADE,
+								 PERFORM_DELETION_INTERNAL | PERFORM_DELETION_QUIETLY);
+
+		PopActiveSnapshot();
+
+#ifdef USE_ASSERT_CHECKING
+
+		/*
+		 * Note that table deletion will call remove_on_commit_action, so the
+		 * entry should get marked as deleted.
+		 */
+		foreach(l, on_commits)
+		{
+			OnCommitItem *oc = (OnCommitItem *) lfirst(l);
+
+			if (oc-&gt;oncommit != ONCOMMIT_DROP)
+				continue;
+
+			Assert(oc-&gt;deleting_subid != InvalidSubTransactionId);
+		}
+#endif
+	}
+}
+``` 。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</guid><pubDate>Wed, 03 Sep 2025 09:19:04 +0000</pubDate></item><item><title>简单解析下Toast</title><link>https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-Toast.html</link><description># 什么是TOAST
 
 PostgreSQL 的 TOAST（The Oversized-Attribute Storage Technique，超大属性存储技术）是针对大尺寸数据（如长文本、二进制数据等）的存储优化机制，当字段数据超过阈值时，会自动将其压缩或拆分后存储到独立的 TOAST 表中，主表仅保留引用指针，既解决了单条记录存储容量受限问题，又通过透明操作、多种存储策略和独立表设计，平衡了存储效率与访问性能，对 TEXT、BYTEA、JSONB 等可能存储大数据的类型尤为有效。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-Toast.html</guid><pubDate>Wed, 03 Sep 2025 05:42:58 +0000</pubDate></item><item><title>CREATE TABLE和文件分支</title><link>https://Z-Xiao-M.github.io/github.io/post/CREATE%20TABLE-he-wen-jian-fen-zhi.html</link><description># 文件分支
 
