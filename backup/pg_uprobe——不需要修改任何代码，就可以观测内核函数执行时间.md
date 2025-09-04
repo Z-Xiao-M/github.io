@@ -11,7 +11,7 @@ CREATE EXTENSION pg_uprobe;          #创建拓展
 ```
 
 # 简单演示
-在[查询耗时同临时表的数量呈线性增长](https://github.com/Z-Xiao-M/github.io/issues/30)中，我们通过修改代码，添加了一些计时的方法，才获得了`PreCommit_on_commit_actions`和`heap_truncate`两个内核函数的执行时间，而使用pg_uprobe我们可以做到不修改任何代码，就可以观测到这两个内核函数具体的执行时间。
+在[查询耗时同临时表的数量呈线性增长](https://z-xiao-m.github.io/github.io/post/cha-xun-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html)中，我们通过修改代码，添加了一些计时的方法，才获得了`PreCommit_on_commit_actions`和`heap_truncate`两个内核函数的执行时间，而使用pg_uprobe我们可以做到不修改任何代码，就可以观测到这两个内核函数具体的执行时间。
 ```sql
 postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
 CREATE TABLE

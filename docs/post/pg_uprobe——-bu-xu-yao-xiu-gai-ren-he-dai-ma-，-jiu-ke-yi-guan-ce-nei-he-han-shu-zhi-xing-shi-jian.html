@@ -95,7 +95,7 @@ make <span class="pl-k">&amp;&amp;</span> make install
 shared_preload_libraries = <span class="pl-s"><span class="pl-pds">'</span>pg_uprobe<span class="pl-pds">'</span></span> <span class="pl-c"><span class="pl-c">#</span>添加至配置文件</span>
 CREATE EXTENSION pg_uprobe<span class="pl-k">;</span>          <span class="pl-c"><span class="pl-c">#</span>创建拓展</span></pre></div>
 <h1>简单演示</h1>
-<p>在<a href="https://github.com/Z-Xiao-M/github.io/issues/30" data-hovercard-type="issue" data-hovercard-url="/Z-Xiao-M/github.io/issues/30/hovercard">查询耗时同临时表的数量呈线性增长</a>中，我们通过修改代码，添加了一些计时的方法，才获得了<code class="notranslate">PreCommit_on_commit_actions</code>和<code class="notranslate">heap_truncate</code>两个内核函数的执行时间，而使用pg_uprobe我们可以做到不修改任何代码，就可以观测到这两个内核函数具体的执行时间。</p>
+<p>在<a href="https://z-xiao-m.github.io/github.io/post/cha-xun-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html" rel="nofollow">查询耗时同临时表的数量呈线性增长</a>中，我们通过修改代码，添加了一些计时的方法，才获得了<code class="notranslate">PreCommit_on_commit_actions</code>和<code class="notranslate">heap_truncate</code>两个内核函数的执行时间，而使用pg_uprobe我们可以做到不修改任何代码，就可以观测到这两个内核函数具体的执行时间。</p>
 <div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;</span>
 CREATE TABLE
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \timing</span>
