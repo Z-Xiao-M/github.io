@@ -1,5 +1,422 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Thu, 04 Sep 2025 05:41:06 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>文摘: 如果没有人读博客，为什么要写呢？</title><link>https://Z-Xiao-M.github.io/github.io/post/wen-zhai--%20-ru-guo-mei-you-ren-du-bo-ke-%EF%BC%8C-wei-shen-me-yao-xie-ni-%EF%BC%9F.html</link><description>&gt; 我偶然看到这么一段话，想简单记录一下
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Thu, 04 Sep 2025 07:35:47 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>plpgsql的子事务</title><link>https://Z-Xiao-M.github.io/github.io/post/plpgsql-de-zi-shi-wu.html</link><description>在事务块中调用存在异常的函数
+
+```sql
+CREATE TABLE tmp(id int);
+
+CREATE OR REPLACE FUNCTION demo_plpgsql_subxact()
+RETURNS void AS $$
+BEGIN                        
+    INSERT INTO tmp VALUES (-2);
+    INSERT INTO tmp VALUES (1/0);  -- error
+EXCEPTION
+    WHEN division_by_zero THEN
+        RAISE INFO '%', SQLERRM;
+        INSERT INTO tmp VALUES (-3);            
+END;
+$$ LANGUAGE plpgsql;
+
+BEGIN; -- 开启事务
+INSERT INTO tmp VALUES (-1);
+ELECT demo_plpgsql_subxact(); -- 调用函数
+select * from tmp;
+COMMIT;
+
+truncate tmp;
+
+-- 等价于
+BEGIN; -- 开启事务
+INSERT INTO tmp VALUES (-1);
+SAVEPOINT exception;  -- 保存点
+INSERT INTO tmp VALUES (-2);
+INSERT INTO tmp VALUES (1/0);  -- error
+ROLLBACK TO SAVEPOINT exception; -- 异常回滚到保存点
+INSERT INTO tmp VALUES (-3); 
+SELECT * FROM tmp;
+COMMIT;
+```
+
+运行结果
+
+```sql
+postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type 'help' for help.
+
+postgres=# CREATE TABLE tmp(id int);
+CREATE TABLE
+postgres=# CREATE OR REPLACE FUNCTION demo_plpgsql_subxact()
+postgres-# RETURNS void AS $$
+postgres$# BEGIN  
+postgres$#     INSERT INTO tmp VALUES (-2);
+postgres$#     INSERT INTO tmp VALUES (1/0);  -- error
+postgres$# EXCEPTION
+postgres$#     WHEN division_by_zero THEN
+postgres$#                 RAISE INFO '%', SQLERRM;
+postgres$#         INSERT INTO tmp VALUES (-3); 
+postgres$# END;
+postgres$# $$ LANGUAGE plpgsql;
+CREATE FUNCTION
+postgres=# BEGIN;
+BEGIN
+postgres=*# INSERT INTO tmp VALUES (-1);
+INSERT 0 1
+postgres=*# SELECT demo_plpgsql_subxact(); -- 调用函数
+INFO:  division by zero
+ demo_plpgsql_subxact 
+----------------------
+ 
+(1 row)
+
+postgres=*# select * from tmp;
+ id 
+----
+ -1
+ -3
+(2 rows)
+
+postgres=*# COMMIT;
+COMMIT
+postgres=# truncate tmp;
+TRUNCATE TABLE
+postgres=# BEGIN;
+BEGIN
+postgres=*# INSERT INTO tmp VALUES (-1);
+INSERT 0 1
+postgres=*# SAVEPOINT exception;
+SAVEPOINT
+postgres=*# INSERT INTO tmp VALUES (-2);
+INSERT 0 1
+postgres=*# INSERT INTO tmp VALUES (1/0);  -- error
+ERROR:  division by zero
+postgres=!# ROLLBACK TO SAVEPOINT exception;
+ROLLBACK
+postgres=*# INSERT INTO tmp VALUES (-3); 
+INSERT 0 1
+postgres=*# COMMIT;
+COMMIT
+postgres=# SELECT * FROM tmp;
+ id 
+----
+ -1
+ -3
+(2 rows)
+
+postgres=# 
+```
+
+在事务块中，调用不存在异常的函数
+
+```sql
+TRUNCATE tmp;
+
+CREATE OR REPLACE FUNCTION demo_plpgsql_subxact()
+RETURNS void AS $$
+BEGIN                        
+    INSERT INTO tmp VALUES (-2);
+    INSERT INTO tmp VALUES (-3);
+EXCEPTION
+    WHEN division_by_zero THEN
+        RAISE INFO '%', SQLERRM;        
+END;
+$$ LANGUAGE plpgsql;
+
+BEGIN; -- 开启事务块
+INSERT INTO tmp VALUES (-1);
+select demo_plpgsql_subxact();
+INSERT INTO tmp VALUES (-4);
+SELECT * FROM tmp;
+COMMIT;
+
+
+TRUNCATE tmp;
+-- 等价于
+BEGIN; -- 开启事务块
+INSERT INTO tmp VALUES (-1);
+SAVEPOINT exception;
+INSERT INTO tmp VALUES (-2);
+INSERT INTO tmp VALUES (-3);
+RELEASE SAVEPOINT exception;
+INSERT INTO tmp VALUES (-4);
+SELECT * FROM tmp;
+COMMIT;
+```
+
+运行结果
+
+```sql
+postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type 'help' for help.
+
+postgres=# TRUNCATE tmp;
+TRUNCATE TABLE
+postgres=# CREATE OR REPLACE FUNCTION demo_plpgsql_subxact()
+RETURNS void AS $$
+BEGIN                        
+    INSERT INTO tmp VALUES (-2);
+    INSERT INTO tmp VALUES (-3);
+EXCEPTION
+    WHEN division_by_zero THEN
+        RAISE INFO '%', SQLERRM;        
+END;
+$$ LANGUAGE plpgsql;
+CREATE FUNCTION
+postgres=# BEGIN; -- 开启事务块
+BEGIN
+postgres=*# INSERT INTO tmp VALUES (-1);
+INSERT 0 1
+postgres=*# select demo_plpgsql_subxact();
+ demo_plpgsql_subxact 
+----------------------
+ 
+(1 row)
+
+postgres=*# INSERT INTO tmp VALUES (-4);
+INSERT 0 1
+postgres=*# SELECT * FROM tmp;
+ id 
+----
+ -1
+ -2
+ -3
+ -4
+(4 rows)
+
+postgres=*# COMMIT;
+COMMIT
+postgres=# TRUNCATE tmp;
+TRUNCATE TABLE
+postgres=# -- 等价于
+postgres=# BEGIN; -- 开启事务块
+BEGIN
+postgres=*# INSERT INTO tmp VALUES (-1);
+INSERT 0 1
+postgres=*# SAVEPOINT exception; -- 开启子事务
+SAVEPOINT
+postgres=*# INSERT INTO tmp VALUES (-2);
+INSERT 0 1
+postgres=*# INSERT INTO tmp VALUES (-3);
+INSERT 0 1
+postgres=*# RELEASE SAVEPOINT exception;
+RELEASE
+postgres=*# INSERT INTO tmp VALUES (-4);
+INSERT 0 1
+postgres=*# SELECT * FROM tmp;
+ id 
+----
+ -1
+ -2
+ -3
+ -4
+(4 rows)
+
+postgres=*# COMMIT;
+COMMIT
+postgres=# 
+```
+
+没有exception则不会触发子事务的动作，部分`exec_stmt_block`代码片段如下
+```c
+static int
+exec_stmt_block(PLpgSQL_execstate *estate, PLpgSQL_stmt_block *block)
+{
+	// initialize 
+
+	if (block-&gt;exceptions)
+	{
+		/*
+		 * Execute the statements in the block's body inside a sub-transaction
+		 */
+		MemoryContext oldcontext = CurrentMemoryContext;
+		ResourceOwner oldowner = CurrentResourceOwner;
+		ExprContext *old_eval_econtext = estate-&gt;eval_econtext;
+		ErrorData  *save_cur_error = estate-&gt;cur_error;
+		MemoryContext stmt_mcontext;
+
+		estate-&gt;err_text = gettext_noop('during statement block entry');
+
+		/*
+		 * We will need a stmt_mcontext to hold the error data if an error
+		 * occurs.  It seems best to force it to exist before entering the
+		 * subtransaction, so that we reduce the risk of out-of-memory during
+		 * error recovery, and because this greatly simplifies restoring the
+		 * stmt_mcontext stack to the correct state after an error.  We can
+		 * ameliorate the cost of this by allowing the called statements to
+		 * use this mcontext too; so we don't push it down here.
+		 */
+		stmt_mcontext = get_stmt_mcontext(estate);
+
+		BeginInternalSubTransaction(NULL);  // 开启子事务
+		/* Want to run statements inside function's memory context */
+		MemoryContextSwitchTo(oldcontext);
+
+		PG_TRY();
+		{
+			/*
+			 * We need to run the block's statements with a new eval_econtext
+			 * that belongs to the current subtransaction; if we try to use
+			 * the outer econtext then ExprContext shutdown callbacks will be
+			 * called at the wrong times.
+			 */
+			plpgsql_create_econtext(estate);
+
+			estate-&gt;err_text = NULL;
+
+			/* Run the block's statements */
+			rc = exec_stmts(estate, block-&gt;body);
+
+			estate-&gt;err_text = gettext_noop('during statement block exit');
+
+			/*
+			 * If the block ended with RETURN, we may need to copy the return
+			 * value out of the subtransaction eval_context.  We can avoid a
+			 * physical copy if the value happens to be a R/W expanded object.
+			 */
+			if (rc == PLPGSQL_RC_RETURN &amp;&amp;
+				!estate-&gt;retisset &amp;&amp;
+				!estate-&gt;retisnull)
+			{
+				int16		resTypLen;
+				bool		resTypByVal;
+
+				get_typlenbyval(estate-&gt;rettype, &amp;resTypLen, &amp;resTypByVal);
+				estate-&gt;retval = datumTransfer(estate-&gt;retval,
+											   resTypByVal, resTypLen);
+			}
+
+			/* Commit the inner transaction, return to outer xact context */
+			ReleaseCurrentSubTransaction(); // 释放子事务
+			MemoryContextSwitchTo(oldcontext);
+			CurrentResourceOwner = oldowner;
+
+			/* Assert that the stmt_mcontext stack is unchanged */
+			Assert(stmt_mcontext == estate-&gt;stmt_mcontext);
+
+			/*
+			 * Revert to outer eval_econtext.  (The inner one was
+			 * automatically cleaned up during subxact exit.)
+			 */
+			estate-&gt;eval_econtext = old_eval_econtext;
+		}
+		PG_CATCH();
+		{
+			ErrorData  *edata;
+			ListCell   *e;
+
+			estate-&gt;err_text = gettext_noop('during exception cleanup');
+
+			/* Save error info in our stmt_mcontext */
+			MemoryContextSwitchTo(stmt_mcontext);
+			edata = CopyErrorData();
+			FlushErrorState();
+
+			/* Abort the inner transaction */
+			RollbackAndReleaseCurrentSubTransaction(); // 发生了异常回滚子事务
+			MemoryContextSwitchTo(oldcontext);
+			CurrentResourceOwner = oldowner;
+
+			/*
+			 * Set up the stmt_mcontext stack as though we had restored our
+			 * previous state and then done push_stmt_mcontext().  The push is
+			 * needed so that statements in the exception handler won't
+			 * clobber the error data that's in our stmt_mcontext.
+			 */
+			estate-&gt;stmt_mcontext_parent = stmt_mcontext;
+			estate-&gt;stmt_mcontext = NULL;
+
+			/*
+			 * Now we can delete any nested stmt_mcontexts that might have
+			 * been created as children of ours.  (Note: we do not immediately
+			 * release any statement-lifespan data that might have been left
+			 * behind in stmt_mcontext itself.  We could attempt that by doing
+			 * a MemoryContextReset on it before collecting the error data
+			 * above, but it seems too risky to do any significant amount of
+			 * work before collecting the error.)
+			 */
+			MemoryContextDeleteChildren(stmt_mcontext);
+
+			/* Revert to outer eval_econtext */
+			estate-&gt;eval_econtext = old_eval_econtext;
+
+			/*
+			 * Must clean up the econtext too.  However, any tuple table made
+			 * in the subxact will have been thrown away by SPI during subxact
+			 * abort, so we don't need to (and mustn't try to) free the
+			 * eval_tuptable.
+			 */
+			estate-&gt;eval_tuptable = NULL;
+			exec_eval_cleanup(estate);
+
+			/* Look for a matching exception handler */
+			foreach(e, block-&gt;exceptions-&gt;exc_list)
+			{
+				PLpgSQL_exception *exception = (PLpgSQL_exception *) lfirst(e);
+
+				if (exception_matches_conditions(edata, exception-&gt;conditions))
+				{
+					/*
+					 * Initialize the magic SQLSTATE and SQLERRM variables for
+					 * the exception block; this also frees values from any
+					 * prior use of the same exception. We needn't do this
+					 * until we have found a matching exception.
+					 */
+					PLpgSQL_var *state_var;
+					PLpgSQL_var *errm_var;
+
+					state_var = (PLpgSQL_var *)
+						estate-&gt;datums[block-&gt;exceptions-&gt;sqlstate_varno];
+					errm_var = (PLpgSQL_var *)
+						estate-&gt;datums[block-&gt;exceptions-&gt;sqlerrm_varno];
+
+					assign_text_var(estate, state_var,
+									unpack_sql_state(edata-&gt;sqlerrcode));
+					assign_text_var(estate, errm_var, edata-&gt;message);
+
+					/*
+					 * Also set up cur_error so the error data is accessible
+					 * inside the handler.
+					 */
+					estate-&gt;cur_error = edata;
+
+					estate-&gt;err_text = NULL;
+
+					rc = exec_stmts(estate, exception-&gt;action);
+
+					break;
+				}
+			}
+
+			/*
+			 * Restore previous state of cur_error, whether or not we executed
+			 * a handler.  This is needed in case an error got thrown from
+			 * some inner block's exception handler.
+			 */
+			estate-&gt;cur_error = save_cur_error;
+
+			/* If no match found, re-throw the error */
+			if (e == NULL)
+				ReThrowError(edata);
+
+			/* Restore stmt_mcontext stack and release the error data */
+			pop_stmt_mcontext(estate);
+			MemoryContextReset(stmt_mcontext);
+		}
+		PG_END_TRY();
+
+		Assert(save_cur_error == estate-&gt;cur_error);
+	}
+	else
+	{
+		/*
+		 * Just execute the statements in the block's body
+		 */
+		estate-&gt;err_text = NULL;
+
+		rc = exec_stmts(estate, block-&gt;body);
+	}
+    // ....
+``` 。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/plpgsql-de-zi-shi-wu.html</guid><pubDate>Thu, 04 Sep 2025 07:35:19 +0000</pubDate></item><item><title>文摘: 如果没有人读博客，为什么要写呢？</title><link>https://Z-Xiao-M.github.io/github.io/post/wen-zhai--%20-ru-guo-mei-you-ren-du-bo-ke-%EF%BC%8C-wei-shen-me-yao-xie-ni-%EF%BC%9F.html</link><description>&gt; 我偶然看到这么一段话，想简单记录一下
 
 让我们坦率一点吧，你写了一篇博客，根本就没有人读。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wen-zhai--%20-ru-guo-mei-you-ren-du-bo-ke-%EF%BC%8C-wei-shen-me-yao-xie-ni-%EF%BC%9F.html</guid><pubDate>Thu, 04 Sep 2025 05:40:35 +0000</pubDate></item><item><title>查询耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>内容演示：
 ```sql
