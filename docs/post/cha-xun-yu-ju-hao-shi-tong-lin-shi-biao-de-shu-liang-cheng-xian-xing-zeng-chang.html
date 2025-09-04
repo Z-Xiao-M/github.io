@@ -113,7 +113,7 @@ register_on_commit_action(Oid relid, OnCommitAction action)
 	MemoryContextSwitchTo(oldcxt);
 }
 ```
-在事务将要完成之前，去处理
+而在事务将要完成之前，需要处理这个list中的相关内容
 ```c
 /*
  * Perform ON COMMIT actions.
@@ -128,6 +128,7 @@ PreCommit_on_commit_actions(void)
 	List	   *oids_to_truncate = NIL;
 	List	   *oids_to_drop = NIL;
 
+         // 遍历
 	foreach(l, on_commits)
 	{
 		OnCommitItem *oc = (OnCommitItem *) lfirst(l);
@@ -150,7 +151,7 @@ PreCommit_on_commit_actions(void)
 				 * tables, as they must still be empty.
 				 */
 				if ((MyXactFlags & XACT_FLAGS_ACCESSEDTEMPNAMESPACE))
-					oids_to_truncate = lappend_oid(oids_to_truncate, oc->relid);
+					oids_to_truncate = lappend_oid(oids_to_truncate, oc->relid); // 生成新的list
 				break;
 			case ONCOMMIT_DROP:
 				oids_to_drop = lappend_oid(oids_to_drop, oc->relid);
@@ -167,7 +168,7 @@ PreCommit_on_commit_actions(void)
 	 * exists at truncation time.
 	 */
 	if (oids_to_truncate != NIL)
-		heap_truncate(oids_to_truncate);
+		heap_truncate(oids_to_truncate); // 新的list需要处理
 
 	if (oids_to_drop != NIL)
 	{
@@ -231,6 +232,7 @@ heap_truncate(List *relids)
 	List	   *relations = NIL;
 	ListCell   *cell;
 
+        // 遍历
 	/* Open relations for processing, and grab exclusive access on each */
 	foreach(cell, relids)
 	{
@@ -238,19 +240,20 @@ heap_truncate(List *relids)
 		Relation	rel;
 
 		rel = table_open(rid, AccessExclusiveLock);
-		relations = lappend(relations, rel);
+		relations = lappend(relations, rel);  // 生成新的list
 	}
 
 	/* Don't allow truncate on tables that are referenced by foreign keys */
-	heap_truncate_check_FKs(relations, true);
+	heap_truncate_check_FKs(relations, true); // 其实这内部还有遍历
 
+        // 再次遍历
 	/* OK to do it */
 	foreach(cell, relations)
 	{
 		Relation	rel = lfirst(cell);
 
 		/* Truncate the relation */
-		heap_truncate_one_rel(rel);
+		heap_truncate_one_rel(rel);  // 估计大部分的耗时在此处
 
 		/* Close the relation, but keep exclusive lock on it until commit */
 		table_close(rel, NoLock);
@@ -543,7 +546,7 @@ register_on_commit_action(Oid relid, OnCommitAction action)
 	MemoryContextSwitchTo(oldcxt);
 }
 ```
-在事务将要完成之前，去处理
+而在事务将要完成之前，需要处理这个list中的相关内容
 ```c
 /*
  * Perform ON COMMIT actions.
@@ -558,6 +561,7 @@ PreCommit_on_commit_actions(void)
 	List	   *oids_to_truncate = NIL;
 	List	   *oids_to_drop = NIL;
 
+         // 遍历
 	foreach(l, on_commits)
 	{
 		OnCommitItem *oc = (OnCommitItem *) lfirst(l);
@@ -580,7 +584,7 @@ PreCommit_on_commit_actions(void)
 				 * tables, as they must still be empty.
 				 */
 				if ((MyXactFlags & XACT_FLAGS_ACCESSEDTEMPNAMESPACE))
-					oids_to_truncate = lappend_oid(oids_to_truncate, oc->relid);
+					oids_to_truncate = lappend_oid(oids_to_truncate, oc->relid); // 生成新的list
 				break;
 			case ONCOMMIT_DROP:
 				oids_to_drop = lappend_oid(oids_to_drop, oc->relid);
@@ -597,7 +601,7 @@ PreCommit_on_commit_actions(void)
 	 * exists at truncation time.
 	 */
 	if (oids_to_truncate != NIL)
-		heap_truncate(oids_to_truncate);
+		heap_truncate(oids_to_truncate); // 新的list需要处理
 
 	if (oids_to_drop != NIL)
 	{
@@ -661,6 +665,7 @@ heap_truncate(List *relids)
 	List	   *relations = NIL;
 	ListCell   *cell;
 
+        // 遍历
 	/* Open relations for processing, and grab exclusive access on each */
 	foreach(cell, relids)
 	{
@@ -668,19 +673,20 @@ heap_truncate(List *relids)
 		Relation	rel;
 
 		rel = table_open(rid, AccessExclusiveLock);
-		relations = lappend(relations, rel);
+		relations = lappend(relations, rel);  // 生成新的list
 	}
 
 	/* Don't allow truncate on tables that are referenced by foreign keys */
-	heap_truncate_check_FKs(relations, true);
+	heap_truncate_check_FKs(relations, true); // 其实这内部还有遍历
 
+        // 再次遍历
 	/* OK to do it */
 	foreach(cell, relations)
 	{
 		Relation	rel = lfirst(cell);
 
 		/* Truncate the relation */
-		heap_truncate_one_rel(rel);
+		heap_truncate_one_rel(rel);  // 估计大部分的耗时在此处
 
 		/* Close the relation, but keep exclusive lock on it until commit */
 		table_close(rel, NoLock);
@@ -1036,7 +1042,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 
 	<span class="pl-en">MemoryContextSwitchTo</span>(<span class="pl-s1">oldcxt</span>);
 }</pre></div>
-<p>在事务将要完成之前，去处理</p>
+<p>而在事务将要完成之前，需要处理这个list中的相关内容</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">/*</span>
 <span class="pl-c"> * Perform ON COMMIT actions.</span>
 <span class="pl-c"> *</span>
@@ -1050,6 +1056,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 	<span class="pl-smi">List</span>	   <span class="pl-c1">*</span><span class="pl-s1">oids_to_truncate</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;
 	<span class="pl-smi">List</span>	   <span class="pl-c1">*</span><span class="pl-s1">oids_to_drop</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;
 
+         <span class="pl-c">// 遍历</span>
 	<span class="pl-en">foreach</span>(<span class="pl-s1">l</span>, <span class="pl-s1">on_commits</span>)
 	{
 		<span class="pl-smi">OnCommitItem</span> <span class="pl-c1">*</span><span class="pl-s1">oc</span> <span class="pl-c1">=</span> (<span class="pl-smi">OnCommitItem</span> <span class="pl-c1">*</span>) <span class="pl-en">lfirst</span>(<span class="pl-s1">l</span>);
@@ -1072,7 +1079,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-c">				 * tables, as they must still be empty.</span>
 <span class="pl-c">				 */</span>
 				<span class="pl-k">if</span> ((<span class="pl-s1">MyXactFlags</span> <span class="pl-c1">&amp;</span> <span class="pl-c1">XACT_FLAGS_ACCESSEDTEMPNAMESPACE</span>))
-					<span class="pl-s1">oids_to_truncate</span> <span class="pl-c1">=</span> <span class="pl-en">lappend_oid</span>(<span class="pl-s1">oids_to_truncate</span>, <span class="pl-s1">oc</span><span class="pl-c1">-&gt;</span><span class="pl-c1">relid</span>);
+					<span class="pl-s1">oids_to_truncate</span> <span class="pl-c1">=</span> <span class="pl-en">lappend_oid</span>(<span class="pl-s1">oids_to_truncate</span>, <span class="pl-s1">oc</span><span class="pl-c1">-&gt;</span><span class="pl-c1">relid</span>); <span class="pl-c">// 生成新的list</span>
 				<span class="pl-k">break</span>;
 			<span class="pl-k">case</span> <span class="pl-c1">ONCOMMIT_DROP</span>:
 				<span class="pl-s1">oids_to_drop</span> <span class="pl-c1">=</span> <span class="pl-en">lappend_oid</span>(<span class="pl-s1">oids_to_drop</span>, <span class="pl-s1">oc</span><span class="pl-c1">-&gt;</span><span class="pl-c1">relid</span>);
@@ -1089,7 +1096,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-c">	 * exists at truncation time.</span>
 <span class="pl-c">	 */</span>
 	<span class="pl-k">if</span> (<span class="pl-s1">oids_to_truncate</span> <span class="pl-c1">!=</span> <span class="pl-c1">NIL</span>)
-		<span class="pl-en">heap_truncate</span>(<span class="pl-s1">oids_to_truncate</span>);
+		<span class="pl-en">heap_truncate</span>(<span class="pl-s1">oids_to_truncate</span>); <span class="pl-c">// 新的list需要处理</span>
 
 	<span class="pl-k">if</span> (<span class="pl-s1">oids_to_drop</span> <span class="pl-c1">!=</span> <span class="pl-c1">NIL</span>)
 	{
@@ -1150,6 +1157,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 	<span class="pl-smi">List</span>	   <span class="pl-c1">*</span><span class="pl-s1">relations</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;
 	<span class="pl-smi">ListCell</span>   <span class="pl-c1">*</span><span class="pl-s1">cell</span>;
 
+        <span class="pl-c">// 遍历</span>
 	<span class="pl-c">/* Open relations for processing, and grab exclusive access on each */</span>
 	<span class="pl-en">foreach</span>(<span class="pl-s1">cell</span>, <span class="pl-s1">relids</span>)
 	{
@@ -1157,19 +1165,20 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 		<span class="pl-smi">Relation</span>	<span class="pl-s1">rel</span>;
 
 		<span class="pl-s1">rel</span> <span class="pl-c1">=</span> <span class="pl-en">table_open</span>(<span class="pl-s1">rid</span>, <span class="pl-s1">AccessExclusiveLock</span>);
-		<span class="pl-s1">relations</span> <span class="pl-c1">=</span> <span class="pl-en">lappend</span>(<span class="pl-s1">relations</span>, <span class="pl-s1">rel</span>);
+		<span class="pl-s1">relations</span> <span class="pl-c1">=</span> <span class="pl-en">lappend</span>(<span class="pl-s1">relations</span>, <span class="pl-s1">rel</span>);  <span class="pl-c">// 生成新的list</span>
 	}
 
 	<span class="pl-c">/* Don't allow truncate on tables that are referenced by foreign keys */</span>
-	<span class="pl-en">heap_truncate_check_FKs</span>(<span class="pl-s1">relations</span>, true);
+	<span class="pl-en">heap_truncate_check_FKs</span>(<span class="pl-s1">relations</span>, true); <span class="pl-c">// 其实这内部还有遍历</span>
 
+        <span class="pl-c">// 再次遍历</span>
 	<span class="pl-c">/* OK to do it */</span>
 	<span class="pl-en">foreach</span>(<span class="pl-s1">cell</span>, <span class="pl-s1">relations</span>)
 	{
 		<span class="pl-smi">Relation</span>	<span class="pl-s1">rel</span> <span class="pl-c1">=</span> <span class="pl-en">lfirst</span>(<span class="pl-s1">cell</span>);
 
 		<span class="pl-c">/* Truncate the relation */</span>
-		<span class="pl-en">heap_truncate_one_rel</span>(<span class="pl-s1">rel</span>);
+		<span class="pl-en">heap_truncate_one_rel</span>(<span class="pl-s1">rel</span>);  <span class="pl-c">// 估计大部分的耗时在此处</span>
 
 		<span class="pl-c">/* Close the relation, but keep exclusive lock on it until commit */</span>
 		<span class="pl-en">table_close</span>(<span class="pl-s1">rel</span>, <span class="pl-s1">NoLock</span>);
