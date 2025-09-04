@@ -52,8 +52,63 @@ Time: 0.758 ms
 ```
 关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
 ```c
+// 和on_commits 息息相关
 static List *on_commits = NIL;
+```
+在创建临时表时，如果存在ON COMMIT的动作 就会将其动作注册到这个变量中
+```c
+/* What to do at commit time for temporary relations */
+typedef enum OnCommitAction
+{
+	ONCOMMIT_NOOP,				/* No ON COMMIT clause (do nothing) */
+	ONCOMMIT_PRESERVE_ROWS,		/* ON COMMIT PRESERVE ROWS (do nothing) */
+	ONCOMMIT_DELETE_ROWS,		/* ON COMMIT DELETE ROWS */
+	ONCOMMIT_DROP				/* ON COMMIT DROP */
+} OnCommitAction;
 
+
+// heap_create_with_catalog
+	 * If there's a special on-commit action, remember it
+	 */
+	if (oncommit != ONCOMMIT_NOOP)
+		register_on_commit_action(relid, oncommit);
+
+/*
+ * Register a newly-created relation's ON COMMIT action.
+ */
+void
+register_on_commit_action(Oid relid, OnCommitAction action)
+{
+	OnCommitItem *oc;
+	MemoryContext oldcxt;
+
+	/*
+	 * We needn't bother registering the relation unless there is an ON COMMIT
+	 * action we need to take.
+	 */
+	if (action == ONCOMMIT_NOOP || action == ONCOMMIT_PRESERVE_ROWS)
+		return;
+
+	oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
+
+	oc = (OnCommitItem *) palloc(sizeof(OnCommitItem));
+	oc->relid = relid;
+	oc->oncommit = action;
+	oc->creating_subid = GetCurrentSubTransactionId();
+	oc->deleting_subid = InvalidSubTransactionId;
+
+	/*
+	 * We use lcons() here so that ON COMMIT actions are processed in reverse
+	 * order of registration.  That might not be essential but it seems
+	 * reasonable.
+	 */
+	on_commits = lcons(oc, on_commits);
+
+	MemoryContextSwitchTo(oldcxt);
+}
+```
+在事务将要完成之际，去处理
+```c
 /*
  * Perform ON COMMIT actions.
  *
@@ -162,7 +217,7 @@ PreCommit_on_commit_actions(void)
 调试可以看到：
 <img width='1062' height='1040' alt='Image' src='https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2' />
 
-对于ON COMMIT DELETE ROWS的临时表而言，主要耗时应该还是`heap_truncate`
+其实主要耗时应该还是`heap_truncate`
 ```c
 void
 heap_truncate(List *relids)
@@ -201,7 +256,183 @@ heap_truncate(List *relids)
 
 
 heap_truncate_check_FKs中还存在遍历，调试可以看到：
-<img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' />。">
+<img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' />
+
+加了些打印，看的更清楚一些
+
+```sql
+postgres@zxm-VMware-Virtual-Platform:~/code/16$ psql -o /dev/null
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+psql (16.10)
+Type 'help' for help.
+
+postgres=# \timing
+Timing is on.
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 1.724 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 0.636 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 0.634 ms
+postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
+INFO:  heap_truncate time: 0.534 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.618 ms
+
+Time: 16.613 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.756 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.834 ms
+
+Time: 2.341 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.727 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.789 ms
+
+Time: 1.372 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.838 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.918 ms
+
+Time: 1.746 ms
+postgres=# DO $$
+DECLARE
+  v_sql VARCHAR(100);
+BEGIN
+  FOR i IN 1..3000 LOOP
+    v_sql := 'CREATE TEMP TABLE a_gtt'||i||'(n numeric) ON COMMIT DELETE ROWS';
+    EXECUTE v_sql;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+INFO:  heap_truncate time: 1048.421 ms
+
+INFO:  PreCommit_on_commit_actions time: 1048.570 ms
+
+Time: 3854.843 ms (00:03.855)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.053 ms
+
+INFO:  heap_truncate time: 1234.707 ms
+
+INFO:  PreCommit_on_commit_actions time: 1234.880 ms
+
+Time: 1242.413 ms (00:01.242)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.039 ms
+
+INFO:  heap_truncate time: 1199.870 ms
+
+INFO:  PreCommit_on_commit_actions time: 1200.038 ms
+
+Time: 1207.323 ms (00:01.207)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.038 ms
+
+INFO:  heap_truncate time: 1384.979 ms
+
+INFO:  PreCommit_on_commit_actions time: 1385.284 ms
+
+Time: 1393.626 ms (00:01.394)
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.063 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.092 ms
+
+Time: 2.293 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.111 ms
+
+Time: 0.963 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.103 ms
+
+Time: 0.933 ms
+postgres=# 
+```
+没修改什么代码
+```c
+diff --git a/src/backend/catalog/heap.c b/src/backend/catalog/heap.c
+index e67ffc37b7d..d3d85cb1264 100644
+--- a/src/backend/catalog/heap.c
++++ b/src/backend/catalog/heap.c
+@@ -75,6 +75,7 @@
+ #include 'utils/lsyscache.h'
+ #include 'utils/syscache.h'
+ 
++#include 'portability/instr_time.h'
+ 
+ /* Potentially set by pg_upgrade_support functions */
+ Oid                    binary_upgrade_next_heap_pg_class_oid = InvalidOid;
+@@ -3070,6 +3071,9 @@ heap_truncate(List *relids)
+ {
+        List       *relations = NIL;
+        ListCell   *cell;
++       instr_time  start;
++       instr_time  duration;
++       INSTR_TIME_SET_CURRENT(start);
+ 
+        /* Open relations for processing, and grab exclusive access on each */
+        foreach(cell, relids)
+@@ -3095,6 +3099,10 @@ heap_truncate(List *relids)
+                /* Close the relation, but keep exclusive lock on it until commit */
+                table_close(rel, NoLock);
+        }
++
++       INSTR_TIME_SET_CURRENT(duration);
++       INSTR_TIME_SUBTRACT(duration, start);
++       elog(INFO, 'heap_truncate time: %.3f ms\n', INSTR_TIME_GET_MILLISEC(duration));
+ }
+ 
+ /*
+diff --git a/src/backend/commands/tablecmds.c b/src/backend/commands/tablecmds.c
+index 016ae0a65f9..0172ec8bc5e 100644
+--- a/src/backend/commands/tablecmds.c
++++ b/src/backend/commands/tablecmds.c
+@@ -105,6 +105,8 @@
+ #include 'utils/typcache.h'
+ #include 'utils/usercontext.h'
+ 
++#include 'portability/instr_time.h'
++
+ /*
+  * ON COMMIT action list
+  */
+@@ -17120,6 +17122,9 @@ PreCommit_on_commit_actions(void)
+        ListCell   *l;
+        List       *oids_to_truncate = NIL;
+        List       *oids_to_drop = NIL;
++       instr_time  start;
++       instr_time  duration;
++       INSTR_TIME_SET_CURRENT(start);
+ 
+        foreach(l, on_commits)
+        {
+@@ -17211,6 +17216,10 @@ PreCommit_on_commit_actions(void)
+                }
+ #endif
+        }
++
++       INSTR_TIME_SET_CURRENT(duration);
++       INSTR_TIME_SUBTRACT(duration, start);
++       elog(INFO, 'PreCommit_on_commit_actions time: %.3f ms\n', INSTR_TIME_GET_MILLISEC(duration));
+ }
+ 
+ /*
+```
+来自tom lane的评价，对于优化此处要增加代码复杂度，让他并不感兴趣
+
+<img width='664' height='517' alt='Image' src='https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72' />。">
 <meta property="og:title" content="查询语句耗时同临时表的数量呈线性增长">
 <meta property="og:description" content="内容演示：
 ```sql
@@ -245,8 +476,63 @@ Time: 0.758 ms
 ```
 关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
 ```c
+// 和on_commits 息息相关
 static List *on_commits = NIL;
+```
+在创建临时表时，如果存在ON COMMIT的动作 就会将其动作注册到这个变量中
+```c
+/* What to do at commit time for temporary relations */
+typedef enum OnCommitAction
+{
+	ONCOMMIT_NOOP,				/* No ON COMMIT clause (do nothing) */
+	ONCOMMIT_PRESERVE_ROWS,		/* ON COMMIT PRESERVE ROWS (do nothing) */
+	ONCOMMIT_DELETE_ROWS,		/* ON COMMIT DELETE ROWS */
+	ONCOMMIT_DROP				/* ON COMMIT DROP */
+} OnCommitAction;
 
+
+// heap_create_with_catalog
+	 * If there's a special on-commit action, remember it
+	 */
+	if (oncommit != ONCOMMIT_NOOP)
+		register_on_commit_action(relid, oncommit);
+
+/*
+ * Register a newly-created relation's ON COMMIT action.
+ */
+void
+register_on_commit_action(Oid relid, OnCommitAction action)
+{
+	OnCommitItem *oc;
+	MemoryContext oldcxt;
+
+	/*
+	 * We needn't bother registering the relation unless there is an ON COMMIT
+	 * action we need to take.
+	 */
+	if (action == ONCOMMIT_NOOP || action == ONCOMMIT_PRESERVE_ROWS)
+		return;
+
+	oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
+
+	oc = (OnCommitItem *) palloc(sizeof(OnCommitItem));
+	oc->relid = relid;
+	oc->oncommit = action;
+	oc->creating_subid = GetCurrentSubTransactionId();
+	oc->deleting_subid = InvalidSubTransactionId;
+
+	/*
+	 * We use lcons() here so that ON COMMIT actions are processed in reverse
+	 * order of registration.  That might not be essential but it seems
+	 * reasonable.
+	 */
+	on_commits = lcons(oc, on_commits);
+
+	MemoryContextSwitchTo(oldcxt);
+}
+```
+在事务将要完成之际，去处理
+```c
 /*
  * Perform ON COMMIT actions.
  *
@@ -355,7 +641,7 @@ PreCommit_on_commit_actions(void)
 调试可以看到：
 <img width='1062' height='1040' alt='Image' src='https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2' />
 
-对于ON COMMIT DELETE ROWS的临时表而言，主要耗时应该还是`heap_truncate`
+其实主要耗时应该还是`heap_truncate`
 ```c
 void
 heap_truncate(List *relids)
@@ -394,7 +680,183 @@ heap_truncate(List *relids)
 
 
 heap_truncate_check_FKs中还存在遍历，调试可以看到：
-<img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' />。">
+<img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' />
+
+加了些打印，看的更清楚一些
+
+```sql
+postgres@zxm-VMware-Virtual-Platform:~/code/16$ psql -o /dev/null
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+psql (16.10)
+Type 'help' for help.
+
+postgres=# \timing
+Timing is on.
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 1.724 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 0.636 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 0.634 ms
+postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
+INFO:  heap_truncate time: 0.534 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.618 ms
+
+Time: 16.613 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.756 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.834 ms
+
+Time: 2.341 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.727 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.789 ms
+
+Time: 1.372 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.838 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.918 ms
+
+Time: 1.746 ms
+postgres=# DO $$
+DECLARE
+  v_sql VARCHAR(100);
+BEGIN
+  FOR i IN 1..3000 LOOP
+    v_sql := 'CREATE TEMP TABLE a_gtt'||i||'(n numeric) ON COMMIT DELETE ROWS';
+    EXECUTE v_sql;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+INFO:  heap_truncate time: 1048.421 ms
+
+INFO:  PreCommit_on_commit_actions time: 1048.570 ms
+
+Time: 3854.843 ms (00:03.855)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.053 ms
+
+INFO:  heap_truncate time: 1234.707 ms
+
+INFO:  PreCommit_on_commit_actions time: 1234.880 ms
+
+Time: 1242.413 ms (00:01.242)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.039 ms
+
+INFO:  heap_truncate time: 1199.870 ms
+
+INFO:  PreCommit_on_commit_actions time: 1200.038 ms
+
+Time: 1207.323 ms (00:01.207)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.038 ms
+
+INFO:  heap_truncate time: 1384.979 ms
+
+INFO:  PreCommit_on_commit_actions time: 1385.284 ms
+
+Time: 1393.626 ms (00:01.394)
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.063 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.092 ms
+
+Time: 2.293 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.111 ms
+
+Time: 0.963 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.103 ms
+
+Time: 0.933 ms
+postgres=# 
+```
+没修改什么代码
+```c
+diff --git a/src/backend/catalog/heap.c b/src/backend/catalog/heap.c
+index e67ffc37b7d..d3d85cb1264 100644
+--- a/src/backend/catalog/heap.c
++++ b/src/backend/catalog/heap.c
+@@ -75,6 +75,7 @@
+ #include 'utils/lsyscache.h'
+ #include 'utils/syscache.h'
+ 
++#include 'portability/instr_time.h'
+ 
+ /* Potentially set by pg_upgrade_support functions */
+ Oid                    binary_upgrade_next_heap_pg_class_oid = InvalidOid;
+@@ -3070,6 +3071,9 @@ heap_truncate(List *relids)
+ {
+        List       *relations = NIL;
+        ListCell   *cell;
++       instr_time  start;
++       instr_time  duration;
++       INSTR_TIME_SET_CURRENT(start);
+ 
+        /* Open relations for processing, and grab exclusive access on each */
+        foreach(cell, relids)
+@@ -3095,6 +3099,10 @@ heap_truncate(List *relids)
+                /* Close the relation, but keep exclusive lock on it until commit */
+                table_close(rel, NoLock);
+        }
++
++       INSTR_TIME_SET_CURRENT(duration);
++       INSTR_TIME_SUBTRACT(duration, start);
++       elog(INFO, 'heap_truncate time: %.3f ms\n', INSTR_TIME_GET_MILLISEC(duration));
+ }
+ 
+ /*
+diff --git a/src/backend/commands/tablecmds.c b/src/backend/commands/tablecmds.c
+index 016ae0a65f9..0172ec8bc5e 100644
+--- a/src/backend/commands/tablecmds.c
++++ b/src/backend/commands/tablecmds.c
+@@ -105,6 +105,8 @@
+ #include 'utils/typcache.h'
+ #include 'utils/usercontext.h'
+ 
++#include 'portability/instr_time.h'
++
+ /*
+  * ON COMMIT action list
+  */
+@@ -17120,6 +17122,9 @@ PreCommit_on_commit_actions(void)
+        ListCell   *l;
+        List       *oids_to_truncate = NIL;
+        List       *oids_to_drop = NIL;
++       instr_time  start;
++       instr_time  duration;
++       INSTR_TIME_SET_CURRENT(start);
+ 
+        foreach(l, on_commits)
+        {
+@@ -17211,6 +17216,10 @@ PreCommit_on_commit_actions(void)
+                }
+ #endif
+        }
++
++       INSTR_TIME_SET_CURRENT(duration);
++       INSTR_TIME_SUBTRACT(duration, start);
++       elog(INFO, 'PreCommit_on_commit_actions time: %.3f ms\n', INSTR_TIME_GET_MILLISEC(duration));
+ }
+ 
+ /*
+```
+来自tom lane的评价，对于优化此处要增加代码复杂度，让他并不感兴趣
+
+<img width='664' height='517' alt='Image' src='https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72' />。">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html">
 <meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
@@ -504,9 +966,60 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
 <span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">758</span> ms</pre></div>
 <p>关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次<code class="notranslate">PreCommit_on_commit_actions</code>的<code class="notranslate">foreach(l, on_commits)</code>遍历</p>
-<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-k">static</span> <span class="pl-smi">List</span> <span class="pl-c1">*</span><span class="pl-s1">on_commits</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;
+<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">// 和on_commits 息息相关</span>
+<span class="pl-k">static</span> <span class="pl-smi">List</span> <span class="pl-c1">*</span><span class="pl-s1">on_commits</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;</pre></div>
+<p>在创建临时表时，如果存在ON COMMIT的动作 就会将其动作注册到这个变量中</p>
+<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">/* What to do at commit time for temporary relations */</span>
+<span class="pl-k">typedef</span> <span class="pl-k">enum</span> <span class="pl-smi">OnCommitAction</span>
+{
+	<span class="pl-c1">ONCOMMIT_NOOP</span>,				<span class="pl-c">/* No ON COMMIT clause (do nothing) */</span>
+	<span class="pl-c1">ONCOMMIT_PRESERVE_ROWS</span>,		<span class="pl-c">/* ON COMMIT PRESERVE ROWS (do nothing) */</span>
+	<span class="pl-c1">ONCOMMIT_DELETE_ROWS</span>,		<span class="pl-c">/* ON COMMIT DELETE ROWS */</span>
+	<span class="pl-c1">ONCOMMIT_DROP</span>				<span class="pl-c">/* ON COMMIT DROP */</span>
+} <span class="pl-smi">OnCommitAction</span>;
+
+
+<span class="pl-c">// heap_create_with_catalog</span>
+	 <span class="pl-c1">*</span> <span class="pl-s1">If</span> <span class="pl-s1">there</span>'s a special on-commit action, remember it
+	 <span class="pl-c1">*</span>/
+	<span class="pl-k">if</span> (<span class="pl-s1">oncommit</span> <span class="pl-c1">!=</span> <span class="pl-c1">ONCOMMIT_NOOP</span>)
+		<span class="pl-en">register_on_commit_action</span>(<span class="pl-s1">relid</span>, <span class="pl-s1">oncommit</span>);
 
 <span class="pl-c">/*</span>
+<span class="pl-c"> * Register a newly-created relation's ON COMMIT action.</span>
+<span class="pl-c"> */</span>
+<span class="pl-smi">void</span>
+<span class="pl-en">register_on_commit_action</span>(<span class="pl-smi">Oid</span> <span class="pl-s1">relid</span>, <span class="pl-smi">OnCommitAction</span> <span class="pl-s1">action</span>)
+{
+	<span class="pl-smi">OnCommitItem</span> <span class="pl-c1">*</span><span class="pl-s1">oc</span>;
+	<span class="pl-smi">MemoryContext</span> <span class="pl-s1">oldcxt</span>;
+
+	<span class="pl-c">/*</span>
+<span class="pl-c">	 * We needn't bother registering the relation unless there is an ON COMMIT</span>
+<span class="pl-c">	 * action we need to take.</span>
+<span class="pl-c">	 */</span>
+	<span class="pl-k">if</span> (<span class="pl-s1">action</span> <span class="pl-c1">==</span> <span class="pl-c1">ONCOMMIT_NOOP</span> <span class="pl-c1">||</span> <span class="pl-s1">action</span> <span class="pl-c1">==</span> <span class="pl-c1">ONCOMMIT_PRESERVE_ROWS</span>)
+		<span class="pl-k">return</span>;
+
+	<span class="pl-s1">oldcxt</span> <span class="pl-c1">=</span> <span class="pl-en">MemoryContextSwitchTo</span>(<span class="pl-s1">CacheMemoryContext</span>);
+
+	<span class="pl-s1">oc</span> <span class="pl-c1">=</span> (<span class="pl-smi">OnCommitItem</span> <span class="pl-c1">*</span>) <span class="pl-en">palloc</span>(<span class="pl-k">sizeof</span>(<span class="pl-s1">OnCommitItem</span>));
+	<span class="pl-s1">oc</span><span class="pl-c1">-&gt;</span><span class="pl-c1">relid</span> <span class="pl-c1">=</span> <span class="pl-s1">relid</span>;
+	<span class="pl-s1">oc</span><span class="pl-c1">-&gt;</span><span class="pl-c1">oncommit</span> <span class="pl-c1">=</span> <span class="pl-s1">action</span>;
+	<span class="pl-s1">oc</span><span class="pl-c1">-&gt;</span><span class="pl-c1">creating_subid</span> <span class="pl-c1">=</span> <span class="pl-en">GetCurrentSubTransactionId</span>();
+	<span class="pl-s1">oc</span><span class="pl-c1">-&gt;</span><span class="pl-c1">deleting_subid</span> <span class="pl-c1">=</span> <span class="pl-s1">InvalidSubTransactionId</span>;
+
+	<span class="pl-c">/*</span>
+<span class="pl-c">	 * We use lcons() here so that ON COMMIT actions are processed in reverse</span>
+<span class="pl-c">	 * order of registration.  That might not be essential but it seems</span>
+<span class="pl-c">	 * reasonable.</span>
+<span class="pl-c">	 */</span>
+	<span class="pl-s1">on_commits</span> <span class="pl-c1">=</span> <span class="pl-en">lcons</span>(<span class="pl-s1">oc</span>, <span class="pl-s1">on_commits</span>);
+
+	<span class="pl-en">MemoryContextSwitchTo</span>(<span class="pl-s1">oldcxt</span>);
+}</pre></div>
+<p>在事务将要完成之际，去处理</p>
+<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">/*</span>
 <span class="pl-c"> * Perform ON COMMIT actions.</span>
 <span class="pl-c"> *</span>
 <span class="pl-c"> * This is invoked just before actually committing, since it's possible</span>
@@ -612,7 +1125,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 }</pre></div>
 <p>调试可以看到：<br>
 <a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2"><img width="1062" height="1040" alt="Image" src="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2" style="max-width: 100%; height: auto; max-height: 1040px;"></a></p>
-<p>对于ON COMMIT DELETE ROWS的临时表而言，主要耗时应该还是<code class="notranslate">heap_truncate</code></p>
+<p>其实主要耗时应该还是<code class="notranslate">heap_truncate</code></p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-smi">void</span>
 <span class="pl-en">heap_truncate</span>(<span class="pl-smi">List</span> <span class="pl-c1">*</span><span class="pl-s1">relids</span>)
 {
@@ -647,7 +1160,176 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <p>调试可以看到：<br>
 <a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338"><img width="1011" height="766" alt="Image" src="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338" style="max-width: 100%; height: auto; max-height: 766px;"></a></p>
 <p>heap_truncate_check_FKs中还存在遍历，调试可以看到：<br>
-<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb"><img width="1038" height="478" alt="Image" src="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb" style="max-width: 100%; height: auto; max-height: 478px;"></a></p></div>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb"><img width="1038" height="478" alt="Image" src="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb" style="max-width: 100%; height: auto; max-height: 478px;"></a></p>
+<p>加了些打印，看的更清楚一些</p>
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>code<span class="pl-k">/</span><span class="pl-c1">16</span>$ psql <span class="pl-k">-</span>o <span class="pl-k">/</span>dev<span class="pl-k">/</span><span class="pl-k">null</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">000</span> ms
+
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \timing</span>
+Timing is <span class="pl-k">on</span>.
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">000</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">724</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">000</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">636</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">000</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">634</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;</span>
+INFO:  heap_truncate <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">534</span> ms
+
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">618</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">16</span>.<span class="pl-c1">613</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
+INFO:  heap_truncate <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">756</span> ms
+
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">834</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">2</span>.<span class="pl-c1">341</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
+INFO:  heap_truncate <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">727</span> ms
+
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">789</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">372</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
+INFO:  heap_truncate <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">838</span> ms
+
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">918</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">746</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> DO $$</span>
+DECLARE
+  v_sql <span class="pl-k">VARCHAR</span>(<span class="pl-c1">100</span>);
+<span class="pl-k">BEGIN</span>
+  FOR i <span class="pl-k">IN</span> <span class="pl-c1">1</span>..<span class="pl-c1">3000</span> LOOP
+    v_sql :<span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">'</span>CREATE TEMP TABLE a_gtt<span class="pl-pds">'</span></span><span class="pl-k">||</span>i<span class="pl-k">||</span><span class="pl-s"><span class="pl-pds">'</span>(n numeric) ON COMMIT DELETE ROWS<span class="pl-pds">'</span></span>;
+    EXECUTE v_sql;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+INFO:  heap_truncate <span class="pl-k">time</span>: <span class="pl-c1">1048</span>.<span class="pl-c1">421</span> ms
+
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">1048</span>.<span class="pl-c1">570</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">3854</span>.<span class="pl-c1">843</span> ms (<span class="pl-c1">00</span>:<span class="pl-c1">03</span>.<span class="pl-c1">855</span>)
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">053</span> ms
+
+INFO:  heap_truncate <span class="pl-k">time</span>: <span class="pl-c1">1234</span>.<span class="pl-c1">707</span> ms
+
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">1234</span>.<span class="pl-c1">880</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">1242</span>.<span class="pl-c1">413</span> ms (<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">242</span>)
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">039</span> ms
+
+INFO:  heap_truncate <span class="pl-k">time</span>: <span class="pl-c1">1199</span>.<span class="pl-c1">870</span> ms
+
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">1200</span>.<span class="pl-c1">038</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">1207</span>.<span class="pl-c1">323</span> ms (<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">207</span>)
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from a_gtt;</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">038</span> ms
+
+INFO:  heap_truncate <span class="pl-k">time</span>: <span class="pl-c1">1384</span>.<span class="pl-c1">979</span> ms
+
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">1385</span>.<span class="pl-c1">284</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">1393</span>.<span class="pl-c1">626</span> ms (<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">394</span>)
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">063</span> ms
+
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">092</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">2</span>.<span class="pl-c1">293</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">111</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">963</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">103</span> ms
+
+<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">933</span> ms
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+<p>没修改什么代码</p>
+<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-s1">diff</span> <span class="pl-c1">--</span><span class="pl-s1">git</span> <span class="pl-s1">a</span>/<span class="pl-s1">src</span>/<span class="pl-s1">backend</span>/<span class="pl-s1">catalog</span>/<span class="pl-s1">heap</span>.<span class="pl-c1">c</span> <span class="pl-s1">b</span>/<span class="pl-s1">src</span>/<span class="pl-s1">backend</span>/<span class="pl-s1">catalog</span>/<span class="pl-s1">heap</span>.<span class="pl-c1">c</span>
+<span class="pl-s1">index</span> <span class="pl-s1">e67ffc37b7d</span>..<span class="pl-c1">d3d85cb1264</span> <span class="pl-c1">100644</span>
+<span class="pl-c1">--</span><span class="pl-c1">-</span> <span class="pl-s1">a</span>/<span class="pl-s1">src</span>/<span class="pl-s1">backend</span>/<span class="pl-s1">catalog</span>/<span class="pl-s1">heap</span>.<span class="pl-c1">c</span>
+<span class="pl-c1">++</span><span class="pl-c1">+</span> <span class="pl-s1">b</span>/<span class="pl-s1">src</span>/<span class="pl-s1">backend</span>/<span class="pl-s1">catalog</span>/<span class="pl-s1">heap</span>.<span class="pl-c1">c</span>
+@@ <span class="pl-c1">-75</span>,<span class="pl-c1">6</span> <span class="pl-c1">+</span><span class="pl-c1">75</span>,<span class="pl-c1">7</span> @@
+ <span class="pl-k">#include</span> <span class="pl-s">"utils/lsyscache.h"</span>
+ <span class="pl-k">#include</span> <span class="pl-s">"utils/syscache.h"</span>
+ 
+<span class="pl-c1">+</span><span class="pl-k">#include</span> <span class="pl-s">"portability/instr_time.h"</span>
+ 
+ <span class="pl-c">/* Potentially set by pg_upgrade_support functions */</span>
+ <span class="pl-smi">Oid</span>                    <span class="pl-s1">binary_upgrade_next_heap_pg_class_oid</span> <span class="pl-c1">=</span> <span class="pl-s1">InvalidOid</span>;
+@@ <span class="pl-c1">-3070</span>,<span class="pl-c1">6</span> <span class="pl-c1">+</span><span class="pl-c1">3071</span>,<span class="pl-c1">9</span> @@ <span class="pl-en">heap_truncate</span>(<span class="pl-s1">List</span> <span class="pl-c1">*</span><span class="pl-s1">relids</span>)
+ {
+        <span class="pl-smi">List</span>       <span class="pl-c1">*</span><span class="pl-s1">relations</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;
+        <span class="pl-smi">ListCell</span>   <span class="pl-c1">*</span><span class="pl-s1">cell</span>;
+<span class="pl-c1">+</span>       <span class="pl-s1">instr_time</span>  <span class="pl-s1">start</span>;
+<span class="pl-c1">+</span>       <span class="pl-s1">instr_time</span>  <span class="pl-s1">duration</span>;
+<span class="pl-c1">+</span>       <span class="pl-en">INSTR_TIME_SET_CURRENT</span>(<span class="pl-s1">start</span>);
+ 
+        <span class="pl-c">/* Open relations for processing, and grab exclusive access on each */</span>
+        <span class="pl-en">foreach</span>(<span class="pl-s1">cell</span>, <span class="pl-s1">relids</span>)
+@@ <span class="pl-c1">-3095</span>,<span class="pl-c1">6</span> <span class="pl-c1">+</span><span class="pl-c1">3099</span>,<span class="pl-c1">10</span> @@ <span class="pl-en">heap_truncate</span>(<span class="pl-s1">List</span> <span class="pl-c1">*</span><span class="pl-s1">relids</span>)
+                <span class="pl-c">/* Close the relation, but keep exclusive lock on it until commit */</span>
+                <span class="pl-en">table_close</span>(<span class="pl-s1">rel</span>, <span class="pl-s1">NoLock</span>);
+        }
+<span class="pl-c1">+</span>
+<span class="pl-c1">+</span>       <span class="pl-en">INSTR_TIME_SET_CURRENT</span>(<span class="pl-s1">duration</span>);
+<span class="pl-c1">+</span>       <span class="pl-en">INSTR_TIME_SUBTRACT</span>(<span class="pl-s1">duration</span>, <span class="pl-s1">start</span>);
+<span class="pl-c1">+</span>       <span class="pl-en">elog</span>(<span class="pl-c1">INFO</span>, <span class="pl-s">"heap_truncate time: %.3f ms\n"</span>, <span class="pl-en">INSTR_TIME_GET_MILLISEC</span>(<span class="pl-s1">duration</span>));
+ }
+ 
+ <span class="pl-c">/*</span>
+<span class="pl-c">diff --git a/src/backend/commands/tablecmds.c b/src/backend/commands/tablecmds.c</span>
+<span class="pl-c">index 016ae0a65f9..0172ec8bc5e 100644</span>
+<span class="pl-c">--- a/src/backend/commands/tablecmds.c</span>
+<span class="pl-c">+++ b/src/backend/commands/tablecmds.c</span>
+<span class="pl-c">@@ -105,6 +105,8 @@</span>
+<span class="pl-c"> #include "utils/typcache.h"</span>
+<span class="pl-c"> #include "utils/usercontext.h"</span>
+<span class="pl-c"> </span>
+<span class="pl-c">+#include "portability/instr_time.h"</span>
+<span class="pl-c">+</span>
+<span class="pl-c"> /*</span>
+<span class="pl-c">  * ON COMMIT action list</span>
+<span class="pl-c">  */</span>
+@@ <span class="pl-c1">-17120</span>,<span class="pl-c1">6</span> <span class="pl-c1">+</span><span class="pl-c1">17122</span>,<span class="pl-c1">9</span> @@ <span class="pl-s1">PreCommit_on_commit_actions</span>(<span class="pl-smi">void</span>)
+        <span class="pl-s1">ListCell</span>   <span class="pl-c1">*</span><span class="pl-s1">l</span>;
+        <span class="pl-smi">List</span>       <span class="pl-c1">*</span><span class="pl-s1">oids_to_truncate</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;
+        <span class="pl-smi">List</span>       <span class="pl-c1">*</span><span class="pl-s1">oids_to_drop</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;
+<span class="pl-c1">+</span>       <span class="pl-s1">instr_time</span>  <span class="pl-s1">start</span>;
+<span class="pl-c1">+</span>       <span class="pl-s1">instr_time</span>  <span class="pl-s1">duration</span>;
+<span class="pl-c1">+</span>       <span class="pl-en">INSTR_TIME_SET_CURRENT</span>(<span class="pl-s1">start</span>);
+ 
+        <span class="pl-en">foreach</span>(<span class="pl-s1">l</span>, <span class="pl-s1">on_commits</span>)
+        {
+@@ <span class="pl-c1">-17211</span>,<span class="pl-c1">6</span> <span class="pl-c1">+</span><span class="pl-c1">17216</span>,<span class="pl-c1">10</span> @@ <span class="pl-s1">PreCommit_on_commit_actions</span>(<span class="pl-smi">void</span>)
+                }
+ <span class="pl-k">#endif</span>
+        }
+<span class="pl-c1">+</span>
+<span class="pl-c1">+</span>       <span class="pl-en">INSTR_TIME_SET_CURRENT</span>(<span class="pl-s1">duration</span>);
+<span class="pl-c1">+</span>       <span class="pl-en">INSTR_TIME_SUBTRACT</span>(<span class="pl-s1">duration</span>, <span class="pl-s1">start</span>);
+<span class="pl-c1">+</span>       <span class="pl-en">elog</span>(<span class="pl-c1">INFO</span>, <span class="pl-s">"PreCommit_on_commit_actions time: %.3f ms\n"</span>, <span class="pl-en">INSTR_TIME_GET_MILLISEC</span>(<span class="pl-s1">duration</span>));
+ }
+ 
+ /<span class="pl-c1">*</span></pre></div>
+<p>来自tom lane的评价，对于优化此处要增加代码复杂度，让他并不感兴趣</p>
+<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72"><img width="664" height="517" alt="Image" src="https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72" style="max-width: 100%; height: auto; max-height: 517px;"></a></p></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>

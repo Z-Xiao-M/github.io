@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Wed, 03 Sep 2025 10:01:31 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>查询语句耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>内容演示：
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Thu, 04 Sep 2025 02:17:02 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>查询语句耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>内容演示：
 ```sql
 postgres=# select * from pg_database;
 Time: 0.491 ms
@@ -41,8 +41,63 @@ Time: 0.758 ms
 ```
 关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
 ```c
+// 和on_commits 息息相关
 static List *on_commits = NIL;
+```
+在创建临时表时，如果存在ON COMMIT的动作 就会将其动作注册到这个变量中
+```c
+/* What to do at commit time for temporary relations */
+typedef enum OnCommitAction
+{
+	ONCOMMIT_NOOP,				/* No ON COMMIT clause (do nothing) */
+	ONCOMMIT_PRESERVE_ROWS,		/* ON COMMIT PRESERVE ROWS (do nothing) */
+	ONCOMMIT_DELETE_ROWS,		/* ON COMMIT DELETE ROWS */
+	ONCOMMIT_DROP				/* ON COMMIT DROP */
+} OnCommitAction;
 
+
+// heap_create_with_catalog
+	 * If there's a special on-commit action, remember it
+	 */
+	if (oncommit != ONCOMMIT_NOOP)
+		register_on_commit_action(relid, oncommit);
+
+/*
+ * Register a newly-created relation's ON COMMIT action.
+ */
+void
+register_on_commit_action(Oid relid, OnCommitAction action)
+{
+	OnCommitItem *oc;
+	MemoryContext oldcxt;
+
+	/*
+	 * We needn't bother registering the relation unless there is an ON COMMIT
+	 * action we need to take.
+	 */
+	if (action == ONCOMMIT_NOOP || action == ONCOMMIT_PRESERVE_ROWS)
+		return;
+
+	oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
+
+	oc = (OnCommitItem *) palloc(sizeof(OnCommitItem));
+	oc-&gt;relid = relid;
+	oc-&gt;oncommit = action;
+	oc-&gt;creating_subid = GetCurrentSubTransactionId();
+	oc-&gt;deleting_subid = InvalidSubTransactionId;
+
+	/*
+	 * We use lcons() here so that ON COMMIT actions are processed in reverse
+	 * order of registration.  That might not be essential but it seems
+	 * reasonable.
+	 */
+	on_commits = lcons(oc, on_commits);
+
+	MemoryContextSwitchTo(oldcxt);
+}
+```
+在事务将要完成之际，去处理
+```c
 /*
  * Perform ON COMMIT actions.
  *
@@ -151,7 +206,7 @@ PreCommit_on_commit_actions(void)
 调试可以看到：
 &lt;img width='1062' height='1040' alt='Image' src='https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2' /&gt;
 
-对于ON COMMIT DELETE ROWS的临时表而言，主要耗时应该还是`heap_truncate`
+其实主要耗时应该还是`heap_truncate`
 ```c
 void
 heap_truncate(List *relids)
@@ -190,7 +245,183 @@ heap_truncate(List *relids)
 
 
 heap_truncate_check_FKs中还存在遍历，调试可以看到：
-&lt;img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' /&gt;。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</guid><pubDate>Wed, 03 Sep 2025 09:19:04 +0000</pubDate></item><item><title>简单解析下Toast</title><link>https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-Toast.html</link><description># 什么是TOAST
+&lt;img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' /&gt;
+
+加了些打印，看的更清楚一些
+
+```sql
+postgres@zxm-VMware-Virtual-Platform:~/code/16$ psql -o /dev/null
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+psql (16.10)
+Type 'help' for help.
+
+postgres=# \timing
+Timing is on.
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 1.724 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 0.636 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 0.634 ms
+postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
+INFO:  heap_truncate time: 0.534 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.618 ms
+
+Time: 16.613 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.756 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.834 ms
+
+Time: 2.341 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.727 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.789 ms
+
+Time: 1.372 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.838 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.918 ms
+
+Time: 1.746 ms
+postgres=# DO $$
+DECLARE
+  v_sql VARCHAR(100);
+BEGIN
+  FOR i IN 1..3000 LOOP
+    v_sql := 'CREATE TEMP TABLE a_gtt'||i||'(n numeric) ON COMMIT DELETE ROWS';
+    EXECUTE v_sql;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+INFO:  heap_truncate time: 1048.421 ms
+
+INFO:  PreCommit_on_commit_actions time: 1048.570 ms
+
+Time: 3854.843 ms (00:03.855)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.053 ms
+
+INFO:  heap_truncate time: 1234.707 ms
+
+INFO:  PreCommit_on_commit_actions time: 1234.880 ms
+
+Time: 1242.413 ms (00:01.242)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.039 ms
+
+INFO:  heap_truncate time: 1199.870 ms
+
+INFO:  PreCommit_on_commit_actions time: 1200.038 ms
+
+Time: 1207.323 ms (00:01.207)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.038 ms
+
+INFO:  heap_truncate time: 1384.979 ms
+
+INFO:  PreCommit_on_commit_actions time: 1385.284 ms
+
+Time: 1393.626 ms (00:01.394)
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.063 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.092 ms
+
+Time: 2.293 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.111 ms
+
+Time: 0.963 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.103 ms
+
+Time: 0.933 ms
+postgres=# 
+```
+没修改什么代码
+```c
+diff --git a/src/backend/catalog/heap.c b/src/backend/catalog/heap.c
+index e67ffc37b7d..d3d85cb1264 100644
+--- a/src/backend/catalog/heap.c
++++ b/src/backend/catalog/heap.c
+@@ -75,6 +75,7 @@
+ #include 'utils/lsyscache.h'
+ #include 'utils/syscache.h'
+ 
++#include 'portability/instr_time.h'
+ 
+ /* Potentially set by pg_upgrade_support functions */
+ Oid                    binary_upgrade_next_heap_pg_class_oid = InvalidOid;
+@@ -3070,6 +3071,9 @@ heap_truncate(List *relids)
+ {
+        List       *relations = NIL;
+        ListCell   *cell;
++       instr_time  start;
++       instr_time  duration;
++       INSTR_TIME_SET_CURRENT(start);
+ 
+        /* Open relations for processing, and grab exclusive access on each */
+        foreach(cell, relids)
+@@ -3095,6 +3099,10 @@ heap_truncate(List *relids)
+                /* Close the relation, but keep exclusive lock on it until commit */
+                table_close(rel, NoLock);
+        }
++
++       INSTR_TIME_SET_CURRENT(duration);
++       INSTR_TIME_SUBTRACT(duration, start);
++       elog(INFO, 'heap_truncate time: %.3f ms\n', INSTR_TIME_GET_MILLISEC(duration));
+ }
+ 
+ /*
+diff --git a/src/backend/commands/tablecmds.c b/src/backend/commands/tablecmds.c
+index 016ae0a65f9..0172ec8bc5e 100644
+--- a/src/backend/commands/tablecmds.c
++++ b/src/backend/commands/tablecmds.c
+@@ -105,6 +105,8 @@
+ #include 'utils/typcache.h'
+ #include 'utils/usercontext.h'
+ 
++#include 'portability/instr_time.h'
++
+ /*
+  * ON COMMIT action list
+  */
+@@ -17120,6 +17122,9 @@ PreCommit_on_commit_actions(void)
+        ListCell   *l;
+        List       *oids_to_truncate = NIL;
+        List       *oids_to_drop = NIL;
++       instr_time  start;
++       instr_time  duration;
++       INSTR_TIME_SET_CURRENT(start);
+ 
+        foreach(l, on_commits)
+        {
+@@ -17211,6 +17216,10 @@ PreCommit_on_commit_actions(void)
+                }
+ #endif
+        }
++
++       INSTR_TIME_SET_CURRENT(duration);
++       INSTR_TIME_SUBTRACT(duration, start);
++       elog(INFO, 'PreCommit_on_commit_actions time: %.3f ms\n', INSTR_TIME_GET_MILLISEC(duration));
+ }
+ 
+ /*
+```
+来自tom lane的评价，对于优化此处要增加代码复杂度，让他并不感兴趣
+
+&lt;img width='664' height='517' alt='Image' src='https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72' /&gt;。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</guid><pubDate>Wed, 03 Sep 2025 09:19:04 +0000</pubDate></item><item><title>简单解析下Toast</title><link>https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-Toast.html</link><description># 什么是TOAST
 
 PostgreSQL 的 TOAST（The Oversized-Attribute Storage Technique，超大属性存储技术）是针对大尺寸数据（如长文本、二进制数据等）的存储优化机制，当字段数据超过阈值时，会自动将其压缩或拆分后存储到独立的 TOAST 表中，主表仅保留引用指针，既解决了单条记录存储容量受限问题，又通过透明操作、多种存储策略和独立表设计，平衡了存储效率与访问性能，对 TEXT、BYTEA、JSONB 等可能存储大数据的类型尤为有效。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-Toast.html</guid><pubDate>Wed, 03 Sep 2025 05:42:58 +0000</pubDate></item><item><title>CREATE TABLE和文件分支</title><link>https://Z-Xiao-M.github.io/github.io/post/CREATE%20TABLE-he-wen-jian-fen-zhi.html</link><description># 文件分支
 
