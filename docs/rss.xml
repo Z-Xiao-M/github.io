@@ -1,6 +1,12 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Thu, 04 Sep 2025 02:17:02 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>查询语句耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>内容演示：
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Thu, 04 Sep 2025 02:47:39 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>查询语句耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-yu-ju-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>内容演示：
 ```sql
+postgres@zxm-VMware-Virtual-Platform:~/code/16$ psql -o /dev/null
+psql (16.10)
+Type 'help' for help.
+
+postgres=# \timing
+Timing is on.
 postgres=# select * from pg_database;
 Time: 0.491 ms
 postgres=# select * from pg_database;
@@ -39,7 +45,7 @@ Time: 0.981 ms
 postgres=# select * from pg_database;
 Time: 0.758 ms
 ```
-关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
+关注代码，原因在于需要多次遍历大的list，还需要对临时表做一些额外的清理工作
 ```c
 // 和on_commits 息息相关
 static List *on_commits = NIL;
@@ -96,7 +102,7 @@ register_on_commit_action(Oid relid, OnCommitAction action)
 	MemoryContextSwitchTo(oldcxt);
 }
 ```
-在事务将要完成之际，去处理
+在事务将要完成之前，去处理
 ```c
 /*
  * Perform ON COMMIT actions.

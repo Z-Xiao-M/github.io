@@ -12,6 +12,12 @@
     </script>
 <meta name="description" content="内容演示：
 ```sql
+postgres@zxm-VMware-Virtual-Platform:~/code/16$ psql -o /dev/null
+psql (16.10)
+Type 'help' for help.
+
+postgres=# \timing
+Timing is on.
 postgres=# select * from pg_database;
 Time: 0.491 ms
 postgres=# select * from pg_database;
@@ -50,7 +56,7 @@ Time: 0.981 ms
 postgres=# select * from pg_database;
 Time: 0.758 ms
 ```
-关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
+关注代码，原因在于需要多次遍历大的list，还需要对临时表做一些额外的清理工作
 ```c
 // 和on_commits 息息相关
 static List *on_commits = NIL;
@@ -107,7 +113,7 @@ register_on_commit_action(Oid relid, OnCommitAction action)
 	MemoryContextSwitchTo(oldcxt);
 }
 ```
-在事务将要完成之际，去处理
+在事务将要完成之前，去处理
 ```c
 /*
  * Perform ON COMMIT actions.
@@ -436,6 +442,12 @@ index 016ae0a65f9..0172ec8bc5e 100644
 <meta property="og:title" content="查询语句耗时同临时表的数量呈线性增长">
 <meta property="og:description" content="内容演示：
 ```sql
+postgres@zxm-VMware-Virtual-Platform:~/code/16$ psql -o /dev/null
+psql (16.10)
+Type 'help' for help.
+
+postgres=# \timing
+Timing is on.
 postgres=# select * from pg_database;
 Time: 0.491 ms
 postgres=# select * from pg_database;
@@ -474,7 +486,7 @@ Time: 0.981 ms
 postgres=# select * from pg_database;
 Time: 0.758 ms
 ```
-关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次`PreCommit_on_commit_actions`的`foreach(l, on_commits)`遍历
+关注代码，原因在于需要多次遍历大的list，还需要对临时表做一些额外的清理工作
 ```c
 // 和on_commits 息息相关
 static List *on_commits = NIL;
@@ -531,7 +543,7 @@ register_on_commit_action(Oid relid, OnCommitAction action)
 	MemoryContextSwitchTo(oldcxt);
 }
 ```
-在事务将要完成之际，去处理
+在事务将要完成之前，去处理
 ```c
 /*
  * Perform ON COMMIT actions.
@@ -928,7 +940,13 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 </div>
     <div id="content">
 <div class="markdown-body" id="postBody"><p>内容演示：</p>
-<div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>code<span class="pl-k">/</span><span class="pl-c1">16</span>$ psql <span class="pl-k">-</span>o <span class="pl-k">/</span>dev<span class="pl-k">/</span><span class="pl-k">null</span>
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \timing</span>
+Timing is <span class="pl-k">on</span>.
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
 <span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">491</span> ms
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
 <span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">676</span> ms
@@ -965,7 +983,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">981</span> ms
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
 <span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">758</span> ms</pre></div>
-<p>关注代码，原因在于需要多次遍历大的list，连不管访问什么表（系统表、普通表、临时表），都需要经过一次<code class="notranslate">PreCommit_on_commit_actions</code>的<code class="notranslate">foreach(l, on_commits)</code>遍历</p>
+<p>关注代码，原因在于需要多次遍历大的list，还需要对临时表做一些额外的清理工作</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">// 和on_commits 息息相关</span>
 <span class="pl-k">static</span> <span class="pl-smi">List</span> <span class="pl-c1">*</span><span class="pl-s1">on_commits</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;</pre></div>
 <p>在创建临时表时，如果存在ON COMMIT的动作 就会将其动作注册到这个变量中</p>
@@ -1018,7 +1036,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 
 	<span class="pl-en">MemoryContextSwitchTo</span>(<span class="pl-s1">oldcxt</span>);
 }</pre></div>
-<p>在事务将要完成之际，去处理</p>
+<p>在事务将要完成之前，去处理</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">/*</span>
 <span class="pl-c"> * Perform ON COMMIT actions.</span>
 <span class="pl-c"> *</span>
