@@ -232,201 +232,49 @@ postgres=#
 static int
 exec_stmt_block(PLpgSQL_execstate *estate, PLpgSQL_stmt_block *block)
 {
-	// initialize 
+  // initialize 
+  if (block->exceptions)
+  {
+    BeginInternalSubTransaction(NULL);  // 开启子事务
 
-	if (block->exceptions)
-	{
-		/*
-		 * Execute the statements in the block's body inside a sub-transaction
-		 */
-		MemoryContext oldcontext = CurrentMemoryContext;
-		ResourceOwner oldowner = CurrentResourceOwner;
-		ExprContext *old_eval_econtext = estate->eval_econtext;
-		ErrorData  *save_cur_error = estate->cur_error;
-		MemoryContext stmt_mcontext;
+    PG_TRY();
+    {
+      /* Run the block's statements */
+      rc = exec_stmts(estate, block->body); // 执行相关操作
 
-		estate->err_text = gettext_noop('during statement block entry');
+      /* Commit the inner transaction, return to outer xact context */
+      ReleaseCurrentSubTransaction(); // 释放子事务
+    }
+    PG_CATCH();
+    {
 
-		/*
-		 * We will need a stmt_mcontext to hold the error data if an error
-		 * occurs.  It seems best to force it to exist before entering the
-		 * subtransaction, so that we reduce the risk of out-of-memory during
-		 * error recovery, and because this greatly simplifies restoring the
-		 * stmt_mcontext stack to the correct state after an error.  We can
-		 * ameliorate the cost of this by allowing the called statements to
-		 * use this mcontext too; so we don't push it down here.
-		 */
-		stmt_mcontext = get_stmt_mcontext(estate);
+      /* Abort the inner transaction */
+      RollbackAndReleaseCurrentSubTransaction(); // 发生了异常回滚子事务
 
-		BeginInternalSubTransaction(NULL);  // 开启子事务
-		/* Want to run statements inside function's memory context */
-		MemoryContextSwitchTo(oldcontext);
-
-		PG_TRY();
-		{
-			/*
-			 * We need to run the block's statements with a new eval_econtext
-			 * that belongs to the current subtransaction; if we try to use
-			 * the outer econtext then ExprContext shutdown callbacks will be
-			 * called at the wrong times.
-			 */
-			plpgsql_create_econtext(estate);
-
-			estate->err_text = NULL;
-
-			/* Run the block's statements */
-			rc = exec_stmts(estate, block->body);
-
-			estate->err_text = gettext_noop('during statement block exit');
-
-			/*
-			 * If the block ended with RETURN, we may need to copy the return
-			 * value out of the subtransaction eval_context.  We can avoid a
-			 * physical copy if the value happens to be a R/W expanded object.
-			 */
-			if (rc == PLPGSQL_RC_RETURN &&
-				!estate->retisset &&
-				!estate->retisnull)
-			{
-				int16		resTypLen;
-				bool		resTypByVal;
-
-				get_typlenbyval(estate->rettype, &resTypLen, &resTypByVal);
-				estate->retval = datumTransfer(estate->retval,
-											   resTypByVal, resTypLen);
-			}
-
-			/* Commit the inner transaction, return to outer xact context */
-			ReleaseCurrentSubTransaction(); // 释放子事务
-			MemoryContextSwitchTo(oldcontext);
-			CurrentResourceOwner = oldowner;
-
-			/* Assert that the stmt_mcontext stack is unchanged */
-			Assert(stmt_mcontext == estate->stmt_mcontext);
-
-			/*
-			 * Revert to outer eval_econtext.  (The inner one was
-			 * automatically cleaned up during subxact exit.)
-			 */
-			estate->eval_econtext = old_eval_econtext;
-		}
-		PG_CATCH();
-		{
-			ErrorData  *edata;
-			ListCell   *e;
-
-			estate->err_text = gettext_noop('during exception cleanup');
-
-			/* Save error info in our stmt_mcontext */
-			MemoryContextSwitchTo(stmt_mcontext);
-			edata = CopyErrorData();
-			FlushErrorState();
-
-			/* Abort the inner transaction */
-			RollbackAndReleaseCurrentSubTransaction(); // 发生了异常回滚子事务
-			MemoryContextSwitchTo(oldcontext);
-			CurrentResourceOwner = oldowner;
-
-			/*
-			 * Set up the stmt_mcontext stack as though we had restored our
-			 * previous state and then done push_stmt_mcontext().  The push is
-			 * needed so that statements in the exception handler won't
-			 * clobber the error data that's in our stmt_mcontext.
-			 */
-			estate->stmt_mcontext_parent = stmt_mcontext;
-			estate->stmt_mcontext = NULL;
-
-			/*
-			 * Now we can delete any nested stmt_mcontexts that might have
-			 * been created as children of ours.  (Note: we do not immediately
-			 * release any statement-lifespan data that might have been left
-			 * behind in stmt_mcontext itself.  We could attempt that by doing
-			 * a MemoryContextReset on it before collecting the error data
-			 * above, but it seems too risky to do any significant amount of
-			 * work before collecting the error.)
-			 */
-			MemoryContextDeleteChildren(stmt_mcontext);
-
-			/* Revert to outer eval_econtext */
-			estate->eval_econtext = old_eval_econtext;
-
-			/*
-			 * Must clean up the econtext too.  However, any tuple table made
-			 * in the subxact will have been thrown away by SPI during subxact
-			 * abort, so we don't need to (and mustn't try to) free the
-			 * eval_tuptable.
-			 */
-			estate->eval_tuptable = NULL;
-			exec_eval_cleanup(estate);
-
-			/* Look for a matching exception handler */
-			foreach(e, block->exceptions->exc_list)
-			{
-				PLpgSQL_exception *exception = (PLpgSQL_exception *) lfirst(e);
-
-				if (exception_matches_conditions(edata, exception->conditions))
-				{
-					/*
-					 * Initialize the magic SQLSTATE and SQLERRM variables for
-					 * the exception block; this also frees values from any
-					 * prior use of the same exception. We needn't do this
-					 * until we have found a matching exception.
-					 */
-					PLpgSQL_var *state_var;
-					PLpgSQL_var *errm_var;
-
-					state_var = (PLpgSQL_var *)
-						estate->datums[block->exceptions->sqlstate_varno];
-					errm_var = (PLpgSQL_var *)
-						estate->datums[block->exceptions->sqlerrm_varno];
-
-					assign_text_var(estate, state_var,
-									unpack_sql_state(edata->sqlerrcode));
-					assign_text_var(estate, errm_var, edata->message);
-
-					/*
-					 * Also set up cur_error so the error data is accessible
-					 * inside the handler.
-					 */
-					estate->cur_error = edata;
-
-					estate->err_text = NULL;
-
-					rc = exec_stmts(estate, exception->action);
-
-					break;
-				}
-			}
-
-			/*
-			 * Restore previous state of cur_error, whether or not we executed
-			 * a handler.  This is needed in case an error got thrown from
-			 * some inner block's exception handler.
-			 */
-			estate->cur_error = save_cur_error;
-
-			/* If no match found, re-throw the error */
-			if (e == NULL)
-				ReThrowError(edata);
-
-			/* Restore stmt_mcontext stack and release the error data */
-			pop_stmt_mcontext(estate);
-			MemoryContextReset(stmt_mcontext);
-		}
-		PG_END_TRY();
-
-		Assert(save_cur_error == estate->cur_error);
-	}
-	else
-	{
-		/*
-		 * Just execute the statements in the block's body
-		 */
-		estate->err_text = NULL;
-
-		rc = exec_stmts(estate, block->body);
-	}
-    // ....
+      // 异常匹配和处理
+      foreach(e, block->exceptions->exc_list)
+      {
+        PLpgSQL_exception *exception = (PLpgSQL_exception *) lfirst(e);
+        if (exception_matches_conditions(edata, exception->conditions))
+        {
+          rc = exec_stmts(estate, exception->action); // exception块中的其余操作
+          break;
+        }
+      }
+    }
+    PG_END_TRY();
+  }
+  else
+  {
+    /*
+     * Just execute the statements in the block's body
+     */
+    estate->err_text = NULL;
+    // 没有exception块 执行此处 不会开启子事务
+    rc = exec_stmts(estate, block->body);
+  }
+  // ...
+}
 ``` 。">
 <meta property="og:title" content="plpgsql的子事务">
 <meta property="og:description" content="在事务块中调用存在异常的函数
@@ -651,201 +499,49 @@ postgres=#
 static int
 exec_stmt_block(PLpgSQL_execstate *estate, PLpgSQL_stmt_block *block)
 {
-	// initialize 
+  // initialize 
+  if (block->exceptions)
+  {
+    BeginInternalSubTransaction(NULL);  // 开启子事务
 
-	if (block->exceptions)
-	{
-		/*
-		 * Execute the statements in the block's body inside a sub-transaction
-		 */
-		MemoryContext oldcontext = CurrentMemoryContext;
-		ResourceOwner oldowner = CurrentResourceOwner;
-		ExprContext *old_eval_econtext = estate->eval_econtext;
-		ErrorData  *save_cur_error = estate->cur_error;
-		MemoryContext stmt_mcontext;
+    PG_TRY();
+    {
+      /* Run the block's statements */
+      rc = exec_stmts(estate, block->body); // 执行相关操作
 
-		estate->err_text = gettext_noop('during statement block entry');
+      /* Commit the inner transaction, return to outer xact context */
+      ReleaseCurrentSubTransaction(); // 释放子事务
+    }
+    PG_CATCH();
+    {
 
-		/*
-		 * We will need a stmt_mcontext to hold the error data if an error
-		 * occurs.  It seems best to force it to exist before entering the
-		 * subtransaction, so that we reduce the risk of out-of-memory during
-		 * error recovery, and because this greatly simplifies restoring the
-		 * stmt_mcontext stack to the correct state after an error.  We can
-		 * ameliorate the cost of this by allowing the called statements to
-		 * use this mcontext too; so we don't push it down here.
-		 */
-		stmt_mcontext = get_stmt_mcontext(estate);
+      /* Abort the inner transaction */
+      RollbackAndReleaseCurrentSubTransaction(); // 发生了异常回滚子事务
 
-		BeginInternalSubTransaction(NULL);  // 开启子事务
-		/* Want to run statements inside function's memory context */
-		MemoryContextSwitchTo(oldcontext);
-
-		PG_TRY();
-		{
-			/*
-			 * We need to run the block's statements with a new eval_econtext
-			 * that belongs to the current subtransaction; if we try to use
-			 * the outer econtext then ExprContext shutdown callbacks will be
-			 * called at the wrong times.
-			 */
-			plpgsql_create_econtext(estate);
-
-			estate->err_text = NULL;
-
-			/* Run the block's statements */
-			rc = exec_stmts(estate, block->body);
-
-			estate->err_text = gettext_noop('during statement block exit');
-
-			/*
-			 * If the block ended with RETURN, we may need to copy the return
-			 * value out of the subtransaction eval_context.  We can avoid a
-			 * physical copy if the value happens to be a R/W expanded object.
-			 */
-			if (rc == PLPGSQL_RC_RETURN &&
-				!estate->retisset &&
-				!estate->retisnull)
-			{
-				int16		resTypLen;
-				bool		resTypByVal;
-
-				get_typlenbyval(estate->rettype, &resTypLen, &resTypByVal);
-				estate->retval = datumTransfer(estate->retval,
-											   resTypByVal, resTypLen);
-			}
-
-			/* Commit the inner transaction, return to outer xact context */
-			ReleaseCurrentSubTransaction(); // 释放子事务
-			MemoryContextSwitchTo(oldcontext);
-			CurrentResourceOwner = oldowner;
-
-			/* Assert that the stmt_mcontext stack is unchanged */
-			Assert(stmt_mcontext == estate->stmt_mcontext);
-
-			/*
-			 * Revert to outer eval_econtext.  (The inner one was
-			 * automatically cleaned up during subxact exit.)
-			 */
-			estate->eval_econtext = old_eval_econtext;
-		}
-		PG_CATCH();
-		{
-			ErrorData  *edata;
-			ListCell   *e;
-
-			estate->err_text = gettext_noop('during exception cleanup');
-
-			/* Save error info in our stmt_mcontext */
-			MemoryContextSwitchTo(stmt_mcontext);
-			edata = CopyErrorData();
-			FlushErrorState();
-
-			/* Abort the inner transaction */
-			RollbackAndReleaseCurrentSubTransaction(); // 发生了异常回滚子事务
-			MemoryContextSwitchTo(oldcontext);
-			CurrentResourceOwner = oldowner;
-
-			/*
-			 * Set up the stmt_mcontext stack as though we had restored our
-			 * previous state and then done push_stmt_mcontext().  The push is
-			 * needed so that statements in the exception handler won't
-			 * clobber the error data that's in our stmt_mcontext.
-			 */
-			estate->stmt_mcontext_parent = stmt_mcontext;
-			estate->stmt_mcontext = NULL;
-
-			/*
-			 * Now we can delete any nested stmt_mcontexts that might have
-			 * been created as children of ours.  (Note: we do not immediately
-			 * release any statement-lifespan data that might have been left
-			 * behind in stmt_mcontext itself.  We could attempt that by doing
-			 * a MemoryContextReset on it before collecting the error data
-			 * above, but it seems too risky to do any significant amount of
-			 * work before collecting the error.)
-			 */
-			MemoryContextDeleteChildren(stmt_mcontext);
-
-			/* Revert to outer eval_econtext */
-			estate->eval_econtext = old_eval_econtext;
-
-			/*
-			 * Must clean up the econtext too.  However, any tuple table made
-			 * in the subxact will have been thrown away by SPI during subxact
-			 * abort, so we don't need to (and mustn't try to) free the
-			 * eval_tuptable.
-			 */
-			estate->eval_tuptable = NULL;
-			exec_eval_cleanup(estate);
-
-			/* Look for a matching exception handler */
-			foreach(e, block->exceptions->exc_list)
-			{
-				PLpgSQL_exception *exception = (PLpgSQL_exception *) lfirst(e);
-
-				if (exception_matches_conditions(edata, exception->conditions))
-				{
-					/*
-					 * Initialize the magic SQLSTATE and SQLERRM variables for
-					 * the exception block; this also frees values from any
-					 * prior use of the same exception. We needn't do this
-					 * until we have found a matching exception.
-					 */
-					PLpgSQL_var *state_var;
-					PLpgSQL_var *errm_var;
-
-					state_var = (PLpgSQL_var *)
-						estate->datums[block->exceptions->sqlstate_varno];
-					errm_var = (PLpgSQL_var *)
-						estate->datums[block->exceptions->sqlerrm_varno];
-
-					assign_text_var(estate, state_var,
-									unpack_sql_state(edata->sqlerrcode));
-					assign_text_var(estate, errm_var, edata->message);
-
-					/*
-					 * Also set up cur_error so the error data is accessible
-					 * inside the handler.
-					 */
-					estate->cur_error = edata;
-
-					estate->err_text = NULL;
-
-					rc = exec_stmts(estate, exception->action);
-
-					break;
-				}
-			}
-
-			/*
-			 * Restore previous state of cur_error, whether or not we executed
-			 * a handler.  This is needed in case an error got thrown from
-			 * some inner block's exception handler.
-			 */
-			estate->cur_error = save_cur_error;
-
-			/* If no match found, re-throw the error */
-			if (e == NULL)
-				ReThrowError(edata);
-
-			/* Restore stmt_mcontext stack and release the error data */
-			pop_stmt_mcontext(estate);
-			MemoryContextReset(stmt_mcontext);
-		}
-		PG_END_TRY();
-
-		Assert(save_cur_error == estate->cur_error);
-	}
-	else
-	{
-		/*
-		 * Just execute the statements in the block's body
-		 */
-		estate->err_text = NULL;
-
-		rc = exec_stmts(estate, block->body);
-	}
-    // ....
+      // 异常匹配和处理
+      foreach(e, block->exceptions->exc_list)
+      {
+        PLpgSQL_exception *exception = (PLpgSQL_exception *) lfirst(e);
+        if (exception_matches_conditions(edata, exception->conditions))
+        {
+          rc = exec_stmts(estate, exception->action); // exception块中的其余操作
+          break;
+        }
+      }
+    }
+    PG_END_TRY();
+  }
+  else
+  {
+    /*
+     * Just execute the statements in the block's body
+     */
+    estate->err_text = NULL;
+    // 没有exception块 执行此处 不会开启子事务
+    rc = exec_stmts(estate, block->body);
+  }
+  // ...
+}
 ``` 。">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/plpgsql-de-zi-shi-wu.html">
@@ -1122,201 +818,49 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-k">static</span> <span class="pl-smi">int</span>
 <span class="pl-en">exec_stmt_block</span>(<span class="pl-smi">PLpgSQL_execstate</span> <span class="pl-c1">*</span><span class="pl-s1">estate</span>, <span class="pl-smi">PLpgSQL_stmt_block</span> <span class="pl-c1">*</span><span class="pl-s1">block</span>)
 {
-	<span class="pl-c">// initialize </span>
+  <span class="pl-c">// initialize </span>
+  <span class="pl-k">if</span> (<span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">exceptions</span>)
+  {
+    <span class="pl-en">BeginInternalSubTransaction</span>(<span class="pl-c1">NULL</span>);  <span class="pl-c">// 开启子事务</span>
 
-	<span class="pl-k">if</span> (<span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">exceptions</span>)
-	{
-		<span class="pl-c">/*</span>
-<span class="pl-c">		 * Execute the statements in the block's body inside a sub-transaction</span>
-<span class="pl-c">		 */</span>
-		<span class="pl-smi">MemoryContext</span> <span class="pl-s1">oldcontext</span> <span class="pl-c1">=</span> <span class="pl-s1">CurrentMemoryContext</span>;
-		<span class="pl-smi">ResourceOwner</span> <span class="pl-s1">oldowner</span> <span class="pl-c1">=</span> <span class="pl-s1">CurrentResourceOwner</span>;
-		<span class="pl-smi">ExprContext</span> <span class="pl-c1">*</span><span class="pl-s1">old_eval_econtext</span> <span class="pl-c1">=</span> <span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">eval_econtext</span>;
-		<span class="pl-smi">ErrorData</span>  <span class="pl-c1">*</span><span class="pl-s1">save_cur_error</span> <span class="pl-c1">=</span> <span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">cur_error</span>;
-		<span class="pl-smi">MemoryContext</span> <span class="pl-s1">stmt_mcontext</span>;
+    <span class="pl-en">PG_TRY</span>();
+    {
+      <span class="pl-c">/* Run the block's statements */</span>
+      <span class="pl-s1">rc</span> <span class="pl-c1">=</span> <span class="pl-en">exec_stmts</span>(<span class="pl-s1">estate</span>, <span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">body</span>); <span class="pl-c">// 执行相关操作</span>
 
-		<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">err_text</span> <span class="pl-c1">=</span> <span class="pl-en">gettext_noop</span>(<span class="pl-s">"during statement block entry"</span>);
+      <span class="pl-c">/* Commit the inner transaction, return to outer xact context */</span>
+      <span class="pl-en">ReleaseCurrentSubTransaction</span>(); <span class="pl-c">// 释放子事务</span>
+    }
+    <span class="pl-en">PG_CATCH</span>();
+    {
 
-		<span class="pl-c">/*</span>
-<span class="pl-c">		 * We will need a stmt_mcontext to hold the error data if an error</span>
-<span class="pl-c">		 * occurs.  It seems best to force it to exist before entering the</span>
-<span class="pl-c">		 * subtransaction, so that we reduce the risk of out-of-memory during</span>
-<span class="pl-c">		 * error recovery, and because this greatly simplifies restoring the</span>
-<span class="pl-c">		 * stmt_mcontext stack to the correct state after an error.  We can</span>
-<span class="pl-c">		 * ameliorate the cost of this by allowing the called statements to</span>
-<span class="pl-c">		 * use this mcontext too; so we don't push it down here.</span>
-<span class="pl-c">		 */</span>
-		<span class="pl-s1">stmt_mcontext</span> <span class="pl-c1">=</span> <span class="pl-en">get_stmt_mcontext</span>(<span class="pl-s1">estate</span>);
+      <span class="pl-c">/* Abort the inner transaction */</span>
+      <span class="pl-en">RollbackAndReleaseCurrentSubTransaction</span>(); <span class="pl-c">// 发生了异常回滚子事务</span>
 
-		<span class="pl-en">BeginInternalSubTransaction</span>(<span class="pl-c1">NULL</span>);  <span class="pl-c">// 开启子事务</span>
-		<span class="pl-c">/* Want to run statements inside function's memory context */</span>
-		<span class="pl-en">MemoryContextSwitchTo</span>(<span class="pl-s1">oldcontext</span>);
-
-		<span class="pl-en">PG_TRY</span>();
-		{
-			<span class="pl-c">/*</span>
-<span class="pl-c">			 * We need to run the block's statements with a new eval_econtext</span>
-<span class="pl-c">			 * that belongs to the current subtransaction; if we try to use</span>
-<span class="pl-c">			 * the outer econtext then ExprContext shutdown callbacks will be</span>
-<span class="pl-c">			 * called at the wrong times.</span>
-<span class="pl-c">			 */</span>
-			<span class="pl-en">plpgsql_create_econtext</span>(<span class="pl-s1">estate</span>);
-
-			<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">err_text</span> <span class="pl-c1">=</span> <span class="pl-c1">NULL</span>;
-
-			<span class="pl-c">/* Run the block's statements */</span>
-			<span class="pl-s1">rc</span> <span class="pl-c1">=</span> <span class="pl-en">exec_stmts</span>(<span class="pl-s1">estate</span>, <span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">body</span>);
-
-			<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">err_text</span> <span class="pl-c1">=</span> <span class="pl-en">gettext_noop</span>(<span class="pl-s">"during statement block exit"</span>);
-
-			<span class="pl-c">/*</span>
-<span class="pl-c">			 * If the block ended with RETURN, we may need to copy the return</span>
-<span class="pl-c">			 * value out of the subtransaction eval_context.  We can avoid a</span>
-<span class="pl-c">			 * physical copy if the value happens to be a R/W expanded object.</span>
-<span class="pl-c">			 */</span>
-			<span class="pl-k">if</span> (<span class="pl-s1">rc</span> <span class="pl-c1">==</span> <span class="pl-c1">PLPGSQL_RC_RETURN</span> <span class="pl-c1">&amp;&amp;</span>
-				!<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">retisset</span> <span class="pl-c1">&amp;&amp;</span>
-				!<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">retisnull</span>)
-			{
-				<span class="pl-smi">int16</span>		<span class="pl-s1">resTypLen</span>;
-				<span class="pl-smi">bool</span>		<span class="pl-s1">resTypByVal</span>;
-
-				<span class="pl-en">get_typlenbyval</span>(<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">rettype</span>, <span class="pl-c1">&amp;</span><span class="pl-s1">resTypLen</span>, <span class="pl-c1">&amp;</span><span class="pl-s1">resTypByVal</span>);
-				<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">retval</span> <span class="pl-c1">=</span> <span class="pl-en">datumTransfer</span>(<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">retval</span>,
-											   <span class="pl-s1">resTypByVal</span>, <span class="pl-s1">resTypLen</span>);
-			}
-
-			<span class="pl-c">/* Commit the inner transaction, return to outer xact context */</span>
-			<span class="pl-en">ReleaseCurrentSubTransaction</span>(); <span class="pl-c">// 释放子事务</span>
-			<span class="pl-en">MemoryContextSwitchTo</span>(<span class="pl-s1">oldcontext</span>);
-			<span class="pl-s1">CurrentResourceOwner</span> <span class="pl-c1">=</span> <span class="pl-s1">oldowner</span>;
-
-			<span class="pl-c">/* Assert that the stmt_mcontext stack is unchanged */</span>
-			<span class="pl-en">Assert</span>(<span class="pl-s1">stmt_mcontext</span> <span class="pl-c1">==</span> <span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">stmt_mcontext</span>);
-
-			<span class="pl-c">/*</span>
-<span class="pl-c">			 * Revert to outer eval_econtext.  (The inner one was</span>
-<span class="pl-c">			 * automatically cleaned up during subxact exit.)</span>
-<span class="pl-c">			 */</span>
-			<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">eval_econtext</span> <span class="pl-c1">=</span> <span class="pl-s1">old_eval_econtext</span>;
-		}
-		<span class="pl-en">PG_CATCH</span>();
-		{
-			<span class="pl-smi">ErrorData</span>  <span class="pl-c1">*</span><span class="pl-s1">edata</span>;
-			<span class="pl-smi">ListCell</span>   <span class="pl-c1">*</span><span class="pl-s1">e</span>;
-
-			<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">err_text</span> <span class="pl-c1">=</span> <span class="pl-en">gettext_noop</span>(<span class="pl-s">"during exception cleanup"</span>);
-
-			<span class="pl-c">/* Save error info in our stmt_mcontext */</span>
-			<span class="pl-en">MemoryContextSwitchTo</span>(<span class="pl-s1">stmt_mcontext</span>);
-			<span class="pl-s1">edata</span> <span class="pl-c1">=</span> <span class="pl-en">CopyErrorData</span>();
-			<span class="pl-en">FlushErrorState</span>();
-
-			<span class="pl-c">/* Abort the inner transaction */</span>
-			<span class="pl-en">RollbackAndReleaseCurrentSubTransaction</span>(); <span class="pl-c">// 发生了异常回滚子事务</span>
-			<span class="pl-en">MemoryContextSwitchTo</span>(<span class="pl-s1">oldcontext</span>);
-			<span class="pl-s1">CurrentResourceOwner</span> <span class="pl-c1">=</span> <span class="pl-s1">oldowner</span>;
-
-			<span class="pl-c">/*</span>
-<span class="pl-c">			 * Set up the stmt_mcontext stack as though we had restored our</span>
-<span class="pl-c">			 * previous state and then done push_stmt_mcontext().  The push is</span>
-<span class="pl-c">			 * needed so that statements in the exception handler won't</span>
-<span class="pl-c">			 * clobber the error data that's in our stmt_mcontext.</span>
-<span class="pl-c">			 */</span>
-			<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">stmt_mcontext_parent</span> <span class="pl-c1">=</span> <span class="pl-s1">stmt_mcontext</span>;
-			<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">stmt_mcontext</span> <span class="pl-c1">=</span> <span class="pl-c1">NULL</span>;
-
-			<span class="pl-c">/*</span>
-<span class="pl-c">			 * Now we can delete any nested stmt_mcontexts that might have</span>
-<span class="pl-c">			 * been created as children of ours.  (Note: we do not immediately</span>
-<span class="pl-c">			 * release any statement-lifespan data that might have been left</span>
-<span class="pl-c">			 * behind in stmt_mcontext itself.  We could attempt that by doing</span>
-<span class="pl-c">			 * a MemoryContextReset on it before collecting the error data</span>
-<span class="pl-c">			 * above, but it seems too risky to do any significant amount of</span>
-<span class="pl-c">			 * work before collecting the error.)</span>
-<span class="pl-c">			 */</span>
-			<span class="pl-en">MemoryContextDeleteChildren</span>(<span class="pl-s1">stmt_mcontext</span>);
-
-			<span class="pl-c">/* Revert to outer eval_econtext */</span>
-			<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">eval_econtext</span> <span class="pl-c1">=</span> <span class="pl-s1">old_eval_econtext</span>;
-
-			<span class="pl-c">/*</span>
-<span class="pl-c">			 * Must clean up the econtext too.  However, any tuple table made</span>
-<span class="pl-c">			 * in the subxact will have been thrown away by SPI during subxact</span>
-<span class="pl-c">			 * abort, so we don't need to (and mustn't try to) free the</span>
-<span class="pl-c">			 * eval_tuptable.</span>
-<span class="pl-c">			 */</span>
-			<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">eval_tuptable</span> <span class="pl-c1">=</span> <span class="pl-c1">NULL</span>;
-			<span class="pl-en">exec_eval_cleanup</span>(<span class="pl-s1">estate</span>);
-
-			<span class="pl-c">/* Look for a matching exception handler */</span>
-			<span class="pl-en">foreach</span>(<span class="pl-s1">e</span>, <span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">exceptions</span><span class="pl-c1">-&gt;</span><span class="pl-c1">exc_list</span>)
-			{
-				<span class="pl-smi">PLpgSQL_exception</span> <span class="pl-c1">*</span><span class="pl-s1">exception</span> <span class="pl-c1">=</span> (<span class="pl-smi">PLpgSQL_exception</span> <span class="pl-c1">*</span>) <span class="pl-en">lfirst</span>(<span class="pl-s1">e</span>);
-
-				<span class="pl-k">if</span> (<span class="pl-en">exception_matches_conditions</span>(<span class="pl-s1">edata</span>, <span class="pl-s1">exception</span><span class="pl-c1">-&gt;</span><span class="pl-c1">conditions</span>))
-				{
-					<span class="pl-c">/*</span>
-<span class="pl-c">					 * Initialize the magic SQLSTATE and SQLERRM variables for</span>
-<span class="pl-c">					 * the exception block; this also frees values from any</span>
-<span class="pl-c">					 * prior use of the same exception. We needn't do this</span>
-<span class="pl-c">					 * until we have found a matching exception.</span>
-<span class="pl-c">					 */</span>
-					<span class="pl-smi">PLpgSQL_var</span> <span class="pl-c1">*</span><span class="pl-s1">state_var</span>;
-					<span class="pl-smi">PLpgSQL_var</span> <span class="pl-c1">*</span><span class="pl-s1">errm_var</span>;
-
-					<span class="pl-s1">state_var</span> <span class="pl-c1">=</span> (<span class="pl-smi">PLpgSQL_var</span> <span class="pl-c1">*</span>)
-						<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">datums</span>[<span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">exceptions</span><span class="pl-c1">-&gt;</span><span class="pl-c1">sqlstate_varno</span>];
-					<span class="pl-s1">errm_var</span> <span class="pl-c1">=</span> (<span class="pl-smi">PLpgSQL_var</span> <span class="pl-c1">*</span>)
-						<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">datums</span>[<span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">exceptions</span><span class="pl-c1">-&gt;</span><span class="pl-c1">sqlerrm_varno</span>];
-
-					<span class="pl-en">assign_text_var</span>(<span class="pl-s1">estate</span>, <span class="pl-s1">state_var</span>,
-									<span class="pl-en">unpack_sql_state</span>(<span class="pl-s1">edata</span><span class="pl-c1">-&gt;</span><span class="pl-c1">sqlerrcode</span>));
-					<span class="pl-en">assign_text_var</span>(<span class="pl-s1">estate</span>, <span class="pl-s1">errm_var</span>, <span class="pl-s1">edata</span><span class="pl-c1">-&gt;</span><span class="pl-c1">message</span>);
-
-					<span class="pl-c">/*</span>
-<span class="pl-c">					 * Also set up cur_error so the error data is accessible</span>
-<span class="pl-c">					 * inside the handler.</span>
-<span class="pl-c">					 */</span>
-					<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">cur_error</span> <span class="pl-c1">=</span> <span class="pl-s1">edata</span>;
-
-					<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">err_text</span> <span class="pl-c1">=</span> <span class="pl-c1">NULL</span>;
-
-					<span class="pl-s1">rc</span> <span class="pl-c1">=</span> <span class="pl-en">exec_stmts</span>(<span class="pl-s1">estate</span>, <span class="pl-s1">exception</span><span class="pl-c1">-&gt;</span><span class="pl-c1">action</span>);
-
-					<span class="pl-k">break</span>;
-				}
-			}
-
-			<span class="pl-c">/*</span>
-<span class="pl-c">			 * Restore previous state of cur_error, whether or not we executed</span>
-<span class="pl-c">			 * a handler.  This is needed in case an error got thrown from</span>
-<span class="pl-c">			 * some inner block's exception handler.</span>
-<span class="pl-c">			 */</span>
-			<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">cur_error</span> <span class="pl-c1">=</span> <span class="pl-s1">save_cur_error</span>;
-
-			<span class="pl-c">/* If no match found, re-throw the error */</span>
-			<span class="pl-k">if</span> (<span class="pl-s1">e</span> <span class="pl-c1">==</span> <span class="pl-c1">NULL</span>)
-				<span class="pl-en">ReThrowError</span>(<span class="pl-s1">edata</span>);
-
-			<span class="pl-c">/* Restore stmt_mcontext stack and release the error data */</span>
-			<span class="pl-en">pop_stmt_mcontext</span>(<span class="pl-s1">estate</span>);
-			<span class="pl-en">MemoryContextReset</span>(<span class="pl-s1">stmt_mcontext</span>);
-		}
-		<span class="pl-en">PG_END_TRY</span>();
-
-		<span class="pl-en">Assert</span>(<span class="pl-s1">save_cur_error</span> <span class="pl-c1">==</span> <span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">cur_error</span>);
-	}
-	<span class="pl-k">else</span>
-	{
-		<span class="pl-c">/*</span>
-<span class="pl-c">		 * Just execute the statements in the block's body</span>
-<span class="pl-c">		 */</span>
-		<span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">err_text</span> <span class="pl-c1">=</span> <span class="pl-c1">NULL</span>;
-
-		<span class="pl-s1">rc</span> <span class="pl-c1">=</span> <span class="pl-en">exec_stmts</span>(<span class="pl-s1">estate</span>, <span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">body</span>);
-	}
-    <span class="pl-c">// ....</span></pre></div></div>
+      <span class="pl-c">// 异常匹配和处理</span>
+      <span class="pl-en">foreach</span>(<span class="pl-s1">e</span>, <span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">exceptions</span><span class="pl-c1">-&gt;</span><span class="pl-c1">exc_list</span>)
+      {
+        <span class="pl-smi">PLpgSQL_exception</span> <span class="pl-c1">*</span><span class="pl-s1">exception</span> <span class="pl-c1">=</span> (<span class="pl-smi">PLpgSQL_exception</span> <span class="pl-c1">*</span>) <span class="pl-en">lfirst</span>(<span class="pl-s1">e</span>);
+        <span class="pl-k">if</span> (<span class="pl-en">exception_matches_conditions</span>(<span class="pl-s1">edata</span>, <span class="pl-s1">exception</span><span class="pl-c1">-&gt;</span><span class="pl-c1">conditions</span>))
+        {
+          <span class="pl-s1">rc</span> <span class="pl-c1">=</span> <span class="pl-en">exec_stmts</span>(<span class="pl-s1">estate</span>, <span class="pl-s1">exception</span><span class="pl-c1">-&gt;</span><span class="pl-c1">action</span>); <span class="pl-c">// exception块中的其余操作</span>
+          <span class="pl-k">break</span>;
+        }
+      }
+    }
+    <span class="pl-en">PG_END_TRY</span>();
+  }
+  <span class="pl-k">else</span>
+  {
+    <span class="pl-c">/*</span>
+<span class="pl-c">     * Just execute the statements in the block's body</span>
+<span class="pl-c">     */</span>
+    <span class="pl-s1">estate</span><span class="pl-c1">-&gt;</span><span class="pl-c1">err_text</span> <span class="pl-c1">=</span> <span class="pl-c1">NULL</span>;
+    <span class="pl-c">// 没有exception块 执行此处 不会开启子事务</span>
+    <span class="pl-s1">rc</span> <span class="pl-c1">=</span> <span class="pl-en">exec_stmts</span>(<span class="pl-s1">estate</span>, <span class="pl-s1">block</span><span class="pl-c1">-&gt;</span><span class="pl-c1">body</span>);
+  }
+  <span class="pl-c">// ...</span>
+}</pre></div></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
