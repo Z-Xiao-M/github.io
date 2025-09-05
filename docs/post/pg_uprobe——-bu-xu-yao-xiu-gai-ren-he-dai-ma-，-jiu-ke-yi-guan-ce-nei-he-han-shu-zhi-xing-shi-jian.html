@@ -10,11 +10,11 @@
         let theme = localStorage.getItem("meek_theme") || "light";
         document.documentElement.setAttribute("data-color-mode", theme);
     </script>
-<meta name="description" content="# pg_uprobe
-pg_uprobe 是postgrespro开发的一款PostgreSQL扩展，主要用于跟踪和分析数据库会话中执行的查询，以及剖析 PostgreSQL 核心的 C 函数，帮助用户深入了解数据库内部运行机制、排查性能问题等。">
+<meta name="description" content="# 前言
+之前在看ebpf的时候，了解到了kprobe （内核态探针）和 uprobe （用户态探针）。">
 <meta property="og:title" content="pg_uprobe——不需要修改任何代码，就可以观测内核函数执行时间">
-<meta property="og:description" content="# pg_uprobe
-pg_uprobe 是postgrespro开发的一款PostgreSQL扩展，主要用于跟踪和分析数据库会话中执行的查询，以及剖析 PostgreSQL 核心的 C 函数，帮助用户深入了解数据库内部运行机制、排查性能问题等。">
+<meta property="og:description" content="# 前言
+之前在看ebpf的时候，了解到了kprobe （内核态探针）和 uprobe （用户态探针）。">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/pg_uprobe%E2%80%94%E2%80%94-bu-xu-yao-xiu-gai-ren-he-dai-ma-%EF%BC%8C-jiu-ke-yi-guan-ce-nei-he-han-shu-zhi-xing-shi-jian.html">
 <meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
@@ -85,11 +85,19 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 </div>
 </div>
     <div id="content">
-<div class="markdown-body" id="postBody"><h1>pg_uprobe</h1>
-<p>pg_uprobe 是postgrespro开发的一款PostgreSQL扩展，主要用于跟踪和分析数据库会话中执行的查询，以及剖析 PostgreSQL 核心的 C 函数，帮助用户深入了解数据库内部运行机制、排查性能问题等。底层基于 <a href="https://frida.re/" rel="nofollow">Frida</a> 及 <a href="https://github.com/frida/frida-gum">Frida Gum</a> 库，通过动态代码注入实现功能，无需修改 PostgreSQL 源码。<br>
-项目地址: <a href="https://github.com/postgrespro/pg_uprobe">https://github.com/postgrespro/pg_uprobe</a></p>
-<h2>编译安装</h2>
-<div class="highlight highlight-source-shell"><pre class="notranslate">git clone https://github.com/postgrespro/pg_uprobe.git  <span class="pl-c"><span class="pl-c">#</span> 拉去代码至contrib目录</span>
+<div class="markdown-body" id="postBody"><h1>前言</h1>
+<p>之前在看ebpf的时候，了解到了kprobe （内核态探针）和 uprobe （用户态探针）。</p>
+<blockquote>
+<p>kprobe 和 uprobe 是 Linux 内核提供的两种动态跟踪机制，用于在不修改目标代码（内核或用户程序）的情况下，对特定指令或函数进行监控、调试或性能分析。两者核心功能相似，但适用场景不同：前者针对内核空间，后者针对用户空间。</p>
+</blockquote>
+<p>当时就想着PostgreSQL有没有类似的插件，找了很多用ebpf写的观测插件，最后意外发现了postgrespro的这款新的插件，但是当时用起来还有不少问题，简单改了下之后便没怎么碰了，正好最近他们出了v0.3，恰好我手头上也有一个合适场景可以演示，就提溜着出来玩玩。</p>
+<h1>简单的项目介绍</h1>
+<p>pg_uprobe 是postgrespro开发的一款PostgreSQL扩展，主要用于跟踪和分析数据库会话中执行的查询，以及剖析 PostgreSQL 核心的 C 函数，帮助用户深入了解数据库内部运行机制、排查性能问题等，支持会话级跟踪和函数级性能分析。底层基于 <a href="https://frida.re/" rel="nofollow">Frida</a> 及 <a href="https://github.com/frida/frida-gum">Frida Gum</a> 库，通过动态代码注入实现功能，无需修改 PostgreSQL 源码。更多细节内容请查看项目主页。</p>
+<blockquote>
+<p>项目地址:  <a href="https://github.com/postgrespro/pg_uprobe">https://github.com/postgrespro/pg_uprobe</a></p>
+</blockquote>
+<h1>编译安装</h1>
+<div class="highlight highlight-source-shell"><pre class="notranslate">git clone https://github.com/postgrespro/pg_uprobe.git  <span class="pl-c"><span class="pl-c">#</span> 拉取项目代码至contrib目录</span>
 <span class="pl-c1">cd</span> pg_uprobe  
 make <span class="pl-k">&amp;&amp;</span> make install
 shared_preload_libraries = <span class="pl-s"><span class="pl-pds">'</span>pg_uprobe<span class="pl-pds">'</span></span> <span class="pl-c"><span class="pl-c">#</span>添加至配置文件</span>
@@ -180,7 +188,8 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 (<span class="pl-c1">4</span> rows)
 
 <span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">789</span> ms</pre></div>
-<h1>其余方法</h1>
+<p>将us转换成ms，可以看到统计出来的时间大差不差，也不需要重新编译项目代码算得上是比较方便的。</p>
+<h1>函数探针示例</h1>
 <div class="highlight highlight-source-sql"><pre class="notranslate"><span class="pl-c"><span class="pl-c">--</span> TIME</span>
 <span class="pl-k">select</span> set_uprobe(<span class="pl-s"><span class="pl-pds">'</span>PreCommit_on_commit_actions<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>TIME<span class="pl-pds">'</span></span>, false);
 <span class="pl-k">select</span> set_uprobe(<span class="pl-s"><span class="pl-pds">'</span>heap_truncate<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>TIME<span class="pl-pds">'</span></span>, false);
@@ -195,7 +204,12 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-k">select</span> stat_hist_uprobe(<span class="pl-s"><span class="pl-pds">'</span>PreCommit_on_commit_actions<span class="pl-pds">'</span></span>);
 <span class="pl-k">select</span> stat_hist_uprobe(<span class="pl-s"><span class="pl-pds">'</span>heap_truncate<span class="pl-pds">'</span></span>);
 <span class="pl-k">select</span> delete_uprobe(<span class="pl-s"><span class="pl-pds">'</span>PreCommit_on_commit_actions<span class="pl-pds">'</span></span>, false);
-<span class="pl-k">select</span> delete_uprobe(<span class="pl-s"><span class="pl-pds">'</span>heap_truncate<span class="pl-pds">'</span></span>, false);</pre></div></div>
+<span class="pl-k">select</span> delete_uprobe(<span class="pl-s"><span class="pl-pds">'</span>heap_truncate<span class="pl-pds">'</span></span>, false);</pre></div>
+<p>还有个会话级跟踪，但是这里没有涉及到我就不展开讲了。</p>
+<h1>注意事项</h1>
+<p>跟踪会带来约 5% 性能损耗，不建议长期开启。</p>
+<h1>评价</h1>
+<p>是个极好的项目，就是要玩出花来要对PostgreSQL内核比较熟悉，有一定的上手门槛。</p></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
