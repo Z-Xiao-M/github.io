@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html data-color-mode="light" data-dark-theme="dark" data-light-theme="light" lang="zh-CN">
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="content-type" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link href='https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/Primer/21.0.7/primer.css' rel='stylesheet' />
+    <script src='https://blog.meekdai.com/Gmeek/plugins/GmeekVercount.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script><style>body[data-ui-pending] #content {opacity:0;transition:opacity 0.3s ease;}</style><script>document.documentElement.setAttribute('data-ui-pending','true');</script><link rel='stylesheet' href='https://code.buxiantang.top/assets/GmeekBaseTheme.css'><script src='https://code.buxiantang.top/assets/GmeekCustomizeCss.js' defer></script>
+    <link rel="icon" href="https://z-xiao-m.github.io/github.io/avatar.svg"><script>
+        let theme = localStorage.getItem("meek_theme") || "light";
+        document.documentElement.setAttribute("data-color-mode", theme);
+    </script>
+<meta name="description" content="一、前言
+====
+
+最近网上冲浪的时候，翻着翻着翻到一篇有趣的文章，估摸着应该是盖老师写的。">
+<meta property="og:title" content="打破认知幻像：你写的SQL是否如你心意？">
+<meta property="og:description" content="一、前言
+====
+
+最近网上冲浪的时候，翻着翻着翻到一篇有趣的文章，估摸着应该是盖老师写的。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/%E6%89%93%E7%A0%B4%E8%AE%A4%E7%9F%A5%E5%B9%BB%E5%83%8F%EF%BC%9A%E4%BD%A0%E5%86%99%E7%9A%84SQL%E6%98%AF%E5%90%A6%E5%A6%82%E4%BD%A0%E5%BF%83%E6%84%8F%EF%BC%9F.html">
+<meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
+<title>打破认知幻像：你写的SQL是否如你心意？</title>
+
+
+
+</head>
+<style>
+body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;padding: 45px;font-size: 16px;font-family: sans-serif;line-height: 1.25;}
+#header{display:flex;padding-bottom:8px;border-bottom: 1px solid var(--borderColor-muted, var(--color-border-muted));margin-bottom: 16px;}
+#footer {margin-top:64px; text-align: center;font-size: small;}
+
+</style>
+
+<style>
+.postTitle{margin: auto 0;font-size:40px;font-weight:bold;}
+.title-right{display:flex;margin:auto 0 0 auto;}
+.title-right .circle{padding: 14px 16px;margin-right:8px;}
+#postBody{border-bottom: 1px solid var(--color-border-default);padding-bottom:36px;}
+#postBody hr{height:2px;}
+#cmButton{height:48px;margin-top:48px;}
+#comments{margin-top:64px;}
+.g-emoji{font-size:24px;}
+@media (max-width: 600px) {
+    body {padding: 8px;}
+    .postTitle{font-size:24px;}
+}
+.copy-feedback {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    color: var(--color-fg-on-emphasis);
+    background-color: var(--color-fg-muted);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+</style>
+<style>#postBody{font-size:20px}</style>
+
+
+
+<body>
+    <div id="header">
+<h1 class="postTitle">打破认知幻像：你写的SQL是否如你心意？</h1>
+<div class="title-right">
+    <a href="https://Z-Xiao-M.github.io/github.io" id="buttonHome" class="btn btn-invisible circle" title="首页">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathHome" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+    <a href="https://github.com/Z-Xiao-M/github.io/issues/18" target="_blank" class="btn btn-invisible circle" title="Issue">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathIssue" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+
+    <a class="btn btn-invisible circle" onclick="modeSwitch();" title="切换主题">
+        <svg class="octicon" width="16" height="16" >
+            <path id="themeSwitch" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+
+</div>
+</div>
+    <div id="content">
+<div class="markdown-body" id="postBody"><h1>一、前言</h1>
+<p>最近网上冲浪的时候，翻着翻着翻到一篇有趣的文章，估摸着应该是盖老师写的。文中有个测试例子引起了我的兴趣，原文如下：</p>
+<p><a href="https://blog.csdn.net/Enmotech/article/details/129964650?spm=1001.2014.3001.5502" rel="nofollow">认知幻像：如果有这样一道面试题，可以如何作答？</a></p>
+<p>借用一下文中的例子如下所示：</p>
+<pre class="notranslate"><code class="notranslate">/* table1 */
+create table enmotech (id number,name varchar2(20));
+insert into enmotech values(1,'Eygle');
+/* table2 */
+create table enmotest (id number);
+insert into enmotest values(1);
+
+/* 问：在enmotest 表中，不存在 name 字段，当前查询能否正常执行？*/
+select * from enmotech where name in (select name from enmotest);
+</code></pre>
+<p>思考一下能否正确执行，如果能，那么输出结果是什么？</p>
+<h1>二、是否能正常执行呢？</h1>
+<p>不想动脑子的情况下，能不能执行，测试一下，不就知道了吗？再借用下文中的测试结果</p>
+<p>在<strong>Oracle</strong>的执行结果如下：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/1486d19f9e207d0f45a89f481d8b3f392f33082166b7d3b6a42af8f2d0180fdf/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531302d39613431383461622d343961632d346533332d613032302d3061663339356565343166662e706e67"><img src="https://camo.githubusercontent.com/1486d19f9e207d0f45a89f481d8b3f392f33082166b7d3b6a42af8f2d0180fdf/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531302d39613431383461622d343961632d346533332d613032302d3061663339356565343166662e706e67" alt="09a42baf7a0592ae8d8e18c52211ae6f.png" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240510-9a4184ab-49ac-4e33-a020-0af395ee41ff.png" style="max-width: 100%;"></a></p>
+<p>在<strong>MogDB</strong>的执行结果如下：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/6e30782324db5de01a26ddaeee4c5a10c83e6a0f3550fe0e17a7208ed6e2720c/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531302d33343634653934302d653130632d346236322d393865352d3637663932613662336235342e706e67"><img src="https://camo.githubusercontent.com/6e30782324db5de01a26ddaeee4c5a10c83e6a0f3550fe0e17a7208ed6e2720c/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531302d33343634653934302d653130632d346236322d393865352d3637663932613662336235342e706e67" alt="034f6b189267bb6a6e10a12128d2a9c9.png" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240510-3464e940-e10c-4b62-98e5-67f92a6b3b54.png" style="max-width: 100%;"></a></p>
+<p>再顺带补充两个测试结果</p>
+<p>在<strong>羲和(Halo)数据库</strong>的执行结果如下：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/157477a8689872608baa8bd779574e5b725060b12b4ebb1d475b9d8ad2f04132/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531302d66376564633464622d633661312d343936302d396336342d3630653164333638303731322e706e67"><img src="https://camo.githubusercontent.com/157477a8689872608baa8bd779574e5b725060b12b4ebb1d475b9d8ad2f04132/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531302d66376564633464622d633661312d343936302d396336342d3630653164333638303731322e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240510-f7edc4db-c6a1-4960-9c64-60e1d3680712.png" style="max-width: 100%;"></a></p>
+<p>在<strong>PostgreSQL</strong>的运行结果如下：</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/f9751872b1310a0a96a804cb11d1c9202a3ccb0d998595ebaef6b70d0b6dd5e5/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531302d39323630626661382d646263652d346138342d383736312d3235616438613835656533362e706e67"><img src="https://camo.githubusercontent.com/f9751872b1310a0a96a804cb11d1c9202a3ccb0d998595ebaef6b70d0b6dd5e5/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531302d39323630626661382d646263652d346138342d383736312d3235616438613835656533362e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240510-9260bfa8-dbce-4a84-8761-25ad8a85ee36.png" style="max-width: 100%;"></a></p>
+<p>可以看到的是，四款数据库都能正常运行此SQL语句，不知道是否如你所想。接下来要问问为什么呢？</p>
+<h1>三、为什么能正常执行呢？</h1>
+<p>到动脑子的环节了，盖老师用了10053跟踪事件，解释了Oracle为什么会这样子。</p>
+<p>接下来我将通过查看执行计划和阅读PostgreSQL内核源码（17版本）的方式，带大家理解为什么会这样。</p>
+<h2>3.1、查看执行计划</h2>
+<p>使用PG的explain查看一下执行计划，执行计划如下所示：</p>
+<pre class="notranslate"><code class="notranslate">postgres=# explain verbose select * from enmotech where name in (select name from enmotest);
+                                 QUERY PLAN                                 
+----------------------------------------------------------------------------
+ Seq Scan on public.enmotech  (cost=0.00..9333.62 rows=345 width=90)
+   Output: enmotech.id, enmotech.name
+   Filter: (SubPlan 1)
+   SubPlan 1
+     -&gt;  Seq Scan on public.enmotest  (cost=0.00..23.60 rows=1360 width=58)
+           Output: enmotech.name
+(6 rows)
+</code></pre>
+<p>可以很显眼的看到存在一个SubPlan，这个SubPlan虽然是顺序扫描表enmotest，但是实际上的输出是表enmotech的name字段。</p>
+<p>而这个SubPlan也其实就是处理<code class="notranslate">select name from enmotest</code> 这一部分</p>
+<p>所以原本的那整条语句就等价于</p>
+<pre class="notranslate"><code class="notranslate">select * from enmotech where name in (select enmotech.name from enmotest);
+</code></pre>
+<p>运行一下，查看执行结果</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/c264de9e609f1704860142c4dc8cd970d6178bc322a1a9889270355349c9c9b9/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531312d30353339663161352d666163622d343539382d393961312d6236666231613633643062662e706e67"><img src="https://camo.githubusercontent.com/c264de9e609f1704860142c4dc8cd970d6178bc322a1a9889270355349c9c9b9/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531312d30353339663161352d666163622d343539382d393961312d6236666231613633643062662e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240511-0539f1a5-facb-4598-99a1-b6fb1a63d0bf.png" style="max-width: 100%;"></a></p>
+<p>可以看到的是结果输出一致。</p>
+<h2>3.2、阅读源码分析</h2>
+<p>估计有的对数据库，对SQL生命周期比较了解的朋友看到这其实已经反应过来了。</p>
+<p>不过可能还有些朋友还是有些不能理解，或者是自己给自己绕晕了，心想或是在吐槽 <strong>数据库你到底在干什么呀！为什么这也能跑！</strong></p>
+<p>接下来就带大家深入PostgreSQL内核，了解到底为什么。在阅读内核代码前，为了更好的理解和更加高效的查看内核源码。我们需要对SQL的生命周期，有一点了解。</p>
+<blockquote>
+<p>协议阶段：比如说PostgreSQL的Frontend/Backend Protocol、Oracle的TNS协议、Sybase、Sqlserver的TDS协议等等</p>
+<p>解析器阶段：此处以PostgreSQL为例的话</p>
+<p>                    1、词法语法分析阶段： 对输入的字符串进行词法语法分析，检查是否符合词法语法规则的输入，一切顺利的话，最终生成抽象语法树（AST）</p>
+<p>                    2、语义分析阶段： 根据解析树结合系统表的元数据进行语义分析，一切顺利的话，最终生成查询树</p>
+<p>                    3、查询重写阶段：一般是针对视图，此处不讨论</p>
+<p>优化器阶段：基于查询树创建一个“最佳”的执行计划</p>
+<p>执行器阶段：执行优化器输出的执行计划</p>
+</blockquote>
+<p>结合上述的描述，SQL能正常执行也就意味着这些个阶段都没有任何问题。而对于我们而言，想要了解这样子SQL为什么能跑，也就是要去瞅瞅语义分析阶段，PostgreSQL数据库为什么认为这样子没有问题即可，PostgreSQL数据库内核到底在做什么。</p>
+<p>接下来我们快进一下，跳到几个相关函数处，调用堆栈如下：</p>
+<pre class="notranslate"><code class="notranslate">transformColumnRef(ParseState * pstate, ColumnRef * cref)  
+transformExprRecurse(ParseState * pstate, Node * expr)  
+transformExpr(ParseState * pstate, Node * expr, ParseExprKind exprKind)  
+transformTargetEntry(ParseState * pstate, Node * node, Node * expr, ParseExprKind exprKind, char * colname, _Bool resjunk)  
+transformTargetList(ParseState * pstate, List * targetlist, ParseExprKind exprKind)  
+transformSelectStmt(ParseState * pstate, SelectStmt * stmt)  
+transformStmt(ParseState * pstate, Node * parseTree)  
+parse_sub_analyze(Node * parseTree, ParseState * parentParseState, CommonTableExpr * parentCTE, _Bool locked_from_parent, _Bool resolve_unknowns)  
+transformSubLink(ParseState * pstate, SubLink * sublink)  
+transformExprRecurse(ParseState * pstate, Node * expr)  
+transformExpr(ParseState * pstate, Node * expr, ParseExprKind exprKind)  
+transformWhereClause(ParseState * pstate, Node * clause, ParseExprKind exprKind, const char * constructName)   
+transformSelectStmt(ParseState * pstate, SelectStmt * stmt)  
+transformStmt(ParseState * pstate, Node * parseTree)  
+transformOptionalSelectInto(ParseState * pstate, Node * parseTree)  
+transformTopLevelStmt(ParseState * pstate, RawStmt * parseTree)  
+parse_analyze_fixedparams(RawStmt * parseTree, const char * sourceText, const Oid * paramTypes, int numParams, QueryEnvironment * queryEnv)  
+pg_analyze_and_rewrite_fixedparams(RawStmt * parsetree, const char * query_string, const Oid * paramTypes, int numParams, QueryEnvironment * queryEnv)  
+exec_simple_query(const char * query_string)  
+PostgresMain(const char * dbname, const char * username)  
+BackendRun(Port * port)  
+BackendStartup(Port * port)  
+ServerLoop()  
+PostmasterMain(int argc, char ** argv)  
+main(int argc, char ** argv)  
+</code></pre>
+<h3><strong>3.2.1、transformColumnRef函数</strong></h3>
+<p>这个函数其实很长，此处截取一段我们需要注意的地方，</p>
+<p>其实这块注释说的很清楚了，就是会去判断想使用的这个列是不是可以用，是不是一个合法的列。</p>
+<p>而此时正在进行处理的就是子查询的name字段，由于name字段没有带上限定名，</p>
+<p>所以按照以下进行处理，所以我们需要关心colNameToVar函数</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/0088c2c01859237e69a0b0b8066682c0a8a03b6170c109beb1682a0f3ded684c/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531312d64636163633363622d346232382d343938642d393536662d3336666263643535363665632e706e67"><img src="https://camo.githubusercontent.com/0088c2c01859237e69a0b0b8066682c0a8a03b6170c109beb1682a0f3ded684c/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531312d64636163633363622d346232382d343938642d393536662d3336666263643535363665632e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240511-dcacc3cb-4b28-498d-956f-36fbcd5566ec.png" style="max-width: 100%;"></a></p>
+<h3><strong>3.2.2、colNameToVar函数</strong></h3>
+<p>这个函数我们可以看到一些有用的信息，它是一层一层去处理的，如果当前这一层没有成功匹配，那么他就会将自己提升至上一层，再次进行匹配。</p>
+<p>那么到底是如何匹配的呢，又是在匹配啥呢？那还得往下扒拉扒拉。</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/f45b5a2d8337dfb51c6a0097d1655f0836c8586e35fe25cdbaa7db4076d04c53/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531312d66353639356264622d326562312d343438362d613466382d3231363330333034326335312e706e67"><img src="https://camo.githubusercontent.com/f45b5a2d8337dfb51c6a0097d1655f0836c8586e35fe25cdbaa7db4076d04c53/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303531312d66353639356264622d326562312d343438362d613466382d3231363330333034326335312e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240511-f5695bdb-2eb1-4486-a4f8-216303042c51.png" style="max-width: 100%;"></a></p>
+<h3><strong>3.2.3、scanRTEForColumn函数</strong></h3>
+<p>原本应该写scanNSItemForColumn函数，但是scanNSItemForColumn函数内部调用的scanRTEForColumn这个才是关键，</p>
+<p>所以此处我们直接看这个scanRTEForColumn函数好了。函数内容如下所示：</p>
+<pre class="notranslate"><code class="notranslate">/*
+ * scanRTEForColumn
+ *	  Search the column names of a single RTE for the given name.
+ *	  If found, return the attnum (possibly negative, for a system column);
+ *	  else return InvalidAttrNumber.
+ *	  If the name proves ambiguous within this RTE, raise error.
+ *
+ * Actually, we only search the names listed in "eref".  This can be either
+ * rte-&gt;eref, in which case we are indeed searching all the column names,
+ * or for a join it can be rte-&gt;join_using_alias, in which case we are only
+ * considering the common column names (which are the first N columns of the
+ * join, so everything works).
+ *
+ * pstate and location are passed only for error-reporting purposes.
+ *
+ * Side effect: if fuzzystate is non-NULL, check non-system columns
+ * for an approximate match and update fuzzystate accordingly.
+ *
+ * Note: this is factored out of scanNSItemForColumn because error message
+ * creation may want to check RTEs that are not in the namespace.  To support
+ * that usage, minimize the number of validity checks performed here.  It's
+ * okay to complain about ambiguous-name cases, though, since if we are
+ * working to complain about an invalid name, we've already eliminated that.
+ */
+static int
+scanRTEForColumn(ParseState *pstate, RangeTblEntry *rte,
+				 Alias *eref,
+				 const char *colname, int location,
+				 int fuzzy_rte_penalty,
+				 FuzzyAttrMatchState *fuzzystate)
+{
+	int			result = InvalidAttrNumber;
+	int			attnum = 0;
+	ListCell   *c;
+
+	/*
+	 * Scan the user column names (or aliases) for a match. Complain if
+	 * multiple matches.
+	 *
+	 * Note: eref-&gt;colnames may include entries for dropped columns, but those
+	 * will be empty strings that cannot match any legal SQL identifier, so we
+	 * don't bother to test for that case here.
+	 *
+	 * Should this somehow go wrong and we try to access a dropped column,
+	 * we'll still catch it by virtue of the check in scanNSItemForColumn().
+	 * Callers interested in finding match with shortest distance need to
+	 * defend against this directly, though.
+	 */
+	foreach(c, eref-&gt;colnames)
+	{
+		const char *attcolname = strVal(lfirst(c));
+
+		attnum++;
+		if (strcmp(attcolname, colname) == 0)
+		{
+			if (result)
+				ereport(ERROR,
+						(errcode(ERRCODE_AMBIGUOUS_COLUMN),
+						 errmsg("column reference \"%s\" is ambiguous",
+								colname),
+						 parser_errposition(pstate, location)));
+			result = attnum;
+		}
+
+		/* Update fuzzy match state, if provided. */
+		if (fuzzystate != NULL)
+			updateFuzzyAttrMatchState(fuzzy_rte_penalty, fuzzystate,
+									  rte, attcolname, colname, attnum);
+	}
+
+	/*
+	 * If we have a unique match, return it.  Note that this allows a user
+	 * alias to override a system column name (such as OID) without error.
+	 */
+	if (result)
+		return result;
+
+	/*
+	 * If the RTE represents a real relation, consider system column names.
+	 * Composites are only used for pseudo-relations like ON CONFLICT's
+	 * excluded.
+	 */
+	if (rte-&gt;rtekind == RTE_RELATION &amp;&amp;
+		rte-&gt;relkind != RELKIND_COMPOSITE_TYPE)
+	{
+		/* quick check to see if name could be a system column */
+		attnum = specialAttNum(colname);
+		if (attnum != InvalidAttrNumber)
+		{
+			/* now check to see if column actually is defined */
+			if (SearchSysCacheExists2(ATTNUM,
+									  ObjectIdGetDatum(rte-&gt;relid),
+									  Int16GetDatum(attnum)))
+				result = attnum;
+		}
+	}
+
+	return result;
+}
+</code></pre>
+<p>这个函数其实很好理解，注释也说得蛮清楚的。到底是如何进行匹配的呢？就是优先匹配表中的列，如果匹配上了返回列的下标值。如果没有匹配上，则会考虑匹配隐含的特殊系统列。</p>
+<p>这里插一嘴特殊系统列就是<code class="notranslate">ctid、xmin、cmin、xmax、cmax、tableoid</code> 这六个。看完这些个函数，其实逻辑就捋的差不多了。</p>
+<p><strong>对于PostgreSQL而言，在语义分析阶段，它对列的处理就是</strong></p>
+<p><strong>1、优先匹配当前查询所用到的表中的字段，如果没有匹配上，进行第二步的匹配。</strong></p>
+<p><strong>2、匹配隐含的6个系统列<code class="notranslate">ctid、xmin、cmin、xmax、cmax、tableoid</code></strong></p>
+<p>      <strong>如果还是没有匹配上，如果当前查询有多张表，则再次进行第一步操作，直至当前查询的所以的表均进行匹配过后，</strong></p>
+<p>      <strong>依旧还是没有匹配成功，则进行第三步操作。</strong></p>
+<p><strong>3、如果存在上一层，比如说当前自身的子查询，则提升至父查询的层次，再次进行第一、二步，直至最顶层结束。</strong></p>
+<h1>四、总结</h1>
+<p>引用一下盖老师的总结：</p>
+<blockquote>
+<p>对于子查询来说，父查询的所有字典信息可见，所以解析转换中，子查询的 NAME 自然就被解析为 ENMOTECH.NAME ，这样比较结果恒为真，就返还了父查询中所有的记录(此时如果父查询表中也不存在这个字段则会抛出异常)：<br>
+这个题目的真正警示在于，如果开发人员凑巧写错了条件，而这个SQL的执行不会出现异常，只是结果不符合预期，我们需要提前识别这个误操作。</p>
+</blockquote>
+<p>所以到此你应该了解了为什么这个SQL能运行，还有这个name字段在PostgreSQL中是怎么被处理掉的。 所以最后在思考一下，怎么样写出更好更如你心意的SQL语句。</p>
+<h1>五、声明</h1>
+<p>若文中存在错误或不当之处，敬请指出，以便我进行修正和完善。希望这篇文章能够帮助到各位。</p>
+<p>文章转载请联系，谢谢合作。</p></div>
+<div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
+
+<button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
+<div class="comments" id="comments"></div>
+
+</div>
+    <div id="footer"><div id="footer1">Copyright © <span id="copyrightYear"></span> <a href="https://Z-Xiao-M.github.io/github.io">包里装着个卡比兽</a></div>
+<div id="footer2">
+    <span id="runday"></span><span>Powered by <a href="https://meekdai.com/Gmeek.html" target="_blank">Gmeek</a></span>
+</div>
+
+<script>
+var now=new Date();
+document.getElementById("copyrightYear").innerHTML=now.getFullYear();
+
+if("08/31/2025"!=""){
+    var startSite=new Date("08/31/2025");
+    var diff=now.getTime()-startSite.getTime();
+    var diffDay=Math.floor(diff/(1000*60*60*24));
+    document.getElementById("runday").innerHTML="网站运行"+diffDay+"天"+" • ";
+}
+</script></div>
+</body>
+<script>
+var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z', 'copy': 'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z', 'check': 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'};
+var utterancesLoad=0;
+
+let themeSettings={
+    "dark": ["dark","moon","#00f0ff","dark-blue"],
+    "light": ["light","sun","#ff5000","github-light"],
+    "auto": ["auto","sync","","preferred-color-scheme"]
+};
+function changeTheme(mode, icon, color, utheme){
+    document.documentElement.setAttribute("data-color-mode",mode);
+    document.getElementById("themeSwitch").setAttribute("d",value=IconList[icon]);
+    document.getElementById("themeSwitch").parentNode.style.color=color;
+    if(utterancesLoad==1){utterancesTheme(utheme);}
+}
+function modeSwitch(){
+    let currentMode=document.documentElement.getAttribute('data-color-mode');
+    let newMode = currentMode === "light" ? "dark" : currentMode === "dark" ? "auto" : "light";
+    localStorage.setItem("meek_theme", newMode);
+    if(themeSettings[newMode]){
+        changeTheme(...themeSettings[newMode]);
+    }
+}
+function utterancesTheme(theme){
+    const message={type:'set-theme',theme: theme};
+    const iframe=document.getElementsByClassName('utterances-frame')[0];
+    iframe.contentWindow.postMessage(message,'https://utteranc.es');
+}
+if(themeSettings[theme]){changeTheme(...themeSettings[theme]);}
+console.log("\n %c Gmeek last https://github.com/Meekdai/Gmeek \n","padding:5px 0;background:#02d81d;color:#fff");
+</script>
+
+<script>
+document.getElementById("pathHome").setAttribute("d",IconList["home"]);
+document.getElementById("pathIssue").setAttribute("d",IconList["github"]);
+
+
+
+function openComments(){
+    cm=document.getElementById("comments");
+    cmButton=document.getElementById("cmButton");
+    cmButton.innerHTML="loading";
+    span=document.createElement("span");
+    span.setAttribute("class","AnimatedEllipsis");
+    cmButton.appendChild(span);
+
+    script=document.createElement("script");
+    script.setAttribute("src","https://utteranc.es/client.js");
+    script.setAttribute("repo","Z-Xiao-M/github.io");
+    script.setAttribute("issue-term","title");
+    
+    if(localStorage.getItem("meek_theme")=="dark"){script.setAttribute("theme","dark-blue");}
+    else if(localStorage.getItem("meek_theme")=="light") {script.setAttribute("theme","github-light");}
+    else{script.setAttribute("theme","preferred-color-scheme");}
+    
+    script.setAttribute("crossorigin","anonymous");
+    script.setAttribute("async","");
+    cm.appendChild(script);
+
+    int=self.setInterval("iFrameLoading()",200);
+}
+
+function iFrameLoading(){
+    var utterances=document.getElementsByClassName('utterances');
+    if(utterances.length==1){
+        if(utterances[0].style.height!=""){
+            utterancesLoad=1;
+            int=window.clearInterval(int);
+            document.getElementById("cmButton").style.display="none";
+            console.log("utterances Load OK");
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const createClipboardHTML = (codeContent, additionalClasses = '') => `
+        <pre class="notranslate"><code class="notranslate">${codeContent}</code></pre>
+        <div class="clipboard-container position-absolute right-0 top-0 ${additionalClasses}">
+            <clipboard-copy class="ClipboardButton btn m-2 p-0" role="button" style="display: inherit;">
+                <svg height="16" width="16" class="octicon octicon-copy m-2"><path d="${IconList["copy"]}"></path></svg>
+                <svg height="16" width="16" class="octicon octicon-check color-fg-success m-2 d-none"><path d="${IconList["check"]}"></path></svg>
+            </clipboard-copy>
+            <div class="copy-feedback">Copied!</div>
+        </div>
+    `;
+
+    const handleCodeElements = (selector = '') => {
+        document.querySelectorAll(selector).forEach(codeElement => {
+            const codeContent = codeElement.innerHTML;
+            const newStructure = document.createElement('div');
+            newStructure.className = 'snippet-clipboard-content position-relative overflow-auto';
+            newStructure.innerHTML = createClipboardHTML(codeContent);
+
+            const parentElement = codeElement.parentElement;
+            if (selector.includes('highlight')) {
+                parentElement.insertBefore(newStructure, codeElement.nextSibling);
+                parentElement.removeChild(codeElement);
+            } else {
+                parentElement.parentElement.replaceChild(newStructure, parentElement);
+            }
+        });
+    };
+
+    handleCodeElements('pre.notranslate > code.notranslate');
+    handleCodeElements('div.highlight > pre.notranslate');
+
+    let currentFeedback = null;
+    document.querySelectorAll('clipboard-copy').forEach(copyButton => {
+        copyButton.addEventListener('click', () => {
+            const codeContent = copyButton.closest('.snippet-clipboard-content').innerText;
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = codeContent;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            const copyIcon = copyButton.querySelector('.octicon-copy');
+            const checkIcon = copyButton.querySelector('.octicon-check');
+            const copyFeedback = copyButton.nextElementSibling;
+
+            if (currentFeedback && currentFeedback !== copyFeedback) {currentFeedback.style.display = 'none';}
+            currentFeedback = copyFeedback;
+
+            copyIcon.classList.add('d-none');
+            checkIcon.classList.remove('d-none');
+            copyFeedback.style.display = 'block';
+            copyButton.style.borderColor = 'var(--color-success-fg)';
+
+            setTimeout(() => {
+                copyIcon.classList.remove('d-none');
+                checkIcon.classList.add('d-none');
+                copyFeedback.style.display = 'none';
+                copyButton.style.borderColor = '';
+            }, 2000);
+        });
+    });
+});
+
+</script>
+
+
+</html>
