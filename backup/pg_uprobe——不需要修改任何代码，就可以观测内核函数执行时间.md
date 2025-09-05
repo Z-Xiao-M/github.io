@@ -107,7 +107,7 @@ postgres=# select stat_hist_uprobe('heap_truncate');
 
 Time: 0.789 ms
 ```
-将us转换成ms，可以看到统计出来的时间大差不差，也不需要重新编译项目代码算得上是比较方便的。
+将us转换成ms，可以看到统计出来的时间大差不差，可以看到主要耗时还是在heap_truncate，另外这样也不需要修改代码、重新编译项目算得上是比较方便的。
 
 # 函数探针示例
 ```sql

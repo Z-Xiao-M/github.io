@@ -188,7 +188,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 (<span class="pl-c1">4</span> rows)
 
 <span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">789</span> ms</pre></div>
-<p>将us转换成ms，可以看到统计出来的时间大差不差，也不需要重新编译项目代码算得上是比较方便的。</p>
+<p>将us转换成ms，可以看到统计出来的时间大差不差，可以看到主要耗时还是在heap_truncate，另外这样也不需要修改代码、重新编译项目算得上是比较方便的。</p>
 <h1>函数探针示例</h1>
 <div class="highlight highlight-source-sql"><pre class="notranslate"><span class="pl-c"><span class="pl-c">--</span> TIME</span>
 <span class="pl-k">select</span> set_uprobe(<span class="pl-s"><span class="pl-pds">'</span>PreCommit_on_commit_actions<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>TIME<span class="pl-pds">'</span></span>, false);
