@@ -56,7 +56,7 @@ Time: 0.981 ms
 postgres=# select * from pg_database;
 Time: 0.758 ms
 ```
-粗略的判断，没有仔细研究，估计原因在于需要多次遍历大的list，以及还需要对临时表做一些额外的清理工作，这里主要是`truncate`操作
+粗略的判断，没有仔细研究，估计在于需要多次遍历大的list，以及还需要对临时表做一些额外的清理工作，这里主要耗时是在类似`truncate`的操作
 ```c
 // 和on_commits 息息相关
 static List *on_commits = NIL;
@@ -489,7 +489,7 @@ Time: 0.981 ms
 postgres=# select * from pg_database;
 Time: 0.758 ms
 ```
-粗略的判断，没有仔细研究，估计原因在于需要多次遍历大的list，以及还需要对临时表做一些额外的清理工作，这里主要是`truncate`操作
+粗略的判断，没有仔细研究，估计在于需要多次遍历大的list，以及还需要对临时表做一些额外的清理工作，这里主要耗时是在类似`truncate`的操作
 ```c
 // 和on_commits 息息相关
 static List *on_commits = NIL;
@@ -989,7 +989,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">981</span> ms
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_database;</span>
 <span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">758</span> ms</pre></div>
-<p>粗略的判断，没有仔细研究，估计原因在于需要多次遍历大的list，以及还需要对临时表做一些额外的清理工作，这里主要是<code class="notranslate">truncate</code>操作</p>
+<p>粗略的判断，没有仔细研究，估计在于需要多次遍历大的list，以及还需要对临时表做一些额外的清理工作，这里主要耗时是在类似<code class="notranslate">truncate</code>的操作</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">// 和on_commits 息息相关</span>
 <span class="pl-k">static</span> <span class="pl-smi">List</span> <span class="pl-c1">*</span><span class="pl-s1">on_commits</span> <span class="pl-c1">=</span> <span class="pl-c1">NIL</span>;</pre></div>
 <p>在创建临时表时，如果存在ON COMMIT的动作 就会将其动作注册到这个变量中</p>
