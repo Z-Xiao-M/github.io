@@ -1,3 +1,4 @@
+# 子事务
 在 PostgreSQL 中，子事务（Subtransaction）是指在一个主事务内部创建的嵌套事务，用于实现更细粒度的事务控制。它允许在主事务的范围内，将一部分操作划分为独立的子单元，以便单独进行回滚或提交。
 ```sql
 postgres=# create table users(name text);
@@ -27,8 +28,27 @@ postgres=# select * from users;
  Alice
 (1 row)
 ```
-在事务块中调用存在异常的函数
 
+# plpgsql中的子事务
+使用plpgsql创建函数虽然可以写SAVEPOINT，但是并不支持调用。
+```sql
+postgres=# CREATE OR REPLACE FUNCTION test_func()
+postgres-# RETURNS void AS $$
+postgres$# BEGIN                        
+postgres$#     INSERT INTO users VALUES ('Alice');
+postgres$# SAVEPOINT sp1;         
+postgres$# END;
+postgres$# $$ LANGUAGE plpgsql;
+CREATE FUNCTION
+postgres=# select test_func();
+ERROR:  unsupported transaction command in PL/pgSQL
+CONTEXT:  PL/pgSQL function test_func() line 4 at SQL statement
+```
+那是不是说明plpgsql就不支持子事务呢？
+那倒是未必~ plpgsql支持隐式子事务，隐式子事务的开启取决于函数中是否存在异常块。
+
+# 简单演示
+在事务块中调用存在异常的函数
 ```sql
 CREATE TABLE tmp(id int);
 
@@ -243,7 +263,7 @@ postgres=*# COMMIT;
 COMMIT
 postgres=# 
 ```
-
+# 源码展示
 没有exception则不会触发子事务的动作，部分`exec_stmt_block`代码片段如下
 ```c
 static int

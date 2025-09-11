@@ -10,9 +10,11 @@
         let theme = localStorage.getItem("meek_theme") || "light";
         document.documentElement.setAttribute("data-color-mode", theme);
     </script>
-<meta name="description" content="在 PostgreSQL 中，子事务（Subtransaction）是指在一个主事务内部创建的嵌套事务，用于实现更细粒度的事务控制。">
+<meta name="description" content="# 子事务
+在 PostgreSQL 中，子事务（Subtransaction）是指在一个主事务内部创建的嵌套事务，用于实现更细粒度的事务控制。">
 <meta property="og:title" content="plpgsql中的隐式子事务">
-<meta property="og:description" content="在 PostgreSQL 中，子事务（Subtransaction）是指在一个主事务内部创建的嵌套事务，用于实现更细粒度的事务控制。">
+<meta property="og:description" content="# 子事务
+在 PostgreSQL 中，子事务（Subtransaction）是指在一个主事务内部创建的嵌套事务，用于实现更细粒度的事务控制。">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/plpgsql%E4%B8%AD%E7%9A%84%E9%9A%90%E5%BC%8F%E5%AD%90%E4%BA%8B%E5%8A%A1.html">
 <meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
@@ -83,7 +85,8 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 </div>
 </div>
     <div id="content">
-<div class="markdown-body" id="postBody"><p>在 PostgreSQL 中，子事务（Subtransaction）是指在一个主事务内部创建的嵌套事务，用于实现更细粒度的事务控制。它允许在主事务的范围内，将一部分操作划分为独立的子单元，以便单独进行回滚或提交。</p>
+<div class="markdown-body" id="postBody"><h1>子事务</h1>
+<p>在 PostgreSQL 中，子事务（Subtransaction）是指在一个主事务内部创建的嵌套事务，用于实现更细粒度的事务控制。它允许在主事务的范围内，将一部分操作划分为独立的子单元，以便单独进行回滚或提交。</p>
 <div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> create table users(name text);</span>
 CREATE TABLE
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 开始主事务</span>
@@ -110,6 +113,22 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <span class="pl-c"><span class="pl-c">--</span>-----</span>
  Alice
 (<span class="pl-c1">1</span> row)</pre></div>
+<h1>plpgsql中的子事务</h1>
+<p>使用plpgsql创建函数虽然可以写SAVEPOINT，但是并不支持调用。</p>
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE OR REPLACE FUNCTION test_func()</span>
+postgres<span class="pl-k">-</span><span class="pl-c"><span class="pl-c">#</span> RETURNS void AS $$</span>
+postgres$<span class="pl-c"><span class="pl-c">#</span> BEGIN                        </span>
+postgres$<span class="pl-c"><span class="pl-c">#</span>     INSERT INTO users VALUES ('Alice');</span>
+postgres$<span class="pl-c"><span class="pl-c">#</span> SAVEPOINT sp1;         </span>
+postgres$<span class="pl-c"><span class="pl-c">#</span> END;</span>
+postgres$<span class="pl-c"><span class="pl-c">#</span> $$ LANGUAGE plpgsql;</span>
+CREATE FUNCTION
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select test_func();</span>
+ERROR:  unsupported transaction command <span class="pl-k">in</span> PL<span class="pl-k">/</span>pgSQL
+CONTEXT:  PL<span class="pl-k">/</span>pgSQL function test_func() <span class="pl-k">line</span> <span class="pl-c1">4</span> at SQL statement</pre></div>
+<p>那是不是说明plpgsql就不支持子事务呢？<br>
+那倒是未必~ plpgsql支持隐式子事务，隐式子事务的开启取决于函数中是否存在异常块。</p>
+<h1>简单演示</h1>
 <p>在事务块中调用存在异常的函数</p>
 <div class="highlight highlight-source-sql"><pre class="notranslate"><span class="pl-k">CREATE</span> <span class="pl-k">TABLE</span> <span class="pl-en">tmp</span>(id <span class="pl-k">int</span>);
 
@@ -311,6 +330,7 @@ postgres<span class="pl-k">=</span><span class="pl-k">*</span><span class="pl-c"
 postgres<span class="pl-k">=</span><span class="pl-k">*</span><span class="pl-c"><span class="pl-c">#</span> COMMIT;</span>
 <span class="pl-k">COMMIT</span>
 postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+<h1>源码展示</h1>
 <p>没有exception则不会触发子事务的动作，部分<code class="notranslate">exec_stmt_block</code>代码片段如下</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-k">static</span> <span class="pl-smi">int</span>
 <span class="pl-en">exec_stmt_block</span>(<span class="pl-smi">PLpgSQL_execstate</span> <span class="pl-c1">*</span><span class="pl-s1">estate</span>, <span class="pl-smi">PLpgSQL_stmt_block</span> <span class="pl-c1">*</span><span class="pl-s1">block</span>)
