@@ -1,3 +1,32 @@
+在 PostgreSQL 中，子事务（Subtransaction）是指在一个主事务内部创建的嵌套事务，用于实现更细粒度的事务控制。它允许在主事务的范围内，将一部分操作划分为独立的子单元，以便单独进行回滚或提交。
+```sql
+postgres=# create table users(name text);
+CREATE TABLE
+postgres=# -- 开始主事务
+postgres=# BEGIN;
+BEGIN
+postgres=*# -- 执行主事务中的操作
+postgres=*# INSERT INTO users VALUES ('Alice');
+INSERT 0 1
+postgres=*# -- 创建保存点（子事务开始）
+postgres=*# SAVEPOINT sp1;
+SAVEPOINT
+postgres=*# -- 子事务中的操作
+postgres=*# INSERT INTO users VALUES ('Bob');
+INSERT 0 1
+postgres=*# -- 回滚到保存点
+postgres=*# ROLLBACK TO sp1;
+ROLLBACK
+postgres=*# RELEASE SAVEPOINT sp1;
+RELEASE
+postgres=*# COMMIT;
+COMMIT
+postgres=# select * from users;
+ name  
+-------
+ Alice
+(1 row)
+```
 在事务块中调用存在异常的函数
 
 ```sql
