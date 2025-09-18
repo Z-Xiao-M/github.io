@@ -142,17 +142,16 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 原因：编译器可能会优化掉未标记volatile的变量读写，导致PG_CATCH中读取到错误值。注意：gcc 的-Wclobbered警告对此类问题检测效果较差，需手动确保。</p>
 <p>嵌套使用时的变量后缀，宏内部会声明变量，若需要嵌套使用PG_TRY（如在PG_CATCH中再用PG_TRY），可能导致变量名冲突（编译器-Wshadow警告）。解决：可给宏传递可选后缀（变量名允许的字符），确保嵌套时变量名唯一。要求：同一PG_TRY块的所有宏（PG_TRY/PG_CATCH/PG_END_TRY）必须使用相同的后缀。<br>
 示例：</p>
-<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-en">PG_TRY</span>(<span class="pl-s1">outer</span>);  <span class="pl-c">// 后缀"outer"</span>
+<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-en">PG_TRY</span>(<span class="pl-c1">2</span>);
 {
-    <span class="pl-en">PG_TRY</span>(<span class="pl-s1">inner</span>);  <span class="pl-c">// 后缀"inner"，避免与外层冲突</span>
-    { ... }
-    <span class="pl-en">PG_CATCH</span>(<span class="pl-s1">inner</span>);
-    { ... }
-    <span class="pl-en">PG_END_TRY</span>(<span class="pl-s1">inner</span>);
+	<span class="pl-s1">address</span> <span class="pl-c1">=</span> <span class="pl-en">ExecRefreshMatView</span>((<span class="pl-smi">RefreshMatViewStmt</span> <span class="pl-c1">*</span>) <span class="pl-s1">parsetree</span>,
+									<span class="pl-s1">queryString</span>, <span class="pl-s1">params</span>, <span class="pl-s1">qc</span>);
 }
-<span class="pl-en">PG_CATCH</span>(<span class="pl-s1">outer</span>);
-{ ... }
-<span class="pl-en">PG_END_TRY</span>(<span class="pl-s1">outer</span>);</pre></div>
+<span class="pl-en">PG_FINALLY</span>(<span class="pl-c1">2</span>);
+{
+	<span class="pl-en">EventTriggerUndoInhibitCommandCollection</span>();
+}
+<span class="pl-en">PG_END_TRY</span>(<span class="pl-c1">2</span>);</pre></div>
 <h1>总结</h1>
 <p>这些宏是 PostgreSQL 内部实现 “错误捕获与恢复” 的基础机制，类似于高级语言中的try-catch-finally，但针对 PostgreSQL 的错误模型（ereport级别）做了特殊设计。使用时需特别注意错误级别（ERROR vs FATAL）、变量修饰和嵌套冲突，以确保代码的正确性和系统稳定性。</p></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>

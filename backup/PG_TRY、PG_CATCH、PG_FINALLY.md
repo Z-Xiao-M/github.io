@@ -62,17 +62,16 @@ ereport(FATAL)无法捕获，PG_TRY仅能捕获ereport(ERROR)级别的错误；e
 嵌套使用时的变量后缀，宏内部会声明变量，若需要嵌套使用PG_TRY（如在PG_CATCH中再用PG_TRY），可能导致变量名冲突（编译器-Wshadow警告）。解决：可给宏传递可选后缀（变量名允许的字符），确保嵌套时变量名唯一。要求：同一PG_TRY块的所有宏（PG_TRY/PG_CATCH/PG_END_TRY）必须使用相同的后缀。
 示例：
 ```c
-PG_TRY(outer);  // 后缀"outer"
+PG_TRY(2);
 {
-    PG_TRY(inner);  // 后缀"inner"，避免与外层冲突
-    { ... }
-    PG_CATCH(inner);
-    { ... }
-    PG_END_TRY(inner);
+	address = ExecRefreshMatView((RefreshMatViewStmt *) parsetree,
+									queryString, params, qc);
 }
-PG_CATCH(outer);
-{ ... }
-PG_END_TRY(outer);
+PG_FINALLY(2);
+{
+	EventTriggerUndoInhibitCommandCollection();
+}
+PG_END_TRY(2);
 ```
 
 # 总结
