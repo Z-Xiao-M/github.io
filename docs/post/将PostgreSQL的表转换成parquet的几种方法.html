@@ -196,25 +196,6 @@ postgres=# \dx
  plpgsql   | 1.0     | pg_catalog | PL/pgSQL procedural language
 (2 rows)
 
-postgres=#  COPY test TO '/tmp/test3.parquet';
-COPY 10000
-postgres=# \! ls /tmp/test3.parquet -al
--rw------- 1 postgres postgres 406699  9月 23 18:09 /tmp/test3.parquet
-postgres=# file /tmp/test3.parquet
-postgres-# ^C
-postgres=# \q
-postgres@zxm-VMware-Virtual-Platform:~/test$ psql
-psql (16.10)
-Type "help" for help.
-
-postgres=# \dx
-                  List of installed extensions
-   Name    | Version |   Schema   |         Description          
------------+---------+------------+------------------------------
- pg_duckdb | 1.1.0   | public     | DuckDB Embedded in Postgres
- plpgsql   | 1.0     | pg_catalog | PL/pgSQL procedural language
-(2 rows)
-
 postgres=# COPY test TO '/tmp/test3.parquet';
 COPY 10000
 postgres=# \! ls /tmp/test3.parquet -al
@@ -235,6 +216,41 @@ D select count(*) from '/tmp/test3.parquet';
 │    10000     │
 └──────────────┘
 D select * from '/tmp/test3.parquet' limit 5;
+┌───────┬──────────────────────────────────┬───────────────────────────────┐
+│  id   │               info               │              ts               │
+│ int32 │             varchar              │   timestamp with time zone    │
+├───────┼──────────────────────────────────┼───────────────────────────────┤
+│     1 │ 03035730b2e25daa5c0846ac4240c084 │ 2025-09-23 18:00:01.095988+08 │
+│     2 │ 76d27fc563a6bb33e58a3671494129f6 │ 2025-09-23 18:00:01.096066+08 │
+│     3 │ 8f508b8def12eab455165dd6eb8a4cd4 │ 2025-09-23 18:00:01.096071+08 │
+│     4 │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ 2025-09-23 18:00:01.096074+08 │
+│     5 │ d084e3c4d1106debae2d9efdaa2d6449 │ 2025-09-23 18:00:01.096077+08 │
+└───────┴──────────────────────────────────┴───────────────────────────────┘
+D .exit
+postgres@zxm-VMware-Virtual-Platform:~/test$ psql
+psql (16.10)
+Type "help" for help.
+
+postgres=# COPY test TO '/tmp/test4' WITH (FORMAT PARQUET);
+COPY 10000
+postgres=# \! ls /tmp/test4 -al
+-rw------- 1 postgres postgres 406699  9月 23 18:19 /tmp/test4
+postgres=# \! file /tmp/test4
+/tmp/test4: Apache Parquet
+postgres=# \q
+postgres@zxm-VMware-Virtual-Platform:~/test$ duckdb 
+DuckDB v1.3.2 (Ossivalis) 0b83e5d2f6
+Enter ".help" for usage hints.
+Connected to a transient in-memory database.
+Use ".open FILENAME" to reopen on a persistent database.
+D select count(*) from read_parquet('/tmp/test4');
+┌──────────────┐
+│ count_star() │
+│    int64     │
+├──────────────┤
+│    10000     │
+└──────────────┘
+D select * from read_parquet('/tmp/test4') limit 5;
 ┌───────┬──────────────────────────────────┬───────────────────────────────┐
 │  id   │               info               │              ts               │
 │ int32 │             varchar              │   timestamp with time zone    │
