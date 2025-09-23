@@ -9,8 +9,8 @@
 # 怎么将PostgreSQL的表转换成parquet
 学过PostregreSQL，……我便要考你一考。将PostgreSQL的表转换成parquet，该怎样做呢?😀
 
-## psql配合duckdb
-postgresql生成csv，再通过duckdb转换成parquet
+## postgresql配合duckdb
+PostgreSQL生成csv，再通过duckdb转换成parquet
 > 来自老乡的blog https://github.com/digoal/blog/blob/master/202311/20231130_01.md
 ```sql
 psql -c "copy (select id, md5(random()::text) as info, clock_timestamp() ts from generate_series(1,10000) id) to stdout with (format csv, header on)" | duckdb -c "COPY (SELECT * FROM read_csv('/dev/stdin', delim=',', header=true, columns={'id': 'INTEGER', 'info': 'VARCHAR', 'ts': 'timestamp'})) TO '/tmp/test.parquet' (FORMAT 'parquet', COMPRESSION 'ZSTD', ROW_GROUP_SIZE 100000);"
@@ -54,7 +54,7 @@ D
 ```
 
 ## duckdb-postgres
-使用duckdb的插件[duckdb-postgres](https://github.com/duckdb/duckdb-postgres)，以前也叫做postgres_scanner来着
+使用duckdb的插件[duckdb-postgres](https://github.com/duckdb/duckdb-postgres)，以前也叫做postgres_scanner来着，去拉取远端PostgreSQL的数据，然后使用duckdb的copy语句
 ```sql
 postgres@zxm-VMware-Virtual-Platform:~/test$ psql
 psql (16.10)
@@ -102,7 +102,7 @@ D
 ```
 ## pg_duckdb
 这是PostgreSQL的插件，[pg_duckdb](https://github.com/duckdb/pg_duckdb)增强了PostgreSQL的COPY，原生的PostgreSQL的COPY是不支持指定格式为PARQUET的 https://www.postgresql.org/docs/16/sql-copy.html
-```
+```sql
 postgres@zxm-VMware-Virtual-Platform:~/test$ psql
 psql (16.10)
 Type "help" for help.

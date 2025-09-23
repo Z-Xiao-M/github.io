@@ -98,8 +98,8 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 </blockquote>
 <h1>怎么将PostgreSQL的表转换成parquet</h1>
 <p>学过PostregreSQL，……我便要考你一考。将PostgreSQL的表转换成parquet，该怎样做呢?😀</p>
-<h2>psql配合duckdb</h2>
-<p>postgresql生成csv，再通过duckdb转换成parquet</p>
+<h2>postgresql配合duckdb</h2>
+<p>PostgreSQL生成csv，再通过duckdb转换成parquet</p>
 <blockquote>
 <p>来自老乡的blog <a href="https://github.com/digoal/blog/blob/master/202311/20231130_01.md">https://github.com/digoal/blog/blob/master/202311/20231130_01.md</a></p>
 </blockquote>
@@ -138,7 +138,7 @@ D <span class="pl-k">select</span> <span class="pl-k">*</span> <span class="pl-k
 └───────┴──────────────────────────────────┴────────────────────────────┘
 D </pre></div>
 <h2>duckdb-postgres</h2>
-<p>使用duckdb的插件<a href="https://github.com/duckdb/duckdb-postgres">duckdb-postgres</a>，以前也叫做postgres_scanner来着</p>
+<p>使用duckdb的插件<a href="https://github.com/duckdb/duckdb-postgres">duckdb-postgres</a>，以前也叫做postgres_scanner来着，去拉取远端PostgreSQL的数据，然后使用duckdb的copy语句</p>
 <div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ psql
 psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
 Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
@@ -184,85 +184,84 @@ D <span class="pl-k">select</span> <span class="pl-k">*</span> <span class="pl-k
 D </pre></div>
 <h2>pg_duckdb</h2>
 <p>这是PostgreSQL的插件，<a href="https://github.com/duckdb/pg_duckdb">pg_duckdb</a>增强了PostgreSQL的COPY，原生的PostgreSQL的COPY是不支持指定格式为PARQUET的 <a href="https://www.postgresql.org/docs/16/sql-copy.html" rel="nofollow">https://www.postgresql.org/docs/16/sql-copy.html</a></p>
-<pre class="notranslate"><code class="notranslate">postgres@zxm-VMware-Virtual-Platform:~/test$ psql
-psql (16.10)
-Type "help" for help.
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
 
-postgres=# \dx
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \dx</span>
                   List of installed extensions
    Name    | Version |   Schema   |         Description          
------------+---------+------------+------------------------------
- pg_duckdb | 1.1.0   | public     | DuckDB Embedded in Postgres
- plpgsql   | 1.0     | pg_catalog | PL/pgSQL procedural language
-(2 rows)
+<span class="pl-c"><span class="pl-c">--</span>---------+---------+------------+------------------------------</span>
+ pg_duckdb | <span class="pl-c1">1</span>.<span class="pl-c1">1</span>.<span class="pl-c1">0</span>   | public     | DuckDB Embedded <span class="pl-k">in</span> Postgres
+ plpgsql   | <span class="pl-c1">1</span>.<span class="pl-c1">0</span>     | pg_catalog | PL<span class="pl-k">/</span>pgSQL procedural language
+(<span class="pl-c1">2</span> rows)
 
-postgres=# COPY test TO '/tmp/test3.parquet';
-COPY 10000
-postgres=# \! ls /tmp/test3.parquet -al
--rw------- 1 postgres postgres 406699  9月 23 18:11 /tmp/test3.parquet
-postgres=# \! file /tmp/test3.parquet
-/tmp/test3.parquet: Apache Parquet
-postgres=# \q
-postgres@zxm-VMware-Virtual-Platform:~/test$ duckdb 
-DuckDB v1.3.2 (Ossivalis) 0b83e5d2f6
-Enter ".help" for usage hints.
-Connected to a transient in-memory database.
-Use ".open FILENAME" to reopen on a persistent database.
-D select count(*) from '/tmp/test3.parquet';
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> COPY test TO '/tmp/test3.parquet';</span>
+COPY <span class="pl-c1">10000</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \! ls /tmp/test3.parquet -al</span>
+<span class="pl-k">-</span>rw<span class="pl-c"><span class="pl-c">--</span>----- 1 postgres postgres 406699  9月 23 18:11 /tmp/test3.parquet</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \! file /tmp/test3.parquet</span>
+<span class="pl-k">/</span>tmp<span class="pl-k">/</span><span class="pl-c1">test3</span>.<span class="pl-c1">parquet</span>: Apache Parquet
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \q</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ duckdb 
+DuckDB <span class="pl-c1">v1</span>.<span class="pl-c1">3</span>.<span class="pl-c1">2</span> (Ossivalis) 0b83e5d2f6
+Enter <span class="pl-s"><span class="pl-pds">"</span>.help<span class="pl-pds">"</span></span> for usage hints.
+Connected to a transient <span class="pl-k">in</span><span class="pl-k">-</span>memory database.
+Use <span class="pl-s"><span class="pl-pds">"</span>.open FILENAME<span class="pl-pds">"</span></span> to reopen <span class="pl-k">on</span> a persistent database.
+D <span class="pl-k">select</span> <span class="pl-c1">count</span>(<span class="pl-k">*</span>) <span class="pl-k">from</span> <span class="pl-s"><span class="pl-pds">'</span>/tmp/test3.parquet<span class="pl-pds">'</span></span>;
 ┌──────────────┐
 │ count_star() │
 │    int64     │
 ├──────────────┤
-│    10000     │
+│    <span class="pl-c1">10000</span>     │
 └──────────────┘
-D select * from '/tmp/test3.parquet' limit 5;
+D <span class="pl-k">select</span> <span class="pl-k">*</span> <span class="pl-k">from</span> <span class="pl-s"><span class="pl-pds">'</span>/tmp/test3.parquet<span class="pl-pds">'</span></span> <span class="pl-k">limit</span> <span class="pl-c1">5</span>;
 ┌───────┬──────────────────────────────────┬───────────────────────────────┐
 │  id   │               info               │              ts               │
-│ int32 │             varchar              │   timestamp with time zone    │
+│ int32 │             <span class="pl-k">varchar</span>              │   <span class="pl-k">timestamp with time zone</span>    │
 ├───────┼──────────────────────────────────┼───────────────────────────────┤
-│     1 │ 03035730b2e25daa5c0846ac4240c084 │ 2025-09-23 18:00:01.095988+08 │
-│     2 │ 76d27fc563a6bb33e58a3671494129f6 │ 2025-09-23 18:00:01.096066+08 │
-│     3 │ 8f508b8def12eab455165dd6eb8a4cd4 │ 2025-09-23 18:00:01.096071+08 │
-│     4 │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ 2025-09-23 18:00:01.096074+08 │
-│     5 │ d084e3c4d1106debae2d9efdaa2d6449 │ 2025-09-23 18:00:01.096077+08 │
+│     <span class="pl-c1">1</span> │ 03035730b2e25daa5c0846ac4240c084 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">095988</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">2</span> │ 76d27fc563a6bb33e58a3671494129f6 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096066</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">3</span> │ 8f508b8def12eab455165dd6eb8a4cd4 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096071</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">4</span> │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096074</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">5</span> │ d084e3c4d1106debae2d9efdaa2d6449 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096077</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
 └───────┴──────────────────────────────────┴───────────────────────────────┘
 D .exit
-postgres@zxm-VMware-Virtual-Platform:~/test$ psql
-psql (16.10)
-Type "help" for help.
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
 
-postgres=# COPY test TO '/tmp/test4' WITH (FORMAT PARQUET);
-COPY 10000
-postgres=# \! ls /tmp/test4 -al
--rw------- 1 postgres postgres 406699  9月 23 18:19 /tmp/test4
-postgres=# \! file /tmp/test4
-/tmp/test4: Apache Parquet
-postgres=# \q
-postgres@zxm-VMware-Virtual-Platform:~/test$ duckdb 
-DuckDB v1.3.2 (Ossivalis) 0b83e5d2f6
-Enter ".help" for usage hints.
-Connected to a transient in-memory database.
-Use ".open FILENAME" to reopen on a persistent database.
-D select count(*) from read_parquet('/tmp/test4');
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> COPY test TO '/tmp/test4' WITH (FORMAT PARQUET);</span>
+COPY <span class="pl-c1">10000</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \! ls /tmp/test4 -al</span>
+<span class="pl-k">-</span>rw<span class="pl-c"><span class="pl-c">--</span>----- 1 postgres postgres 406699  9月 23 18:19 /tmp/test4</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \! file /tmp/test4</span>
+<span class="pl-k">/</span>tmp<span class="pl-k">/</span>test4: Apache Parquet
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \q</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ duckdb 
+DuckDB <span class="pl-c1">v1</span>.<span class="pl-c1">3</span>.<span class="pl-c1">2</span> (Ossivalis) 0b83e5d2f6
+Enter <span class="pl-s"><span class="pl-pds">"</span>.help<span class="pl-pds">"</span></span> for usage hints.
+Connected to a transient <span class="pl-k">in</span><span class="pl-k">-</span>memory database.
+Use <span class="pl-s"><span class="pl-pds">"</span>.open FILENAME<span class="pl-pds">"</span></span> to reopen <span class="pl-k">on</span> a persistent database.
+D <span class="pl-k">select</span> <span class="pl-c1">count</span>(<span class="pl-k">*</span>) <span class="pl-k">from</span> read_parquet(<span class="pl-s"><span class="pl-pds">'</span>/tmp/test4<span class="pl-pds">'</span></span>);
 ┌──────────────┐
 │ count_star() │
 │    int64     │
 ├──────────────┤
-│    10000     │
+│    <span class="pl-c1">10000</span>     │
 └──────────────┘
-D select * from read_parquet('/tmp/test4') limit 5;
+D <span class="pl-k">select</span> <span class="pl-k">*</span> <span class="pl-k">from</span> read_parquet(<span class="pl-s"><span class="pl-pds">'</span>/tmp/test4<span class="pl-pds">'</span></span>) <span class="pl-k">limit</span> <span class="pl-c1">5</span>;
 ┌───────┬──────────────────────────────────┬───────────────────────────────┐
 │  id   │               info               │              ts               │
-│ int32 │             varchar              │   timestamp with time zone    │
+│ int32 │             <span class="pl-k">varchar</span>              │   <span class="pl-k">timestamp with time zone</span>    │
 ├───────┼──────────────────────────────────┼───────────────────────────────┤
-│     1 │ 03035730b2e25daa5c0846ac4240c084 │ 2025-09-23 18:00:01.095988+08 │
-│     2 │ 76d27fc563a6bb33e58a3671494129f6 │ 2025-09-23 18:00:01.096066+08 │
-│     3 │ 8f508b8def12eab455165dd6eb8a4cd4 │ 2025-09-23 18:00:01.096071+08 │
-│     4 │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ 2025-09-23 18:00:01.096074+08 │
-│     5 │ d084e3c4d1106debae2d9efdaa2d6449 │ 2025-09-23 18:00:01.096077+08 │
+│     <span class="pl-c1">1</span> │ 03035730b2e25daa5c0846ac4240c084 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">095988</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">2</span> │ 76d27fc563a6bb33e58a3671494129f6 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096066</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">3</span> │ 8f508b8def12eab455165dd6eb8a4cd4 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096071</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">4</span> │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096074</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">5</span> │ d084e3c4d1106debae2d9efdaa2d6449 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096077</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
 └───────┴──────────────────────────────────┴───────────────────────────────┘
-D 
-</code></pre>
+D </pre></div>
 <h2>pg_parquet</h2>
 <p><a href="https://github.com/CrunchyData/pg_parquet">pg_parquet</a>这也是PostgreSQL的插件，同pg_duckdb一致的用法，增强了PostgreSQL的COPY，不过它是一个rust写的插件。这里就贴一下官方的测试案例好了。</p>
 <div class="highlight highlight-source-sql"><pre class="notranslate"><span class="pl-c"><span class="pl-c">--</span> create composite types</span>
