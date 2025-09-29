@@ -1,7 +1,7 @@
 > [!CAUTION]
-> 以下内容来自AI总结 如有错误 需自行甄别 此处用作记录
-> AI参考 https://berthub.eu/articles/posts/practical-peg-parsing/ 生成
-> 或许有望替代Lex/Yacc 完成SQL的词法语法解析
+> 以下内容来自AI总结 如有错误 需自行甄别 
+> 此处用作记录 参考 https://berthub.eu/articles/posts/practical-peg-parsing/ 生成
+> 或许可能替代Lex/Yacc 完成SQL的词法语法解析 duckdb有望成为先行者 官方文章[Runtime-Extensible SQL Parsers Using PEG](https://duckdb.org/2024/11/22/runtime-extensible-parsers.html)
 
 在软件开发中，“解析”是个绕不开的需求——小到解析配置文件里的向量数据，大到处理Prometheus监控指标、JSON/XML格式，甚至自定义协议。过去，开发者要么靠正则表达式硬啃，要么用Lex/Yacc这类传统工具搭建解析器，但前者易出错、难维护，后者配置复杂、与现代语言集成度低。直到**Parsing Expression Grammars（PEG，解析表达式语法）** 与轻量级库**cpp-peglib**的出现，才让“写一个健壮的解析器”从“麻烦事”变成了“随手能做的事”。
 
