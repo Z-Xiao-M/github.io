@@ -1,5 +1,42 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Mon, 29 Sep 2025 07:27:22 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>用PEG与cpp-peglib轻松搞定解析</title><link>https://Z-Xiao-M.github.io/github.io/post/%E7%94%A8PEG%E4%B8%8Ecpp-peglib%E8%BD%BB%E6%9D%BE%E6%90%9E%E5%AE%9A%E8%A7%A3%E6%9E%90.html</link><description>&gt; [!CAUTION]
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Mon, 13 Oct 2025 05:38:53 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>本地部署Qwen3-0.6B模型</title><link>https://Z-Xiao-M.github.io/github.io/post/%E6%9C%AC%E5%9C%B0%E9%83%A8%E7%BD%B2Qwen3-0.6B%E6%A8%A1%E5%9E%8B.html</link><description>本次部署大模型我们这里使用的是[llama.cpp](https://github.com/ggml-org/llama.cpp)，待部署的模型是Qwen3-0.6B（其实很小）
+
+### [llama.cpp](https://github.com/ggml-org/llama.cpp)的源码编译安装
+
+```bash
+git clone https://github.com/ggml-org/llama.cpp
+cd llama.cpp
+cmake -B build
+cmake --build build --config Release # 可以加并行编译 如：-j4
+```
+
+编译完后的可执行文件位于llama.cpp/build/bin 我们一会需要用到其中的部分可执行程序
+
+```bash
+postgres@zxm-VMware-Virtual-Platform:~/llama.cpp/build/bin$ ls
+libggml-base.so      llama-cli                      llama-gemma3-cli  llama-lookahead      llama-passkey          llama-server              test-alloc        test-chat-template           test-log                test-rope
+libggml-cpu.so       llama-convert-llama2c-to-ggml  llama-gen-docs    llama-lookup         llama-perplexity       llama-simple              test-arg-parser   test-gbnf-validator          test-model-load-cancel  test-sampling
+libggml.so           llama-cvector-generator        llama-gguf        llama-lookup-create  llama-q8dot            llama-simple-chat         test-autorelease  test-gguf                    test-mtmd-c-api         test-thread-safety
+libllama.so          llama-diffusion-cli            llama-gguf-hash   llama-lookup-merge   llama-quantize         llama-speculative         test-backend-ops  test-grammar-integration     test-opt                test-tokenizer-0
+libmtmd.so           llama-embedding                llama-gguf-split  llama-lookup-stats   llama-qwen2vl-cli      llama-speculative-simple  test-barrier      test-grammar-parser          test-quantize-fns       test-tokenizer-1-bpe
+llama-batched        llama-eval-callback            llama-imatrix     llama-minicpmv-cli   llama-retrieval        llama-tokenize            test-c            test-json-partial            test-quantize-perf      test-tokenizer-1-spm
+llama-batched-bench  llama-export-lora              llama-llava-cli   llama-mtmd-cli       llama-run              llama-tts                 test-chat         test-json-schema-to-grammar  test-quantize-stats
+llama-bench          llama-finetune                 llama-logits      llama-parallel       llama-save-load-state  llama-vdot                test-chat-parser  test-llama-grammar           test-regex-partial
+```
+
+### &amp;#x20;下载Qwen3-0.6B
+
+模型我们可以前往huggingface下载，这里给出下载链接：&lt;https://huggingface.co/Qwen/Qwen3-0.6B-GGUF?show_file_info=Qwen3-0.6B-Q8_0.gguf&gt;
+
+&lt;img width='2552' height='1284' alt='Image' src='https://github.com/user-attachments/assets/e9a7eeb4-a918-4019-b38a-ecc1f0aeb977' /&gt;
+
+然后点击Download即可，文件大小639MB
+
+### &amp;#x20;启动模型
+
+#### 控制台启动
+
+[`llama-cli`](https://github.com/ggml-org/llama.cpp/blob/master/tools/main)是一个控制台程序，可用于与 LLM 聊天。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/%E6%9C%AC%E5%9C%B0%E9%83%A8%E7%BD%B2Qwen3-0.6B%E6%A8%A1%E5%9E%8B.html</guid><pubDate>Mon, 13 Oct 2025 05:38:23 +0000</pubDate></item><item><title>用PEG与cpp-peglib轻松搞定解析</title><link>https://Z-Xiao-M.github.io/github.io/post/%E7%94%A8PEG%E4%B8%8Ecpp-peglib%E8%BD%BB%E6%9D%BE%E6%90%9E%E5%AE%9A%E8%A7%A3%E6%9E%90.html</link><description>&gt; [!CAUTION]
 &gt; 以下内容来自AI总结 如有错误 需自行甄别 
 &gt; 此处用作记录 参考 https://berthub.eu/articles/posts/practical-peg-parsing/ 生成
 &gt; 或许可能替代Lex/Yacc 完成SQL的词法语法解析 duckdb有望成为先行者 官方文章[Runtime-Extensible SQL Parsers Using PEG](https://duckdb.org/2024/11/22/runtime-extensible-parsers.html)
