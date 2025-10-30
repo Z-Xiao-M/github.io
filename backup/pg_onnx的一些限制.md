@@ -64,4 +64,4 @@ onnxruntime_server::onnx::execution::input_value::batched_shape(const std::vecto
 	return shape_copy;
 }
 ```
-而输入这是原始张量形状和当前输入张量的元素总数分别是(-1, 3, -1, -1)和76800，导致最终计算结果为(25600, 3, -1, -1)，这和实际输入张量的形状(1, 3, 160, 160)完全是对不上的，所以导致报错。现已被我修复（[Correctly calculate the input tensor shape through JSON](https://github.com/kibae/onnxruntime-server/pull/104)）
+而输入这是原始张量形状和当前输入张量的元素总数分别是(-1, 3, -1, -1)和76800，导致最终计算结果为(25600, 3, -1, -1)，这和实际输入张量的形状(1, 3, 160, 160)完全是对不上的，所以导致报错。现已被我修复
