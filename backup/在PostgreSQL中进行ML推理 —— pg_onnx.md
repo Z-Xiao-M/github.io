@@ -1,11 +1,29 @@
-## [onnx](https://github.com/onnx/onnx)
-ONNX （Open Neural Network Exchange）是一种用于表示机器学习模型的开放格式。 ONNX 定义了一组通用的运算符 - 机器学习和深度学习模型的构建块 - 以及一个通用的文件格式，使 AI 开发人员能够使用各种框架、工具、运行时和编译器来使用模型。
+##  ONNX 
+ONNX 是跨框架、开放的机器学习模型中间表示标准，核心价值是打破 PyTorch、TensorFlow 等框架的兼容性壁垒，成为模型“通用语言”。它通过定义统一算子集、规范 PB 存储格式（.onnx 文件），支持动态维度适配，配套 `onnxoptimizer` 等完善工具链，广泛用于模型跨框架迁移、统一管理及推理引擎适配场景。
 
-## onnxruntime
+##  ONNX Runtime 
+ONNX Runtime 是微软主导的跨平台高性能 ONNX 模型推理引擎，是 ONNX 生态的核心执行层。它能解析并优化 ONNX 模型，支持 CPU、GPU、边缘设备等多硬件适配与自动加速，通过算子融合、硬件指令集优化提升推理性能，提供多语言 API 适配不同部署场景，是各类 ONNX 模型部署（含数据库集成）的核心依赖。
 
-## pg_onnx
+## pg_onnx 
+pg_onnx 是 PostgreSQL 数据库的 ONNX 集成扩展，核心目标是实现“近数据推理”。它通过 SQL 原生函数支持 ONNX 模型的导入、查询、删除全生命周期管理，可直接以数据库表字段或 JSON 数据为输入执行推理，无需外部服务，减少数据传输开销。其底层依赖 PostgreSQL 14+ 和 ONNX Runtime，曾因依赖的 onnxruntime-server 子项目逻辑缺陷，存在多动态维度输入的形状计算报错问题。
 
-## 一些限制和BUG修复
+### 三者核心关系总结
+```mermaid
+graph LR
+    A[深度学习框架（PyTorch/TensorFlow）] -->|导出| B[ONNX 模型（.onnx）]
+    B -->|导入| C[pg_onnx 扩展（PostgreSQL）]
+    D[ONNX Runtime] -->|提供推理引擎| C
+    C -->|SQL 调用| E[PostgreSQL 数据（表/JSON）]
+    E -->|输入| C
+    C -->|输出推理结果| F[SQL 结果（过滤/聚合/写入）]
+```
+- **ONNX**：是“桥梁”，连接训练框架和推理引擎，解决模型格式不兼容问题；
+- **ONNX Runtime**：是“发动机”，提供高性能推理能力，适配多硬件，pg_onnx 依赖其实现核心推理；
+- **pg_onnx**：是“连接器”，将 ONNX Runtime 嵌入 PostgreSQL，让数据库具备“数据存储+实时推理”一体化能力。
+
+三者协同解决了“模型跨框架迁移→高效推理→数据库内本地化执行”的全链路需求，也是用户使用 pg_onnx 时的核心技术链路。
+
+## pg_onnx的一些限制和BUG修复
 ### max supported IR version: 11 和 opset 23
 ```sql
 test=# SELECT pg_onnx_import_model(

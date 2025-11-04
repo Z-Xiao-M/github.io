@@ -10,11 +10,11 @@
         let theme = localStorage.getItem("meek_theme") || "light";
         document.documentElement.setAttribute("data-color-mode", theme);
     </script>
-<meta name="description" content="## [onnx](https://github.com/onnx/onnx)
-ONNX （Open Neural Network Exchange）是一种用于表示机器学习模型的开放格式。">
+<meta name="description" content="##  ONNX 
+ONNX 是跨框架、开放的机器学习模型中间表示标准，核心价值是打破 PyTorch、TensorFlow 等框架的兼容性壁垒，成为模型“通用语言”。">
 <meta property="og:title" content="在PostgreSQL中进行ML推理 —— pg_onnx">
-<meta property="og:description" content="## [onnx](https://github.com/onnx/onnx)
-ONNX （Open Neural Network Exchange）是一种用于表示机器学习模型的开放格式。">
+<meta property="og:description" content="##  ONNX 
+ONNX 是跨框架、开放的机器学习模型中间表示标准，核心价值是打破 PyTorch、TensorFlow 等框架的兼容性壁垒，成为模型“通用语言”。">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/%E5%9C%A8PostgreSQL%E4%B8%AD%E8%BF%9B%E8%A1%8CML%E6%8E%A8%E7%90%86-%E2%80%94%E2%80%94-pg_onnx.html">
 <meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
@@ -85,11 +85,27 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 </div>
 </div>
     <div id="content">
-<div class="markdown-body" id="postBody"><h2><a href="https://github.com/onnx/onnx">onnx</a></h2>
-<p>ONNX （Open Neural Network Exchange）是一种用于表示机器学习模型的开放格式。 ONNX 定义了一组通用的运算符 - 机器学习和深度学习模型的构建块 - 以及一个通用的文件格式，使 AI 开发人员能够使用各种框架、工具、运行时和编译器来使用模型。</p>
-<h2>onnxruntime</h2>
+<div class="markdown-body" id="postBody"><h2>ONNX</h2>
+<p>ONNX 是跨框架、开放的机器学习模型中间表示标准，核心价值是打破 PyTorch、TensorFlow 等框架的兼容性壁垒，成为模型“通用语言”。它通过定义统一算子集、规范 PB 存储格式（.onnx 文件），支持动态维度适配，配套 <code class="notranslate">onnxoptimizer</code> 等完善工具链，广泛用于模型跨框架迁移、统一管理及推理引擎适配场景。</p>
+<h2>ONNX Runtime</h2>
+<p>ONNX Runtime 是微软主导的跨平台高性能 ONNX 模型推理引擎，是 ONNX 生态的核心执行层。它能解析并优化 ONNX 模型，支持 CPU、GPU、边缘设备等多硬件适配与自动加速，通过算子融合、硬件指令集优化提升推理性能，提供多语言 API 适配不同部署场景，是各类 ONNX 模型部署（含数据库集成）的核心依赖。</p>
 <h2>pg_onnx</h2>
-<h2>一些限制和BUG修复</h2>
+<p>pg_onnx 是 PostgreSQL 数据库的 ONNX 集成扩展，核心目标是实现“近数据推理”。它通过 SQL 原生函数支持 ONNX 模型的导入、查询、删除全生命周期管理，可直接以数据库表字段或 JSON 数据为输入执行推理，无需外部服务，减少数据传输开销。其底层依赖 PostgreSQL 14+ 和 ONNX Runtime，曾因依赖的 onnxruntime-server 子项目逻辑缺陷，存在多动态维度输入的形状计算报错问题。</p>
+<h3>三者核心关系总结</h3>
+<div class="highlight highlight-source-mermaid"><pre class="notranslate"><span class="pl-k">graph</span> <span class="pl-c1">LR</span>
+    <span class="pl-ent">A</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>深度学习框架（PyTorch/TensorFlow）<span class="pl-pds"><span class="pl-sg">]</span></span></span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">导出</span><span class="pl-k">|</span> <span class="pl-ent">B</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>ONNX 模型（.onnx）<span class="pl-pds"><span class="pl-sg">]</span></span></span>
+    <span class="pl-ent">B</span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">导入</span><span class="pl-k">|</span> <span class="pl-ent">C</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>pg_onnx 扩展（PostgreSQL）<span class="pl-pds"><span class="pl-sg">]</span></span></span>
+    <span class="pl-ent">D</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>ONNX Runtime<span class="pl-pds"><span class="pl-sg">]</span></span></span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">提供推理引擎</span><span class="pl-k">|</span> <span class="pl-ent">C</span>
+    <span class="pl-ent">C</span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">SQL 调用</span><span class="pl-k">|</span> <span class="pl-ent">E</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>PostgreSQL 数据（表/JSON）<span class="pl-pds"><span class="pl-sg">]</span></span></span>
+    <span class="pl-ent">E</span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">输入</span><span class="pl-k">|</span> <span class="pl-ent">C</span>
+    <span class="pl-ent">C</span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">输出推理结果</span><span class="pl-k">|</span> <span class="pl-ent">F</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>SQL 结果（过滤/聚合/写入）<span class="pl-pds"><span class="pl-sg">]</span></span></span></pre></div>
+<ul>
+<li><strong>ONNX</strong>：是“桥梁”，连接训练框架和推理引擎，解决模型格式不兼容问题；</li>
+<li><strong>ONNX Runtime</strong>：是“发动机”，提供高性能推理能力，适配多硬件，pg_onnx 依赖其实现核心推理；</li>
+<li><strong>pg_onnx</strong>：是“连接器”，将 ONNX Runtime 嵌入 PostgreSQL，让数据库具备“数据存储+实时推理”一体化能力。</li>
+</ul>
+<p>三者协同解决了“模型跨框架迁移→高效推理→数据库内本地化执行”的全链路需求，也是用户使用 pg_onnx 时的核心技术链路。</p>
+<h2>pg_onnx的一些限制和BUG修复</h2>
 <h3>max supported IR version: 11 和 opset 23</h3>
 <div class="highlight highlight-source-sql"><pre class="notranslate">test<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT pg_onnx_import_model(</span>
                <span class="pl-s"><span class="pl-pds">'</span>simple_model<span class="pl-pds">'</span></span>,
