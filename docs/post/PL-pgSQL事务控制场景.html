@@ -431,7 +431,10 @@ $$;
 ERROR:  cannot roll back while a subtransaction is active
 CONTEXT:  PL/pgSQL function inline_code_block line 5 at ROLLBACK
 postgres=# 
-```。">
+```
+
+# 声明
+上述的示例均是在`AUTOCOMMIT = 'on'`的前提之下完成的，因为在很早之前我们就聊过[`AUTOCOMMIT`](https://mp.weixin.qq.com/s/dTECp4GKJjMQyKHfOV3kCg)的一个实现机制，当`AUTOCOMMIT = 'off'`等价于在运行真正的语句之前为你开一个新的事务。">
 <meta property="og:title" content="PL/pgSQL事务控制场景">
 <meta property="og:description" content="# plpgsql事务控制场景
 ## 支持的场景如下
@@ -854,7 +857,10 @@ $$;
 ERROR:  cannot roll back while a subtransaction is active
 CONTEXT:  PL/pgSQL function inline_code_block line 5 at ROLLBACK
 postgres=# 
-```。">
+```
+
+# 声明
+上述的示例均是在`AUTOCOMMIT = 'on'`的前提之下完成的，因为在很早之前我们就聊过[`AUTOCOMMIT`](https://mp.weixin.qq.com/s/dTECp4GKJjMQyKHfOV3kCg)的一个实现机制，当`AUTOCOMMIT = 'off'`等价于在运行真正的语句之前为你开一个新的事务。">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/PL-pgSQL%E4%BA%8B%E5%8A%A1%E6%8E%A7%E5%88%B6%E5%9C%BA%E6%99%AF.html">
 <meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
@@ -1311,7 +1317,30 @@ END;
 $$;
 ERROR:  cannot roll back while a subtransaction is active
 CONTEXT:  PL<span class="pl-k">/</span>pgSQL function inline_code_block <span class="pl-k">line</span> <span class="pl-c1">5</span> at <span class="pl-k">ROLLBACK</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div></div>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+<h1>声明</h1>
+<p>上述的示例均是在<code class="notranslate">AUTOCOMMIT = 'on'</code>的前提之下完成的，因为在很早之前我们就聊过<a href="https://mp.weixin.qq.com/s/dTECp4GKJjMQyKHfOV3kCg" rel="nofollow"><code class="notranslate">AUTOCOMMIT</code></a>的一个实现机制，当<code class="notranslate">AUTOCOMMIT = 'off'</code>等价于在运行真正的语句之前为你开一个新的事务。</p>
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \set AUTOCOMMIT off</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE TABLE test1 (a int, b text);</span>
+CREATE TABLE
+postgres<span class="pl-k">=</span><span class="pl-k">*</span><span class="pl-c"><span class="pl-c">#</span> DO       </span>
+LANGUAGE plpgsql
+$$
+<span class="pl-k">BEGIN</span>
+    FOR i <span class="pl-k">IN</span> <span class="pl-c1">0</span>..<span class="pl-c1">9</span> LOOP
+        <span class="pl-k">INSERT INTO</span> test1 (a) <span class="pl-k">VALUES</span> (i);
+        IF i % <span class="pl-c1">2</span> <span class="pl-k">=</span> <span class="pl-c1">0</span> THEN
+            <span class="pl-k">COMMIT</span>;
+        ELSE
+            <span class="pl-k">ROLLBACK</span>;
+        END IF;
+    END LOOP;
+END
+$$;
+DO
+ERROR:  invalid transaction termination
+CONTEXT:  PL<span class="pl-k">/</span>pgSQL function inline_code_block <span class="pl-k">line</span> <span class="pl-c1">6</span> at <span class="pl-k">COMMIT</span></pre></div>
+<p>以及本文的示例来自<a href="https://github.com/postgres/postgres/blob/master/src/pl/plpgsql/src/sql/plpgsql_transaction.sql">plpgsql_transaction.sql</a></p></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>

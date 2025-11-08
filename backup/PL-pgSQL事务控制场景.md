@@ -420,3 +420,29 @@ ERROR:  cannot roll back while a subtransaction is active
 CONTEXT:  PL/pgSQL function inline_code_block line 5 at ROLLBACK
 postgres=# 
 ```
+
+# 声明
+上述的示例均是在`AUTOCOMMIT = 'on'`的前提之下完成的，因为在很早之前我们就聊过[`AUTOCOMMIT`](https://mp.weixin.qq.com/s/dTECp4GKJjMQyKHfOV3kCg)的一个实现机制，当`AUTOCOMMIT = 'off'`等价于在运行真正的语句之前为你开一个新的事务。
+```sql
+postgres=# \set AUTOCOMMIT off
+postgres=# CREATE TABLE test1 (a int, b text);
+CREATE TABLE
+postgres=*# DO       
+LANGUAGE plpgsql
+$$
+BEGIN
+    FOR i IN 0..9 LOOP
+        INSERT INTO test1 (a) VALUES (i);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+END
+$$;
+DO
+ERROR:  invalid transaction termination
+CONTEXT:  PL/pgSQL function inline_code_block line 6 at COMMIT
+```
+以及本文的示例来自[plpgsql_transaction.sql](https://github.com/postgres/postgres/blob/master/src/pl/plpgsql/src/sql/plpgsql_transaction.sql)
