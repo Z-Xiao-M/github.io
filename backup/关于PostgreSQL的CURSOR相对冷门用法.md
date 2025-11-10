@@ -38,7 +38,7 @@ CONTEXT:  PL/pgSQL function inline_code_block line 8 at FETCH
 
 # 解决方案
 
-#### 参考上一篇文章
+#### 参考上一篇文章——[PL/pgSQL事务控制场景](https://mp.weixin.qq.com/s/Gp5zyMkPV_scOLH2Hk7v-w)
 
 上一篇文章中我们有介绍过在FOR循环中使用只读游标，plpgsql内部会自动帮我们pin住这个只读游标，因此我们可以使用下面的两种写法。
 
@@ -179,6 +179,29 @@ postgres=# SELECT * FROM pg_cursors;
 ------+-----------+-------------+-----------+---------------+---------------
 (0 rows)
 ```
+这里指的注意的是，和上面的FOR循环中的显式/隐式游标不同，这种写法是不能使用ROLLBACK的，如果使用了，即使定义的这个游标为`HOLD`状态也会直接导致跟随实际的事务处理掉，现象如下：
+```sql
+postgres=# do $$
+declare
+  p_CurData refcursor := 'hold_cursor';
+  val int;
+begin
+  execute 'DECLARE hold_cursor CURSOR WITH HOLD FOR SELECT 42';
+  loop
+    fetch p_CurData into val;
+    exit when val is null;
+    raise notice 'val = %', val;
+    rollback;
+  end loop;
+  close p_CurData;
+end; $$;
+NOTICE:  val = 42
+ERROR:  cursor "hold_cursor" does not exist
+CONTEXT:  PL/pgSQL function inline_code_block line 8 at FETCH
+```
+这是有意为之。
+![](https://fastly.jsdelivr.net/gh/bucketio/img10@main/2025/11/11/1762794090873-d01d3a8d-98a4-4b98-87f9-1df35caf3904.png)
+
 
 # 额外的一点补充（hold cursor）
 
