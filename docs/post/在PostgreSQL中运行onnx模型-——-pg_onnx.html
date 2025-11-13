@@ -10,11 +10,19 @@
         let theme = localStorage.getItem("meek_theme") || "light";
         document.documentElement.setAttribute("data-color-mode", theme);
     </script>
-<meta name="description" content="##  ONNX 
-ONNX 是跨框架、开放的机器学习模型中间表示标准，核心价值是打破 PyTorch、TensorFlow 等框架的兼容性壁垒，成为模型“通用语言”。">
+<meta name="description" content="#  ONNX 简单介绍
+ONNX（Open Neural Network Exchange）是人工智能领域的开放标准文件格式，由微软与Facebook于2017年联合推出，推出后迅速得到了各大厂商和框架的支持
+
+<img width='1254' height='806' alt='Image' src='https://github.com/user-attachments/assets/ee4e1b12-6c23-4b62-bc17-7a86832a52f3' />
+
+该标准通过定义一组与平台、环境无关的统一算子集和文件格式，为AI模型互操作性提供了通用协议。">
 <meta property="og:title" content="在PostgreSQL中运行onnx模型 —— pg_onnx">
-<meta property="og:description" content="##  ONNX 
-ONNX 是跨框架、开放的机器学习模型中间表示标准，核心价值是打破 PyTorch、TensorFlow 等框架的兼容性壁垒，成为模型“通用语言”。">
+<meta property="og:description" content="#  ONNX 简单介绍
+ONNX（Open Neural Network Exchange）是人工智能领域的开放标准文件格式，由微软与Facebook于2017年联合推出，推出后迅速得到了各大厂商和框架的支持
+
+<img width='1254' height='806' alt='Image' src='https://github.com/user-attachments/assets/ee4e1b12-6c23-4b62-bc17-7a86832a52f3' />
+
+该标准通过定义一组与平台、环境无关的统一算子集和文件格式，为AI模型互操作性提供了通用协议。">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/%E5%9C%A8PostgreSQL%E4%B8%AD%E8%BF%90%E8%A1%8Connx%E6%A8%A1%E5%9E%8B-%E2%80%94%E2%80%94-pg_onnx.html">
 <meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
@@ -85,27 +93,73 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 </div>
 </div>
     <div id="content">
-<div class="markdown-body" id="postBody"><h2>ONNX</h2>
-<p>ONNX 是跨框架、开放的机器学习模型中间表示标准，核心价值是打破 PyTorch、TensorFlow 等框架的兼容性壁垒，成为模型“通用语言”。它通过定义统一算子集、规范 PB 存储格式（.onnx 文件），支持动态维度适配，配套 <code class="notranslate">onnxoptimizer</code> 等完善工具链，广泛用于模型跨框架迁移、统一管理及推理引擎适配场景。</p>
-<h2>ONNX Runtime</h2>
-<p>ONNX Runtime 是微软主导的跨平台高性能 ONNX 模型推理引擎，是 ONNX 生态的核心执行层。它能解析并优化 ONNX 模型，支持 CPU、GPU、边缘设备等多硬件适配与自动加速，通过算子融合、硬件指令集优化提升推理性能，提供多语言 API 适配不同部署场景，是各类 ONNX 模型部署（含数据库集成）的核心依赖。</p>
-<h2>pg_onnx</h2>
-<p>pg_onnx 是 PostgreSQL 数据库的 ONNX 集成扩展，核心目标是实现“近数据推理”。它通过 SQL 原生函数支持 ONNX 模型的导入、查询、删除全生命周期管理，可直接以数据库表字段或 JSON 数据为输入执行推理，无需外部服务，减少数据传输开销。其底层依赖 PostgreSQL 14+ 和 ONNX Runtime，曾因依赖的 onnxruntime-server 子项目逻辑缺陷，存在多动态维度输入的形状计算报错问题。</p>
-<h3>三者核心关系总结</h3>
-<div class="highlight highlight-source-mermaid"><pre class="notranslate"><span class="pl-k">graph</span> <span class="pl-c1">LR</span>
-    <span class="pl-ent">A</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>深度学习框架（PyTorch/TensorFlow）<span class="pl-pds"><span class="pl-sg">]</span></span></span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">导出</span><span class="pl-k">|</span> <span class="pl-ent">B</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>ONNX 模型（.onnx）<span class="pl-pds"><span class="pl-sg">]</span></span></span>
-    <span class="pl-ent">B</span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">导入</span><span class="pl-k">|</span> <span class="pl-ent">C</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>pg_onnx 扩展（PostgreSQL）<span class="pl-pds"><span class="pl-sg">]</span></span></span>
-    <span class="pl-ent">D</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>ONNX Runtime<span class="pl-pds"><span class="pl-sg">]</span></span></span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">提供推理引擎</span><span class="pl-k">|</span> <span class="pl-ent">C</span>
-    <span class="pl-ent">C</span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">SQL 调用</span><span class="pl-k">|</span> <span class="pl-ent">E</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>PostgreSQL 数据（表/JSON）<span class="pl-pds"><span class="pl-sg">]</span></span></span>
-    <span class="pl-ent">E</span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">输入</span><span class="pl-k">|</span> <span class="pl-ent">C</span>
-    <span class="pl-ent">C</span> <span class="pl-k">--&gt;</span><span class="pl-k">|</span><span class="pl-s">输出推理结果</span><span class="pl-k">|</span> <span class="pl-ent">F</span><span class="pl-s"><span class="pl-pds"><span class="pl-sg">[</span></span>SQL 结果（过滤/聚合/写入）<span class="pl-pds"><span class="pl-sg">]</span></span></span></pre></div>
+<div class="markdown-body" id="postBody"><h1>ONNX 简单介绍</h1>
+<p>ONNX（Open Neural Network Exchange）是人工智能领域的开放标准文件格式，由微软与Facebook于2017年联合推出，推出后迅速得到了各大厂商和框架的支持</p>
+<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/ee4e1b12-6c23-4b62-bc17-7a86832a52f3"><img width="1254" height="806" alt="Image" src="https://github.com/user-attachments/assets/ee4e1b12-6c23-4b62-bc17-7a86832a52f3" style="max-width: 100%; height: auto; max-height: 806px;"></a></p>
+<p>该标准通过定义一组与平台、环境无关的统一算子集和文件格式，为AI模型互操作性提供了通用协议。其工作机制简洁而强大：开发者可自由选择PyTorch、TensorFlow、Scikit-learn、MXNet等主流框架训练模型，再将其转换为标准化的ONNX模型。这种统一表达使模型能够轻松部署于任何兼容ONNX Runtime的运行环境中，真正实现"一次训练，随处运行"的愿景。</p>
+<h1>ONNX Runtime 简单介绍</h1>
+<p>ONNX Runtime 是微软推出的高性能推理引擎，专为运行 ONNX 模型设计，更是实现 AI 模型跨平台部署的核心执行器。它具备强大的跨平台支持能力，兼容 Windows、Linux、macOS，以及 IoT 边缘设备、移动端、Web 浏览器等多种环境；硬件加速方面内置 CPU、GPU（含 CUDA/TensorRT/DirectML 等主流后端）、NPU（适配 Intel、高通等厂商）等多种加速后端，可自动适配最优硬件；性能上通过算子融合、内存优化等技术，在多数场景下推理速度比原训练框架快 2-5 倍；同时提供 C++、Python、C#、Java、JavaScript 等多语言 API，方便集成到各类应用中，且已被微软、亚马逊、Adobe、Meta 等企业广泛用于大规模线上服务，具备成熟的生产级可用性。</p>
+<h1>现实痛点</h1>
+<p><strong>ML模型开发者的痛点</strong></p>
 <ul>
-<li><strong>ONNX</strong>：是“桥梁”，连接训练框架和推理引擎，解决模型格式不兼容问题；</li>
-<li><strong>ONNX Runtime</strong>：是“发动机”，提供高性能推理能力，适配多硬件，pg_onnx 依赖其实现核心推理；</li>
-<li><strong>pg_onnx</strong>：是“连接器”，将 ONNX Runtime 嵌入 PostgreSQL，让数据库具备“数据存储+实时推理”一体化能力。</li>
+<li>主要使用Python生态系统（Transformers, scikit-learn, pandas）</li>
+<li>训练数据多为CSV文件格式</li>
+<li>擅长训练但不擅长将模型部署为API服务</li>
 </ul>
-<p>三者协同解决了“模型跨框架迁移→高效推理→数据库内本地化执行”的全链路需求，也是用户使用 pg_onnx 时的核心技术链路。</p>
-<h2>pg_onnx的一些限制和BUG修复</h2>
+<p><strong>后端开发者的痛点</strong></p>
+<ul>
+<li>熟悉调用外部API和DBMS，习惯结构化响应（如JSON）</li>
+<li>不了解如何执行ML模型</li>
+<li>担心ML模型作为资源消耗大的黑盒带来的潜在风险</li>
+<li>缺乏GPU资源管理经验</li>
+</ul>
+<p><strong>引申出三个需求</strong></p>
+<ul>
+<li>想要用数据库中的数据做推理，该怎么办？</li>
+<li>想要把推理结果存入数据库中并用于查询过滤，该怎么办？</li>
+<li>想要自动化这一切，该怎么办？</li>
+</ul>
+<h1>pg_onnx</h1>
+<p>pg_onnx给出的答案是——在PostgreSQL中直接集成ONNX推理能力。</p>
+<p>整体架构如下图所示，来自作者23年pgday的<a href="https://pgday.postgresql.kr/static/pgday-2023pg_onnx.pdf" rel="nofollow">pdf</a>分享</p>
+<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/d9408f4d-a9ba-4fdd-b8bb-1fc84b0c52a7"><img width="1145" height="511" alt="Image" src="https://github.com/user-attachments/assets/d9408f4d-a9ba-4fdd-b8bb-1fc84b0c52a7" style="max-width: 100%; height: auto; max-height: 511px;"></a></p>
+<h1>其他注意事项</h1>
+<h3>PostgreSQL的编译选项需要附上<code class="notranslate">--enable-nls</code></h3>
+<p>否则可能会出现下面的编译错误提示，没有花时间仔细研究，到底是为什么</p>
+<div class="highlight highlight-source-shell"><pre class="notranslate">In file included from /u01/app/halo/product/dbms/16/include/postgresql/server/postgres.h:45,
+                 from /home/postgres/code/16/contrib/pg_onnx/pg_onnx/bridge/bgworker_side/../../pg_onnx.hpp:14,
+                 from /home/postgres/code/16/contrib/pg_onnx/pg_onnx/bridge/bgworker_side/bgworker_side.hpp:8,
+                 from /home/postgres/code/16/contrib/pg_onnx/pg_onnx/bridge/bgworker_side/bgworker.cpp:5:
+/usr/include/libintl.h:39:14: error: expected unqualified-id before ‘const’
+   39 <span class="pl-k">|</span> extern char <span class="pl-k">*</span>gettext (const char <span class="pl-k">*</span>__msgid)
+      <span class="pl-k">|</span>              ^~~~~~~
+/usr/include/libintl.h:39:14: error: expected ‘)’ before ‘const’
+/u01/app/halo/product/dbms/16/include/postgresql/server/c.h:1190:20: note: to match this ‘(’
+ 1190 <span class="pl-k">|</span> <span class="pl-c"><span class="pl-c">#</span>define gettext(x) (x)</span>
+      <span class="pl-k">|</span>                    ^
+/usr/include/libintl.h:44:14: error: expected unqualified-id before ‘const’
+   44 <span class="pl-k">|</span> extern char <span class="pl-k">*</span>dgettext (const char <span class="pl-k">*</span>__domainname, const char <span class="pl-k">*</span>__msgid)
+      <span class="pl-k">|</span>              ^~~~~~~~
+/usr/include/libintl.h:44:14: error: expected ‘)’ before ‘const’
+/u01/app/halo/product/dbms/16/include/postgresql/server/c.h:1191:23: note: to match this ‘(’
+ 1191 <span class="pl-k">|</span> <span class="pl-c"><span class="pl-c">#</span>define dgettext(d,x) (x)</span>
+      <span class="pl-k">|</span>                       ^
+/usr/include/libintl.h:61:14: error: expected unqualified-id before ‘unsigned’
+   61 <span class="pl-k">|</span> extern char <span class="pl-k">*</span>ngettext (const char <span class="pl-k">*</span>__msgid1, const char <span class="pl-k">*</span>__msgid2,
+      <span class="pl-k">|</span>              ^~~~~~~~
+/usr/include/libintl.h:61:14: error: expected ‘)’ before ‘unsigned’
+/u01/app/halo/product/dbms/16/include/postgresql/server/c.h:1192:26: note: to match this ‘(’
+ 1192 <span class="pl-k">|</span> <span class="pl-c"><span class="pl-c">#</span>define ngettext(s,p,n) ((n) == 1 ? (s) : (p))</span>
+      <span class="pl-k">|</span>                          ^
+/usr/include/libintl.h:61:14: error: expected ‘)’ before ‘unsigned’
+   61 <span class="pl-k">|</span> extern char <span class="pl-k">*</span>ngettext (const char <span class="pl-k">*</span>__msgid1, const char <span class="pl-k">*</span>__msgid2,
+      <span class="pl-k">|</span>              ^~~~~~~~
+/u01/app/halo/product/dbms/16/include/postgresql/server/c.h:1192:25: note: to match this ‘(’
+ 1192 <span class="pl-k">|</span> <span class="pl-c"><span class="pl-c">#</span>define ngettext(s,p,n) ((n) == 1 ? (s) : (p))</span>
+      <span class="pl-k">|</span>                         ^
+/usr/include/libintl.h:67:14: error: expected unqualified-id before ‘unsigned’
+   67 <span class="pl-k">|</span> extern char <span class="pl-k">*</span>dngettext (const char <span class="pl-k">*</span>__domainname, const char <span class="pl-k">*</span>__msgid1,
+      <span class="pl-k">|</span>              ^~~~~~~~~</pre></div>
 <h3>max supported IR version: 11 和 opset 23</h3>
 <div class="highlight highlight-source-sql"><pre class="notranslate">test<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT pg_onnx_import_model(</span>
                <span class="pl-s"><span class="pl-pds">'</span>simple_model<span class="pl-pds">'</span></span>,
@@ -166,8 +220,8 @@ ERROR:  pg_onnx_internal_execute_session: tried creating tensor with negative va
 
 	<span class="pl-k">return</span> shape_copy;
 }</pre></div>
-<p>而输入这是原始张量形状和当前输入张量的元素总数分别是(-1, 3, -1, -1)和76800，导致最终计算结果为(25600, 3, -1, -1)，这和实际输入张量的形状(1, 3, 160, 160)完全是对不上的，所以导致报错。然后我就尝试着修复了一下</p>
-<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/7669678e-d792-4e77-9b07-64546b8d1e54"><img width="925" height="767" alt="Image" src="https://github.com/user-attachments/assets/7669678e-d792-4e77-9b07-64546b8d1e54" style="max-width: 100%; height: auto; max-height: 767px;"></a></p></div>
+<p>而输入这是原始张量形状和当前输入张量的元素总数分别是(-1, 3, -1, -1)和76800，导致最终计算结果为(25600, 3, -1, -1)，这和实际输入张量的形状(1, 3, 160, 160)完全是对不上的，所以导致报错。然后我就尝试着修复了一下, <strong>对于bool类型的张量还是原来的处理逻辑，待测试</strong><br>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/7669678e-d792-4e77-9b07-64546b8d1e54"><img width="925" height="767" alt="Image" src="https://github.com/user-attachments/assets/7669678e-d792-4e77-9b07-64546b8d1e54" style="max-width: 100%; height: auto; max-height: 767px;"></a></p></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
