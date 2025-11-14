@@ -1,14 +1,18 @@
 #  ONNX 简单介绍
-ONNX（Open Neural Network Exchange）是人工智能领域的开放标准文件格式，由微软与Facebook于2017年联合推出，推出后迅速得到了各大厂商和框架的支持
-
+ONNX（Open Neural Network Exchange）由微软与Facebook于2017年联合推出，推出后迅速得到了各大厂商和框架的支持。
 <img width="1254" height="806" alt="Image" src="https://github.com/user-attachments/assets/ee4e1b12-6c23-4b62-bc17-7a86832a52f3" />
+其核心机制在于定义了一套与平台无关的统一算子和计算图规范：无论使用何种训练框架（如: PyTorch、TensorFlow、Scikit-learn、MXNet）构建模型，只需将其转换为ONNX格式，就能在任何支持ONNX Runtime的环境中运行——从云端服务器到边缘设备，从移动端到Web浏览器。这种标准化不仅实现了真正的"一次训练，随处部署"，更构建起一个开放的跨生态协作网络。让开发者不必疲于应对环境适配，得以挣脱框架锁定的束缚，从而专注算法创新。
 
-该标准通过定义一组与平台、环境无关的统一算子集和文件格式，为AI模型互操作性提供了通用协议。其工作机制简洁而强大：开发者可自由选择PyTorch、TensorFlow、Scikit-learn、MXNet等主流框架训练模型，再将其转换为标准化的ONNX模型。这种统一表达使模型能够轻松部署于任何兼容ONNX Runtime的运行环境中，真正实现"一次训练，随处运行"的愿景。
+想了解更多详细信息请关注[ONNX | Home](https://onnx.ai/)或[GitHub](https://github.com/onnx/onnx)
 
 #  ONNX Runtime 简单介绍
-ONNX Runtime 是微软推出的高性能推理引擎，专为运行 ONNX 模型设计，更是实现 AI 模型跨平台部署的核心执行器。它具备强大的跨平台支持能力，兼容 Windows、Linux、macOS，以及 IoT 边缘设备、移动端、Web 浏览器等多种环境；硬件加速方面内置 CPU、GPU（含 CUDA/TensorRT/DirectML 等主流后端）、NPU（适配 Intel、高通等厂商）等多种加速后端，可自动适配最优硬件；性能上通过算子融合、内存优化等技术，在多数场景下推理速度比原训练框架快 2-5 倍；同时提供 C++、Python、C#、Java、JavaScript 等多语言 API，方便集成到各类应用中，且已被微软、亚马逊、Adobe、Meta 等企业广泛用于大规模线上服务，具备成熟的生产级可用性。
+ONNX Runtime（ORT）是微软推出的跨平台、高性能、专为ONNX 模型打造的AI 推理引擎，其核心价值在于为 ONNX 格式模型提供统一、高效的运行环境：它支持跨平台部署，兼容 Windows、Linux、macOS、Android、iOS 等系统及 x86、ARM 等芯片架构，能适配 CPU、GPU、NPU 等各类硬件；同时提供 Python、C++、C#、JavaScript、Java 等多种API开发接口。
 
-# 现实痛点
+<img width="1505" height="595" alt="Image" src="https://github.com/user-attachments/assets/d98c729c-42e5-4965-a751-b80441132850" />
+
+想了解更多详细信息请关注[ONNX Runtime | Home](https://onnxruntime.ai/)或[GitHub](https://github.com/microsoft/onnxruntime)
+
+# 现实中的痛点
 **ML模型开发者的痛点**
 - 主要使用Python生态系统（Transformers, scikit-learn, pandas）
 - 训练数据多为CSV文件格式
