@@ -6,7 +6,7 @@ ONNX（Open Neural Network Exchange）由微软与Facebook于2017年联合推出
 想了解更多详细信息请关注[ONNX | Home](https://onnx.ai/)或[GitHub](https://github.com/onnx/onnx)
 
 #  ONNX Runtime 简单介绍
-ONNX Runtime（ORT）是微软推出的跨平台、高性能、专为ONNX 模型打造的AI 推理引擎，其核心价值在于为 ONNX 格式模型提供统一、高效的运行环境：它支持跨平台部署，兼容 Windows、Linux、macOS、Android、iOS 等系统及 x86、ARM 等芯片架构，能适配 CPU、GPU、NPU 等各类硬件；同时提供 Python、C++、C#、JavaScript、Java 等多种API开发接口。
+ONNX Runtime（ORT）是微软推出的跨平台、高性能、专为ONNX 模型打造的AI **推理引擎**，其核心价值在于为 ONNX 格式模型提供统一、高效的运行环境：它支持跨平台部署，兼容 Windows、Linux、macOS、Android、iOS 等系统及 x86、ARM 等芯片架构，能适配 CPU、GPU、NPU 等各类硬件；同时提供 Python、C++、C#、JavaScript、Java 等多种API开发接口。
 
 <img width="1505" height="595" alt="Image" src="https://github.com/user-attachments/assets/d98c729c-42e5-4965-a751-b80441132850" />
 
@@ -30,17 +30,121 @@ ONNX Runtime（ORT）是微软推出的跨平台、高性能、专为ONNX 模型
 - 想要自动化这一切，该怎么办？
 
 # pg_onnx 
-pg_onnx给出的答案是——在PostgreSQL中直接集成ONNX推理能力。
-
+pg_onnx 是 PostgreSQL 的扩展插件，核心是通过**集成 ONNX Runtime，让机器学习模型在数据库内直接完成推理**，无需跨系统迁移数据。
+- 打通 “数据库存储” 与 “ML 推理” 的链路，解决数据迁移、跨系统协作的效率问题。
+- 适配主流框架导出的 ONNX 模型，支持在 PostgreSQL 内部完成模型加载、会话管理和推理执行。
+- 消除协作壁垒：适配 ML 模型师（Python 生态）和后端开发（DB/API 生态）的使用习惯。
+- 提升推理效率：数据无需导出，减少传输延迟，支持 CUDA GPU 加速。
+- 简化技术架构：无需额外搭建推理服务，直接通过 SQL 函数或触发器调用模型。
+- 提供完整模型管理函数：支持 ONNX 模型的导入、删除、列表查询和详情查看。
+- 支持会话管理：可创建、执行、销毁推理会话，灵活适配不同推理场景。
+- 触发器联动：能通过 PostgreSQL 触发器，在数据插入 / 更新时自动触发推理并存储结果。
 
 整体架构如下图所示，来自作者23年pgday的[pdf](https://pgday.postgresql.kr/static/pgday-2023pg_onnx.pdf)分享
 
 <img width="1145" height="511" alt="Image" src="https://github.com/user-attachments/assets/d9408f4d-a9ba-4fdd-b8bb-1fc84b0c52a7" />
 
+采用 “PostgreSQL 扩展 + ONNX Runtime+Background Worker” 分离设计
+
+- pg_onnx作为PostgreSQL 扩展，负责 SQL 入口接收请求（其实就是pg_onnx提供了一系列的函数）
+```sql
+postgres=# create extension pg_onnx;
+CREATE EXTENSION
+postgres=# select proname from pg_proc where proname like 'pg_onnx%';
+          proname          
+---------------------------
+ pg_onnx_inspect_model_bin
+ pg_onnx_list_model
+ pg_onnx_import_model
+ pg_onnx_drop_model
+ pg_onnx_list_session
+ pg_onnx_create_session
+ pg_onnx_describe_session
+ pg_onnx_destroy_session
+ pg_onnx_execute_session
+```
+- onnxruntime-server其实就是封装了ONNX Runtime，作为Background Worker，提供服务。比如说：集中执行推理，会话管理以及CUDA GPU 加速。
+
+```bash
+postgres=# \! ps -aux|grep postgres:
+postgres  160845  0.0  0.0  70648  4568 ?        Ss   22:18   0:00 postgres: logger 
+postgres  160846  0.0  0.0 217472 10016 ?        Ss   22:18   0:00 postgres: checkpointer 
+postgres  160847  0.0  0.0 217492  6812 ?        Ss   22:18   0:00 postgres: background writer 
+postgres  160849  0.0  0.0 217340  9592 ?        Ss   22:18   0:00 postgres: walwriter 
+postgres  160850  0.0  0.0 218944  8796 ?        Ss   22:18   0:00 postgres: autovacuum launcher 
+postgres  160851  0.0  0.0 218920  7964 ?        Ss   22:18   0:00 postgres: logical replication launcher 
+postgres  160853  0.0  0.1 243376 28624 ?        Ss   22:18   0:00 postgres: postgres postgres [local] idle
+postgres  160854  0.0  0.0 346744 12924 ?        Ssl  22:18   0:00 postgres: pg_onnx 
+```
+
+pg_onnx和onnxruntime-server，其实就是标准的CS模型，一个作为客户端，一个作为服务端。
+
+二者通过 TCP/IP 通信避免多进程重复加载模型导致的资源枯竭。对于通信方面更具体一点，更具体一点其实是本地回环，否者网络消耗又上去了。
+
+另外值得注意的是，在导入模型时，会将传入的模型作为大对象来管理。
+
+# 生成线性回归模型
+线性回归是机器学习中最简单的模型，前不久薛晓刚薛老师也写了一篇关于相似的文章[Oracle和MySQL数据库中做线性回归](https://mp.weixin.qq.com/s/nBQKPBZyOgRq8eWvtxuj0w)，感兴趣的朋友可以再去了解了解，写的比我详细。**回到正文**，这里我没有使用onnx自身定义的算子，去生成线性回归模型，而是使用的**pytorch**。你可以参考官方文档的[ONNX with Python](https://onnx.ai/onnx/intro/python.html#a-simple-example-a-linear-regression)写法来实现这个线性回归模型。
+```python
+import numpy as np
+import torch
+from torch import nn
+
+class UnaryLinearReg(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear = nn.Linear(1, 1)
+
+    def forward(self, x):
+        return self.linear(x)
+
+def main():
+    # y ≈ 3x + 2 + noise
+    np.random.seed(0)
+    x = np.random.uniform(0, 10, size=(10000, 1)).astype(np.float32)
+    noise = np.random.normal(0, 0.5, size=(10000, 1)).astype(np.float32)
+    labels = 3 * x + 2 + noise
+
+    model = UnaryLinearReg()
+    loss_fn = nn.MSELoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+
+    epochs = 20
+    batch_size = 100
+    for epoch in range(epochs):
+        for i in range(0, len(x), batch_size):
+            batch_x = torch.from_numpy(x[i:i + batch_size])
+            batch_y = torch.from_numpy(labels[i:i + batch_size])
+
+            optimizer.zero_grad()
+            pred = model(batch_x)
+            loss = loss_fn(pred, batch_y)
+            loss.backward()
+            optimizer.step()
+
+        if epoch % 2 == 0:
+            print(f"epoch {epoch:2d} | loss {loss.item():.4f}")
+
+    w, b = model.parameters()
+    print(f"w = {w.item():.3f}, b = {b.item():.3f}")
+
+    torch.onnx.export(
+        model,
+        torch.randn(1, 1), 
+        "model.onnx",
+        input_names=['x'], 
+        output_names=['y'], 
+        dynamic_shapes={'x': {0: 'batch'}},
+        opset_version=18,
+    )
+
+if __name__ == '__main__':
+    main()
+```
 
 # 其他注意事项
 ### PostgreSQL的编译选项需要附上`--enable-nls`
-否则可能会出现下面的编译错误提示，没有花时间仔细研究，到底是为什么
+否则在编译pg_onnx时，可能会出现下面的编译错误提示，没有花时间仔细研究，到底是为什么
 ```bash
 In file included from /u01/app/halo/product/dbms/16/include/postgresql/server/postgres.h:45,
                  from /home/postgres/code/16/contrib/pg_onnx/pg_onnx/bridge/bgworker_side/../../pg_onnx.hpp:14,
