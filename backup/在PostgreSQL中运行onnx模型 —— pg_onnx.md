@@ -77,11 +77,7 @@ postgres  160853  0.0  0.1 243376 28624 ?        Ss   22:18   0:00 postgres: pos
 postgres  160854  0.0  0.0 346744 12924 ?        Ssl  22:18   0:00 postgres: pg_onnx 
 ```
 
-pg_onnx和onnxruntime-server，其实就是标准的CS模型，一个作为客户端，一个作为服务端。
-
-二者通过 TCP/IP 通信避免多进程重复加载模型导致的资源枯竭。对于通信方面更具体一点，更具体一点其实是本地回环，否者网络消耗又上去了。
-
-另外值得注意的是，在导入模型时，会将传入的模型作为大对象来管理。
+pg_onnx和onnxruntime-server，其实就是标准的CS模型，一个作为客户端，一个作为服务端。二者通过 TCP/IP 通信避免多进程重复加载模型导致的资源枯竭。对于通信方面更具体一点，更具体一点其实是本地回环，否者网络消耗又上去了。另外值得注意的是，在导入模型时，会将传入的模型作为大对象来管理。
 
 # 生成线性回归模型
 线性回归是机器学习中最简单的模型，前不久薛晓刚薛老师也写了一篇关于相似的文章[Oracle和MySQL数据库中做线性回归](https://mp.weixin.qq.com/s/nBQKPBZyOgRq8eWvtxuj0w)，感兴趣的朋友可以再去了解了解，写的比我详细。**回到正文**，这里我没有使用onnx自身定义的算子，去生成线性回归模型，而是使用的**pytorch**。你可以参考官方文档的[ONNX with Python](https://onnx.ai/onnx/intro/python.html#a-simple-example-a-linear-regression)写法来实现这个线性回归模型。
@@ -142,8 +138,41 @@ if __name__ == '__main__':
     main()
 ```
 
+# 简单测试
+```sql
+postgres=# SELECT pg_onnx_import_model(
+               'sample_model', --------------- model name
+               'v1', ------------------ model version 
+               PG_READ_BINARY_FILE('/home/postgres/model.onnx')::bytea, -- model binary data
+               '{"cuda": false}'::jsonb, ------ options
+               'sample model' ---------------- description
+       );
+ pg_onnx_import_model 
+----------------------
+ t
+(1 行记录)
+
+postgres=# select * from pg_onnx_list_model();
+     name     | version |     option      |         inputs         |        outputs         | description  |          created_at           | lo_oid 
+--------------+---------+-----------------+------------------------+------------------------+--------------+-------------------------------+--------
+ sample_model | v1      | {"cuda": false} | {"x": "float32[-1,1]"} | {"y": "float32[-1,1]"} | sample model | 2025-11-16 23:08:42.618817+08 |  25144
+(1 行记录)
+
+postgres=# SELECT pg_onnx_execute_session(
+               'sample_model', -- model name
+               'v1', ----- model version
+               '{
+                 "x": [[1], [2], [3], [4]]
+               }' --------------- inputs
+       );
+                                    pg_onnx_execute_session                                    
+-----------------------------------------------------------------------------------------------
+ {"y": [[4.985114097595215], [7.989638805389404], [10.994163513183594], [13.998688697814941]]}
+(1 行记录)
+```
+
 # 其他注意事项
-### PostgreSQL的编译选项需要附上`--enable-nls`
+## PostgreSQL的编译选项需要附上`--enable-nls`
 否则在编译pg_onnx时，可能会出现下面的编译错误提示，没有花时间仔细研究，到底是为什么
 ```bash
 In file included from /u01/app/halo/product/dbms/16/include/postgresql/server/postgres.h:45,
@@ -182,7 +211,7 @@ In file included from /u01/app/halo/product/dbms/16/include/postgresql/server/po
       |              ^~~~~~~~~
 ```
  
-### max supported IR version: 11 和 opset 23
+## max supported IR version: 11 和 opset 23
 ```sql
 test=# SELECT pg_onnx_import_model(
                'simple_model',
@@ -201,7 +230,7 @@ test=# SELECT pg_onnx_import_model(
        );
 ERROR:  pg_onnx_inspect_model_bin: /onnxruntime_src/onnxruntime/core/graph/model_load_utils.h:46 void onnxruntime::model_load_utils::ValidateOpsetForDomain(const std::unordered_map<std::__cxx11::basic_string<char>, int>&, const onnxruntime::logging::Logger&, bool, const std::string&, int) ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 24 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx is till opset 23.
 ```
-### 输入张量的形状计算不对
+## 输入张量的形状计算不对
 这里的det的原始输入张量形状为(-1,3,-1,-1)，实际输入的coordinates.json是一个形状为(1, 3, 160, 160)，总元素数量76800，报错如下
 ```sql
 (onnx-env) postgres@zxm-VMware-Virtual-Platform:~$ psql test

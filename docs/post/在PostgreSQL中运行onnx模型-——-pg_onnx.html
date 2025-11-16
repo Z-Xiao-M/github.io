@@ -158,9 +158,7 @@ postgres  160850  0.0  0.0 218944  8796 <span class="pl-k">?</span>        Ss   
 postgres  160851  0.0  0.0 218920  7964 <span class="pl-k">?</span>        Ss   22:18   0:00 postgres: logical replication launcher 
 postgres  160853  0.0  0.1 243376 28624 <span class="pl-k">?</span>        Ss   22:18   0:00 postgres: postgres postgres [local] idle
 postgres  160854  0.0  0.0 346744 12924 <span class="pl-k">?</span>        Ssl  22:18   0:00 postgres: pg_onnx </pre></div>
-<p>pg_onnx和onnxruntime-server，其实就是标准的CS模型，一个作为客户端，一个作为服务端。</p>
-<p>二者通过 TCP/IP 通信避免多进程重复加载模型导致的资源枯竭。对于通信方面更具体一点，更具体一点其实是本地回环，否者网络消耗又上去了。</p>
-<p>另外值得注意的是，在导入模型时，会将传入的模型作为大对象来管理。</p>
+<p>pg_onnx和onnxruntime-server，其实就是标准的CS模型，一个作为客户端，一个作为服务端。二者通过 TCP/IP 通信避免多进程重复加载模型导致的资源枯竭。对于通信方面更具体一点，更具体一点其实是本地回环，否者网络消耗又上去了。另外值得注意的是，在导入模型时，会将传入的模型作为大对象来管理。</p>
 <h1>生成线性回归模型</h1>
 <p>线性回归是机器学习中最简单的模型，前不久薛晓刚薛老师也写了一篇关于相似的文章<a href="https://mp.weixin.qq.com/s/nBQKPBZyOgRq8eWvtxuj0w" rel="nofollow">Oracle和MySQL数据库中做线性回归</a>，感兴趣的朋友可以再去了解了解，写的比我详细。<strong>回到正文</strong>，这里我没有使用onnx自身定义的算子，去生成线性回归模型，而是使用的<strong>pytorch</strong>。你可以参考官方文档的<a href="https://onnx.ai/onnx/intro/python.html#a-simple-example-a-linear-regression" rel="nofollow">ONNX with Python</a>写法来实现这个线性回归模型。</p>
 <div class="highlight highlight-source-python"><pre class="notranslate"><span class="pl-k">import</span> <span class="pl-s1">numpy</span> <span class="pl-k">as</span> <span class="pl-s1">np</span>
@@ -217,8 +215,38 @@ postgres  160854  0.0  0.0 346744 12924 <span class="pl-k">?</span>        Ssl  
 
 <span class="pl-k">if</span> <span class="pl-s1">__name__</span> <span class="pl-c1">==</span> <span class="pl-s">'__main__'</span>:
     <span class="pl-en">main</span>()</pre></div>
+<h1>简单测试</h1>
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT pg_onnx_import_model(</span>
+               <span class="pl-s"><span class="pl-pds">'</span>sample_model<span class="pl-pds">'</span></span>, <span class="pl-c"><span class="pl-c">--</span>------------- model name</span>
+               <span class="pl-s"><span class="pl-pds">'</span>v1<span class="pl-pds">'</span></span>, <span class="pl-c"><span class="pl-c">--</span>---------------- model version </span>
+               PG_READ_BINARY_FILE(<span class="pl-s"><span class="pl-pds">'</span>/home/postgres/model.onnx<span class="pl-pds">'</span></span>)::<span class="pl-k">bytea</span>, <span class="pl-c"><span class="pl-c">--</span> model binary data</span>
+               <span class="pl-s"><span class="pl-pds">'</span>{"cuda": false}<span class="pl-pds">'</span></span>::jsonb, <span class="pl-c"><span class="pl-c">--</span>---- options</span>
+               <span class="pl-s"><span class="pl-pds">'</span>sample model<span class="pl-pds">'</span></span> <span class="pl-c"><span class="pl-c">--</span>-------------- description</span>
+       );
+ pg_onnx_import_model 
+<span class="pl-c"><span class="pl-c">--</span>--------------------</span>
+ t
+(<span class="pl-c1">1</span> 行记录)
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_onnx_list_model();</span>
+     name     | version |     option      |         inputs         |        outputs         | description  |          created_at           | lo_oid 
+<span class="pl-c"><span class="pl-c">--</span>------------+---------+-----------------+------------------------+------------------------+--------------+-------------------------------+--------</span>
+ sample_model | v1      | {<span class="pl-s"><span class="pl-pds">"</span>cuda<span class="pl-pds">"</span></span>: false} | {<span class="pl-s"><span class="pl-pds">"</span>x<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>float32[-1,1]<span class="pl-pds">"</span></span>} | {<span class="pl-s"><span class="pl-pds">"</span>y<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>float32[-1,1]<span class="pl-pds">"</span></span>} | sample model | <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">11</span><span class="pl-k">-</span><span class="pl-c1">16</span> <span class="pl-c1">23</span>:<span class="pl-c1">08</span>:<span class="pl-c1">42</span>.<span class="pl-c1">618817</span><span class="pl-k">+</span><span class="pl-c1">08</span> |  <span class="pl-c1">25144</span>
+(<span class="pl-c1">1</span> 行记录)
+
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT pg_onnx_execute_session(</span>
+               <span class="pl-s"><span class="pl-pds">'</span>sample_model<span class="pl-pds">'</span></span>, <span class="pl-c"><span class="pl-c">--</span> model name</span>
+               <span class="pl-s"><span class="pl-pds">'</span>v1<span class="pl-pds">'</span></span>, <span class="pl-c"><span class="pl-c">--</span>--- model version</span>
+               <span class="pl-s"><span class="pl-pds">'</span>{</span>
+<span class="pl-s">                 "x": [[1], [2], [3], [4]]</span>
+<span class="pl-s">               }<span class="pl-pds">'</span></span> <span class="pl-c"><span class="pl-c">--</span>------------- inputs</span>
+       );
+                                    pg_onnx_execute_session                                    
+<span class="pl-c"><span class="pl-c">--</span>---------------------------------------------------------------------------------------------</span>
+ {<span class="pl-s"><span class="pl-pds">"</span>y<span class="pl-pds">"</span></span>: [[<span class="pl-c1">4</span>.<span class="pl-c1">985114097595215</span>], [<span class="pl-c1">7</span>.<span class="pl-c1">989638805389404</span>], [<span class="pl-c1">10</span>.<span class="pl-c1">994163513183594</span>], [<span class="pl-c1">13</span>.<span class="pl-c1">998688697814941</span>]]}
+(<span class="pl-c1">1</span> 行记录)</pre></div>
 <h1>其他注意事项</h1>
-<h3>PostgreSQL的编译选项需要附上<code class="notranslate">--enable-nls</code></h3>
+<h2>PostgreSQL的编译选项需要附上<code class="notranslate">--enable-nls</code></h2>
 <p>否则在编译pg_onnx时，可能会出现下面的编译错误提示，没有花时间仔细研究，到底是为什么</p>
 <div class="highlight highlight-source-shell"><pre class="notranslate">In file included from /u01/app/halo/product/dbms/16/include/postgresql/server/postgres.h:45,
                  from /home/postgres/code/16/contrib/pg_onnx/pg_onnx/bridge/bgworker_side/../../pg_onnx.hpp:14,
@@ -254,7 +282,7 @@ postgres  160854  0.0  0.0 346744 12924 <span class="pl-k">?</span>        Ssl  
 /usr/include/libintl.h:67:14: error: expected unqualified-id before ‘unsigned’
    67 <span class="pl-k">|</span> extern char <span class="pl-k">*</span>dngettext (const char <span class="pl-k">*</span>__domainname, const char <span class="pl-k">*</span>__msgid1,
       <span class="pl-k">|</span>              ^~~~~~~~~</pre></div>
-<h3>max supported IR version: 11 和 opset 23</h3>
+<h2>max supported IR version: 11 和 opset 23</h2>
 <div class="highlight highlight-source-sql"><pre class="notranslate">test<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT pg_onnx_import_model(</span>
                <span class="pl-s"><span class="pl-pds">'</span>simple_model<span class="pl-pds">'</span></span>,
                <span class="pl-s"><span class="pl-pds">'</span>v2<span class="pl-pds">'</span></span>, 
@@ -271,7 +299,7 @@ test<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SE
                <span class="pl-s"><span class="pl-pds">'</span>simple_model<span class="pl-pds">'</span></span>
        );
 ERROR:  pg_onnx_inspect_model_bin: <span class="pl-k">/</span>onnxruntime_src<span class="pl-k">/</span>onnxruntime<span class="pl-k">/</span>core<span class="pl-k">/</span>graph<span class="pl-k">/</span><span class="pl-c1">model_load_utils</span>.<span class="pl-c1">h</span>:<span class="pl-c1">46</span> void onnxruntime::model_load_utils::ValidateOpsetForDomain(const std::unordered_map<span class="pl-k">&lt;</span>std::__cxx11::basic_string<span class="pl-k">&lt;</span><span class="pl-k">char</span><span class="pl-k">&gt;</span>, <span class="pl-k">int</span><span class="pl-k">&gt;</span>&amp;, const onnxruntime::logging::Logger&amp;, bool, const std::string&amp;, <span class="pl-k">int</span>) ONNX Runtime only <span class="pl-k">*</span>guarantees<span class="pl-k">*</span> support for models stamped with official released onnx opset versions. Opset <span class="pl-c1">24</span> is under development <span class="pl-k">and</span> support for this is limited. The operator schemas <span class="pl-k">and</span> <span class="pl-k">or</span> other functionality may change before next ONNX release <span class="pl-k">and</span> <span class="pl-k">in</span> this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain <span class="pl-c1">ai</span>.<span class="pl-c1">onnx</span> is till opset <span class="pl-c1">23</span>.</pre></div>
-<h3>输入张量的形状计算不对</h3>
+<h2>输入张量的形状计算不对</h2>
 <p>这里的det的原始输入张量形状为(-1,3,-1,-1)，实际输入的coordinates.json是一个形状为(1, 3, 160, 160)，总元素数量76800，报错如下</p>
 <div class="highlight highlight-source-sql"><pre class="notranslate">(onnx<span class="pl-k">-</span>env) postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql test
 psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
