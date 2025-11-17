@@ -197,6 +197,90 @@ total time: 29.654
 [[[83.0, 1467.0], [752.0, 1474.0], [750.0, 1595.0], [81.0, 1589.0]], ('公民身份号码', 0.9998583197593689)]
 [[[923.0, 1483.0], [2384.0, 1461.0], [2386.0, 1592.0], [925.0, 1613.0]], ('123456196108047890', 0.996591372622384)]
 </code></pre>
+<h2>完整测试</h2>
+<pre class="notranslate"><code class="notranslate">(onnx-env) postgres@zxm-VMware-Virtual-Platform:~$ git clone https://github.com/Z-Xiao-M/OnnxOCR_PG_ONNX.git
+Cloning into 'OnnxOCR_PG_ONNX'...
+remote: Enumerating objects: 308, done.
+remote: Counting objects: 100% (93/93), done.
+remote: Compressing objects: 100% (51/51), done.
+remote: Total 308 (delta 47), reused 42 (delta 42), pack-reused 215 (from 1)
+Receiving objects: 100% (308/308), 90.25 MiB | 10.60 MiB/s, done.
+Resolving deltas: 100% (108/108), done.
+(onnx-env) postgres@zxm-VMware-Virtual-Platform:~$ pwd
+/home/postgres
+(onnx-env) postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (19devel)
+Type "help" for help.
+
+postgres=# SELECT pg_onnx_import_model(
+               'cls',
+               'v1', 
+               PG_READ_BINARY_FILE('/home/postgres/OnnxOCR_PG_ONNX/onnxocr/models/ppocrv5/cls/cls.onnx')::bytea,
+               '{"cuda": false}'::jsonb, 
+               'cls'
+       );
+LOG:  Waiting for background worker to start
+ pg_onnx_import_model 
+----------------------
+ t
+(1 row)
+
+postgres=# SELECT pg_onnx_import_model(
+               'det',
+               'v1', 
+               PG_READ_BINARY_FILE('/home/postgres/OnnxOCR_PG_ONNX/onnxocr/models/ppocrv5/det/det.onnx')::bytea,
+               '{"cuda": false}'::jsonb, 
+               'det'
+       );
+ pg_onnx_import_model 
+----------------------
+ t
+(1 row)
+
+postgres=# SELECT pg_onnx_import_model(
+               'rec',
+               'v1', 
+               PG_READ_BINARY_FILE('/home/postgres/OnnxOCR_PG_ONNX/onnxocr/models/ppocrv5/rec/rec.onnx')::bytea,
+               '{"cuda": false}'::jsonb, 
+               'rec'
+       );
+ pg_onnx_import_model 
+----------------------
+ t
+(1 row)
+
+postgres=# \q
+(onnx-env) postgres@zxm-VMware-Virtual-Platform:~$ cd OnnxOCR_PG_ONNX
+(onnx-env) postgres@zxm-VMware-Virtual-Platform:~/OnnxOCR_PG_ONNX$ ls
+app-service.py  config.py  db  Dockerfile  draw_ocr.jpg  LICENSE  onnxocr  Readme.md  requirements.txt  result_img  static  templates  test.jpg  test_ocr.py  webui.py
+(onnx-env) postgres@zxm-VMware-Virtual-Platform:~/OnnxOCR_PG_ONNX$ vim config.py 
+(onnx-env) postgres@zxm-VMware-Virtual-Platform:~/OnnxOCR_PG_ONNX$ python test_ocr.py  
+total time: 26.511
+[[[92.0, 198.0], [742.0, 175.0], [747.0, 305.0], [97.0, 328.0]], ('姓名奥巴马', 0.9977725505828857)]
+[[[90.0, 415.0], [1328.0, 396.0], [1331.0, 538.0], [92.0, 556.0]], ('性别男民族肯尼亚', 0.9989805296063423)]
+[[[90.0, 646.0], [1397.0, 637.0], [1397.0, 758.0], [91.0, 767.0]], ('出生1961年8月4日', 0.9986594644459811)]
+[[[98.0, 885.0], [375.0, 892.0], [372.0, 994.0], [96.0, 986.0]], ('住址', 0.9953028857707977)]
+[[[377.0, 892.0], [1522.0, 883.0], [1523.0, 1001.0], [378.0, 1011.0]], ('华盛顿特区宜宾法尼亚', 0.9969237744808197)]
+[[[392.0, 1083.0], [1207.0, 1083.0], [1207.0, 1210.0], [392.0, 1210.0]], ('大道1600号白宫', 0.9857945972018771)]
+[[[83.0, 1467.0], [752.0, 1474.0], [750.0, 1595.0], [81.0, 1589.0]], ('公民身份号码', 0.9998583197593689)]
+[[[923.0, 1483.0], [2384.0, 1461.0], [2386.0, 1592.0], [925.0, 1613.0]], ('123456196108047890', 0.996591372622384)]
+(onnx-env) postgres@zxm-VMware-Virtual-Platform:~/OnnxOCR_PG_ONNX$ cat config.py
+DB_CONFIG = {
+    "dbname": "postgres",
+    "user": "postgres",
+    "password": "postgres",
+    "host": "127.0.0.1",
+    "port": "5432"
+}
+
+MODEL_DET = ("det", "v1")
+MODEL_CLS = ("cls", "v1")
+MODEL_REC = ("rec", "v1")
+
+OUTPUT_KEY_DET = "fetch_name_0"
+OUTPUT_KEY_CLS = "softmax_0.tmp_0"
+OUTPUT_KEY_REC = "fetch_name_0"
+</code></pre>
 <h1>声明</h1>
 <p>相对原项目OnnxOCR，OnnxOCR_PG_ONNX的执行速度变慢是正常的，因为将模型推理的接口换成了数据库内执行，这中间存在数次模型推理的调用，每次调用都需要通过网络进行通信且数据量非常庞大。所以事实上OnnxOCR并不会在这种简单改造中受益，因为原项目本就和PostgreSQL数据库没有交集。但是我的目的仅仅是验证在PostgreSQL库中进行机器学习推理能做到何种程度，通过实际的现象来看，没啥太大的问题，这里的三个模型也运行正常。至于可行性，在上一篇文章中线性回归就以及验证过了。</p></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
