@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html data-color-mode="light" data-dark-theme="dark" data-light-theme="light" lang="zh-CN">
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="content-type" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link href='https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/Primer/21.0.7/primer.css' rel='stylesheet' />
+    <script src='https://blog.meekdai.com/Gmeek/plugins/GmeekVercount.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script><style>body[data-ui-pending] #content {opacity:0;transition:opacity 0.3s ease;}</style><script>document.documentElement.setAttribute('data-ui-pending','true');</script><link rel='stylesheet' href='https://code.buxiantang.top/assets/GmeekBaseTheme.css'><script src='https://code.buxiantang.top/assets/GmeekCustomizeCss.js' defer></script>
+    <link rel="icon" href="https://z-xiao-m.github.io/github.io/avatar.svg"><script>
+        let theme = localStorage.getItem("meek_theme") || "light";
+        document.documentElement.setAttribute("data-color-mode", theme);
+    </script>
+<meta name="description" content="一、前言
+====
+
+本文仅记录和分享一下关于PostgreSQL的FDW（外部数据包装器）的简单介绍和使用，此次不包含源码分析。">
+<meta property="og:title" content="玩一玩系列——玩玩postgres_fdw">
+<meta property="og:description" content="一、前言
+====
+
+本文仅记录和分享一下关于PostgreSQL的FDW（外部数据包装器）的简单介绍和使用，此次不包含源码分析。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-postgres_fdw.html">
+<meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
+<title>玩一玩系列——玩玩postgres_fdw</title>
+
+
+
+</head>
+<style>
+body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;padding: 45px;font-size: 16px;font-family: sans-serif;line-height: 1.25;}
+#header{display:flex;padding-bottom:8px;border-bottom: 1px solid var(--borderColor-muted, var(--color-border-muted));margin-bottom: 16px;}
+#footer {margin-top:64px; text-align: center;font-size: small;}
+
+</style>
+
+<style>
+.postTitle{margin: auto 0;font-size:40px;font-weight:bold;}
+.title-right{display:flex;margin:auto 0 0 auto;}
+.title-right .circle{padding: 14px 16px;margin-right:8px;}
+#postBody{border-bottom: 1px solid var(--color-border-default);padding-bottom:36px;}
+#postBody hr{height:2px;}
+#cmButton{height:48px;margin-top:48px;}
+#comments{margin-top:64px;}
+.g-emoji{font-size:24px;}
+@media (max-width: 600px) {
+    body {padding: 8px;}
+    .postTitle{font-size:24px;}
+}
+.copy-feedback {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    color: var(--color-fg-on-emphasis);
+    background-color: var(--color-fg-muted);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+</style>
+<style>#postBody{font-size:20px}</style>
+
+
+
+<body>
+    <div id="header">
+<h1 class="postTitle">玩一玩系列——玩玩postgres_fdw</h1>
+<div class="title-right">
+    <a href="https://Z-Xiao-M.github.io/github.io" id="buttonHome" class="btn btn-invisible circle" title="首页">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathHome" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+    <a href="https://github.com/Z-Xiao-M/github.io/issues/8" target="_blank" class="btn btn-invisible circle" title="Issue">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathIssue" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+
+    <a class="btn btn-invisible circle" onclick="modeSwitch();" title="切换主题">
+        <svg class="octicon" width="16" height="16" >
+            <path id="themeSwitch" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+
+</div>
+</div>
+    <div id="content">
+<div class="markdown-body" id="postBody"><h1>一、前言</h1>
+<p>本文仅记录和分享一下关于PostgreSQL的FDW（外部数据包装器）的简单介绍和使用，此次不包含源码分析。</p>
+<h1>二、Foreign Data Wrapper</h1>
+<p>外部数据包装器（FDW）是PostgreSQL的一个功能，负责从远程数据源获取数据，并将其返回给 PostgreSQL 执行器。</p>
+<p>它允许您访问和查询存储在外部数据源中的数据，就像它们是本地 Postgres 表一样。</p>
+<p>远程数据源可以是同构数据库，比如说PostgreSQL对应的FDW便是postgres_fdw，</p>
+<p>也可以是异构数据库，当远程数据源对应的是Oracle数据库时，便是oracle_fdw，</p>
+<p>当远程数据源对应的是mysql数据库时，便是mysql_fdw,</p>
+<p>当远程数据源对应的是duckdb时，便是李红艳老师写的duckdb_fdw。</p>
+<p>外部数据源也可以不是数据库，比方说想要更方便的查看PostgreSQL的日志文件内容，便可以使用file_fdw。</p>
+<p>当然还有很多，这里就不一一举例、"报菜名"了。</p>
+<p>其实真的不得不感慨PostgreSQL的扩展能力，如果您也想要写一个FDW，可以参考<a href="https://www.postgresql.org/docs/16/fdwhandler.html" rel="nofollow">官方文档</a>，PostgreSQL提供了一系列的函数接口，</p>
+<p>按照需求去实现对应的接口就能够写出一个能用的fdw了。</p>
+<h1>三、简单使用</h1>
+<p>不同的fdw的使用，可能存在一些特定的设置，比方说Oracle_fdw需要设置一些环境变量，如ORACLE_HOME等等之类的。</p>
+<p>这就需要按照对应的fdw的要求去做了，这里以postgres_fdw为例，在我自己本地玩一玩，这里我就不引入别的环境了。</p>
+<p>对于安装方面就没啥好说了，如果安装PG的时候，是下载源码安装。那么postgres_fdw是直接附加在PG的源码里的，“三板斧”编译安装即可。</p>
+<pre class="notranslate"><code class="notranslate">cd contrib/postgres_fdw/
+make &amp;&amp; make install
+</code></pre>
+<p>之后直接安装postgres_fdw拓展即可，这里没啥好说的。</p>
+<p>对于实际使用而言，也是简单的"三板斧"操作。</p>
+<p>我们先来准备一个简单的环境，在我的本地存在一个foreign_db数据库，数据库内部存在两张表（让大模型生成的）。这其中了一个字段多、另一个字段少，每个表里都存在一条数据。实际内容如下：</p>
+<pre class="notranslate"><code class="notranslate">foreign_db=# \dt
+                List of relations
+ Schema |         Name         | Type  |  Owner   
+--------+----------------------+-------+----------
+ public | twenty_columns_table | table | postgres
+ public | two_columns_table    | table | postgres
+(2 rows)
+
+foreign_db=# \d+ two_columns_table
+                                            Table "public.two_columns_table"
+ Column |          Type          | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+--------+------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
+ id     | integer                |           | not null |         | plain    |             |              | 
+ name   | character varying(100) |           |          |         | extended |             |              | 
+Indexes:
+    "two_columns_table_pkey" PRIMARY KEY, btree (id)
+Access method: heap
+
+foreign_db=# \d+ twenty_columns_table
+                                          Table "public.twenty_columns_table"
+ Column |         Type          | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+--------+-----------------------+-----------+----------+---------+----------+-------------+--------------+-------------
+ id     | integer               |           | not null |         | plain    |             |              | 
+ col1   | character varying(50) |           |          |         | extended |             |              | 
+ col2   | character varying(50) |           |          |         | extended |             |              | 
+ col3   | character varying(50) |           |          |         | extended |             |              | 
+ col4   | character varying(50) |           |          |         | extended |             |              | 
+ col5   | character varying(50) |           |          |         | extended |             |              | 
+ col6   | character varying(50) |           |          |         | extended |             |              | 
+ col7   | character varying(50) |           |          |         | extended |             |              | 
+ col8   | character varying(50) |           |          |         | extended |             |              | 
+ col9   | character varying(50) |           |          |         | extended |             |              | 
+ col10  | character varying(50) |           |          |         | extended |             |              | 
+ col11  | character varying(50) |           |          |         | extended |             |              | 
+ col12  | character varying(50) |           |          |         | extended |             |              | 
+ col13  | character varying(50) |           |          |         | extended |             |              | 
+ col14  | character varying(50) |           |          |         | extended |             |              | 
+ col15  | character varying(50) |           |          |         | extended |             |              | 
+ col16  | character varying(50) |           |          |         | extended |             |              | 
+ col17  | character varying(50) |           |          |         | extended |             |              | 
+ col18  | character varying(50) |           |          |         | extended |             |              | 
+ col19  | character varying(50) |           |          |         | extended |             |              | 
+ col20  | character varying(50) |           |          |         | extended |             |              | 
+Indexes:
+    "twenty_columns_table_pkey" PRIMARY KEY, btree (id)
+Access method: heap
+
+foreign_db=# select * from two_columns_table;
+ id |   name   
+----+----------
+  1 | John Doe
+(1 row)
+
+foreign_db=# select * from twenty_columns_table;
+ id |  col1  |  col2  |  col3  |  col4  |  col5  |  col6  |  col7  |  col8  |  col9  |  col10  |  col11  |  col12  |  col13  |  col14  |  col15  |  col16  |  col17  |  col18  |  col19  
+|  col20  
+----+--------+--------+--------+--------+--------+--------+--------+--------+--------+---------+---------+---------+---------+---------+---------+---------+---------+---------+---------
++---------
+  1 | Value1 | Value2 | Value3 | Value4 | Value5 | Value6 | Value7 | Value8 | Value9 | Value10 | Value11 | Value12 | Value13 | Value14 | Value15 | Value16 | Value17 | Value18 | Value19 
+| Value20
+(1 row)
+</code></pre>
+<p>接下来让我们在Postgres数据库中进行三板斧操作演示</p>
+<ol>
+<li>
+<p>CREATE SERVER 创建外部服务器对象，提供远端信息。</p>
+<p>postgres=# \h CREATE SERVER<br>
+Command:     CREATE SERVER<br>
+Description: define a new foreign server<br>
+Syntax:<br>
+CREATE SERVER [ IF NOT EXISTS ] server_name [ TYPE 'server_type' ] [ VERSION 'server_version' ]<br>
+FOREIGN DATA WRAPPER fdw_name<br>
+[ OPTIONS ( option 'value' [, ... ] ) ]</p>
+<p>URL: <a href="https://www.postgresql.org/docs/16/sql-createserver.html" rel="nofollow">https://www.postgresql.org/docs/16/sql-createserver.html</a></p>
+<p>postgres=# CREATE SERVER foreign_server FOREIGN DATA WRAPPER postgres_fdw<br>
+OPTIONS (host '127.0.0.1', port '19211', dbname 'foreign_db'); -- 根据实际来填<br>
+CREATE SERVER</p>
+</li>
+</ol>
+<p>2. CREATE USER MAPPING 创建用户映射，以标识将在远程服务器上使用的角色。我这里就直接用同一个用户的信息好了。</p>
+<pre class="notranslate"><code class="notranslate">postgres=# \h CREATE USER MAPPING 
+Command:     CREATE USER MAPPING
+Description: define a new mapping of a user to a foreign server
+Syntax:
+CREATE USER MAPPING [ IF NOT EXISTS ] FOR { user_name | USER | CURRENT_ROLE | CURRENT_USER | PUBLIC }
+    SERVER server_name
+    [ OPTIONS ( option 'value' [ , ... ] ) ]
+
+URL: https://www.postgresql.org/docs/16/sql-createusermapping.html
+
+postgres=# CREATE USER MAPPING FOR CURRENT_USER SERVER foreign_server
+postgres-# OPTIONS (user 'postgres', password 'postgres');
+CREATE USER MAPPING
+</code></pre>
+<p>3.  CREATE FOREIGN TABLE 创建外部表，我们以字段较少的表为例，值得注意的是，外部表的表名可以不和远端的表名一致，但是表中字段信息要一致，</p>
+<p>如果字段名称不能正确匹配上的话，将会爆出列不存在的错误。</p>
+<pre class="notranslate"><code class="notranslate">postgres=# \h CREATE FOREIGN TABLE
+Command:     CREATE FOREIGN TABLE
+Description: define a new foreign table
+Syntax:
+CREATE FOREIGN TABLE [ IF NOT EXISTS ] table_name ( [
+  { column_name data_type [ OPTIONS ( option 'value' [, ... ] ) ] [ COLLATE collation ] [ column_constraint [ ... ] ]
+    | table_constraint }
+    [, ... ]
+] )
+[ INHERITS ( parent_table [, ... ] ) ]
+  SERVER server_name
+[ OPTIONS ( option 'value' [, ... ] ) ]
+
+CREATE FOREIGN TABLE [ IF NOT EXISTS ] table_name
+  PARTITION OF parent_table [ (
+  { column_name [ WITH OPTIONS ] [ column_constraint [ ... ] ]
+    | table_constraint }
+    [, ... ]
+) ]
+{ FOR VALUES partition_bound_spec | DEFAULT }
+  SERVER server_name
+[ OPTIONS ( option 'value' [, ... ] ) ]
+
+where column_constraint is:
+
+[ CONSTRAINT constraint_name ]
+{ NOT NULL |
+  NULL |
+  CHECK ( expression ) [ NO INHERIT ] |
+  DEFAULT default_expr |
+  GENERATED ALWAYS AS ( generation_expr ) STORED }
+
+and table_constraint is:
+
+[ CONSTRAINT constraint_name ]
+CHECK ( expression ) [ NO INHERIT ]
+
+and partition_bound_spec is:
+
+IN ( partition_bound_expr [, ...] ) |
+FROM ( { partition_bound_expr | MINVALUE | MAXVALUE } [, ...] )
+  TO ( { partition_bound_expr | MINVALUE | MAXVALUE } [, ...] ) |
+WITH ( MODULUS numeric_literal, REMAINDER numeric_literal )
+
+URL: https://www.postgresql.org/docs/16/sql-createforeigntable.html
+
+postgres=# CREATE FOREIGN TABLE t_two_columns_table (
+postgres(#         id INTEGER,
+postgres(#         name VARCHAR(100)
+postgres(# )
+postgres-# SERVER foreign_server
+postgres-# OPTIONS (schema_name 'public', table_name 'two_columns_table');
+CREATE FOREIGN TABLE
+</code></pre>
+<p>接下来便可以查看这个外部表的数据是否和远端一致了。</p>
+<pre class="notranslate"><code class="notranslate">postgres=# -- 切换至foreign_db
+postgres=# \c foreign_db
+You are now connected to database "foreign_db" as user "postgres".
+foreign_db=# SELECT * FROM two_columns_table;
+ id |   name   
+----+----------
+  1 | John Doe
+(1 row)
+</code></pre>
+<p>可以看到的是，两个表虽然表名不一致，但是查询出来的数据缺失一摸一样的。而对于字段多的那张表也可以采取这样子的操作去访问这其中的数据。</p>
+<p>虽然此次并不涉及源码分析，但是其实看一下三板斧提供的信息也不难看出，其实就是根据SERVER和USER MAPPING的信息创建了一个会话连接，</p>
+<p>当我们访问外部表的时候，再根据外部表的信息，将当前运行的SQL变换，通过会话连接下发至远端会话查询，最后再将远端返回的数据进行处理和输出。</p>
+<p>简单验证的话，我们可以通过<code class="notranslate">ps -aux|grep postgres</code>查看后台会话进程。</p>
+<pre class="notranslate"><code class="notranslate">[postgres@iZuf6hwo0wgeev4dvua4csZ ~]$ ps -aux|grep postgres
+postgres  999988  0.0  1.0 235992 18684 ?        Ss   Jan20   1:15 /u01/app/halo/product/dbms/16/bin/postgres
+postgres  999989  0.0  1.4 236264 25556 ?        Ss   Jan20   0:00 postgres: checkpointer 
+postgres  999990  0.0  0.3 235992  6584 ?        Ss   Jan20   0:10 postgres: background writer 
+postgres  999992  0.0  0.4 235992  7948 ?        Ss   Jan20   0:09 postgres: walwriter 
+postgres  999993  0.0  0.4 237560  8524 ?        Ss   Jan20   0:37 postgres: autovacuum launcher 
+postgres  999994  0.0  0.3 237452  5796 ?        Ss   Jan20   0:00 postgres: logical replication launcher 
+postgres 1246437  0.0  1.2 255108 23080 ?        Ss   14:33   0:00 postgres: postgres postgres [local] idle
+postgres 1246439  0.0  0.9 238080 17172 ?        Ss   14:33   0:00 postgres: postgres foreign_db 127.0.0.1(60164) idle
+</code></pre>
+<p>以及使用<code class="notranslate">EXPLAIN VERBOSE</code> 查看实际执行的远端SQL是什么。</p>
+<pre class="notranslate"><code class="notranslate">postgres=# EXPLAIN VERBOSE SELECT * FROM t_two_columns_table;
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Foreign Scan on public.t_two_columns_table  (cost=100.00..119.99 rows=333 width=222)
+   Output: id, name
+   Remote SQL: SELECT id, name FROM public.two_columns_table
+(3 rows)
+</code></pre>
+<h1>四、关于创建外部表的小妙招</h1>
+<p>当远端的表中存在太多的字段，手动创建外部表感觉好麻烦，有没有更简单的方法来偷偷懒呢？</p>
+<p>誒，程序员的事能叫偷懒吗！ 有的，兄弟有的，我们可以使用IMPORT FOREIGN SCHEMA帮助我们来导入外部表，</p>
+<p>使用这个的一个前提是，正在使用的fdw有完整的按照PostgreSQL定义的这个<a href="https://www.postgresql.org/docs/16/fdw-callbacks.html#FDW-CALLBACKS-IMPORT" rel="nofollow">FDW Routines for IMPORT FOREIGN SCHEMA</a>接口来实现相关的功能。</p>
+<pre class="notranslate"><code class="notranslate">postgres=# \h IMPORT FOREIGN SCHEMA
+Command:     IMPORT FOREIGN SCHEMA
+Description: import table definitions from a foreign server
+Syntax:
+IMPORT FOREIGN SCHEMA remote_schema
+    [ { LIMIT TO | EXCEPT } ( table_name [, ...] ) ]
+    FROM SERVER server_name
+    INTO local_schema
+    [ OPTIONS ( option 'value' [, ... ] ) ]
+
+URL: https://www.postgresql.org/docs/16/sql-importforeignschema.html
+
+postgres=# -- 查看当前外部表信息
+postgres=# \dE+
+                                       List of relations
+ Schema |        Name         |     Type      |  Owner   | Persistence |  Size   | Description 
+--------+---------------------+---------------+----------+-------------+---------+-------------
+ public | t_two_columns_table | foreign table | postgres | permanent   | 0 bytes | 
+(1 row)
+
+postgres=# IMPORT FOREIGN SCHEMA public LIMIT TO(twenty_columns_table)
+postgres-# FROM SERVER foreign_server INTO public;
+IMPORT FOREIGN SCHEMA
+postgres=# -- 再次查看当前外部表信息
+postgres=# \dE+
+                                       List of relations
+ Schema |         Name         |     Type      |  Owner   | Persistence |  Size   | Description 
+--------+----------------------+---------------+----------+-------------+---------+-------------
+ public | t_two_columns_table  | foreign table | postgres | permanent   | 0 bytes | 
+ public | twenty_columns_table | foreign table | postgres | permanent   | 0 bytes | 
+(2 rows)
+
+postgres=# SELECT * FROM twenty_columns_table;
+ id |  col1  |  col2  |  col3  |  col4  |  col5  |  col6  |  col7  |  col8  |  col9  |  col10  |  col11  |  col12  |  col13  |  col14  |  col15  |  col16  |  col17  |  col18  |  col19  
+|  col20  
+----+--------+--------+--------+--------+--------+--------+--------+--------+--------+---------+---------+---------+---------+---------+---------+---------+---------+---------+---------
++---------
+  1 | Value1 | Value2 | Value3 | Value4 | Value5 | Value6 | Value7 | Value8 | Value9 | Value10 | Value11 | Value12 | Value13 | Value14 | Value15 | Value16 | Value17 | Value18 | Value19 
+postgres=# SELECT * FROM twenty_columns_table \gx
+-[ RECORD 1 ]--
+id    | 1
+col1  | Value1
+col2  | Value2
+col3  | Value3
+col4  | Value4
+col5  | Value5
+col6  | Value6
+col7  | Value7
+col8  | Value8
+col9  | Value9
+col10 | Value10
+col11 | Value11
+col12 | Value12
+col13 | Value13
+col14 | Value14
+col15 | Value15
+col16 | Value16
+col17 | Value17
+col18 | Value18
+col19 | Value19
+col20 | Value20
+</code></pre>
+<p>详细的命令使用，请查看官方文档的<a href="https://www.postgresql.org/docs/16/sql-importforeignschema.html" rel="nofollow">IMPORT FOREIGN SCHEMA</a> ，可以指定某些表导入，就像上面的示例一样。</p>
+<p>也可以指定哪些表不被导入，还可以将远端的整个schema下的表导入进来，非常的方便~</p>
+<p>这里就在演示了，篇幅太长了。</p>
+<h1>五、声明</h1>
+<p>若文中存在错误或不当之处，敬请指出，以便我进行修正和完善。希望这篇文章能够帮助到各位。</p>
+<p>文章转载请联系，谢谢合作。</p></div>
+<div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
+
+<button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
+<div class="comments" id="comments"></div>
+
+</div>
+    <div id="footer"><div id="footer1">Copyright © <span id="copyrightYear"></span> <a href="https://Z-Xiao-M.github.io/github.io">包里装着个卡比兽</a></div>
+<div id="footer2">
+    <span id="runday"></span><span>Powered by <a href="https://meekdai.com/Gmeek.html" target="_blank">Gmeek</a></span>
+</div>
+
+<script>
+var now=new Date();
+document.getElementById("copyrightYear").innerHTML=now.getFullYear();
+
+if("08/31/2025"!=""){
+    var startSite=new Date("08/31/2025");
+    var diff=now.getTime()-startSite.getTime();
+    var diffDay=Math.floor(diff/(1000*60*60*24));
+    document.getElementById("runday").innerHTML="网站运行"+diffDay+"天"+" • ";
+}
+</script></div>
+</body>
+<script>
+var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z', 'copy': 'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z', 'check': 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'};
+var utterancesLoad=0;
+
+let themeSettings={
+    "dark": ["dark","moon","#00f0ff","dark-blue"],
+    "light": ["light","sun","#ff5000","github-light"],
+    "auto": ["auto","sync","","preferred-color-scheme"]
+};
+function changeTheme(mode, icon, color, utheme){
+    document.documentElement.setAttribute("data-color-mode",mode);
+    document.getElementById("themeSwitch").setAttribute("d",value=IconList[icon]);
+    document.getElementById("themeSwitch").parentNode.style.color=color;
+    if(utterancesLoad==1){utterancesTheme(utheme);}
+}
+function modeSwitch(){
+    let currentMode=document.documentElement.getAttribute('data-color-mode');
+    let newMode = currentMode === "light" ? "dark" : currentMode === "dark" ? "auto" : "light";
+    localStorage.setItem("meek_theme", newMode);
+    if(themeSettings[newMode]){
+        changeTheme(...themeSettings[newMode]);
+    }
+}
+function utterancesTheme(theme){
+    const message={type:'set-theme',theme: theme};
+    const iframe=document.getElementsByClassName('utterances-frame')[0];
+    iframe.contentWindow.postMessage(message,'https://utteranc.es');
+}
+if(themeSettings[theme]){changeTheme(...themeSettings[theme]);}
+console.log("\n %c Gmeek last https://github.com/Meekdai/Gmeek \n","padding:5px 0;background:#02d81d;color:#fff");
+</script>
+
+<script>
+document.getElementById("pathHome").setAttribute("d",IconList["home"]);
+document.getElementById("pathIssue").setAttribute("d",IconList["github"]);
+
+
+
+function openComments(){
+    cm=document.getElementById("comments");
+    cmButton=document.getElementById("cmButton");
+    cmButton.innerHTML="loading";
+    span=document.createElement("span");
+    span.setAttribute("class","AnimatedEllipsis");
+    cmButton.appendChild(span);
+
+    script=document.createElement("script");
+    script.setAttribute("src","https://utteranc.es/client.js");
+    script.setAttribute("repo","Z-Xiao-M/github.io");
+    script.setAttribute("issue-term","title");
+    
+    if(localStorage.getItem("meek_theme")=="dark"){script.setAttribute("theme","dark-blue");}
+    else if(localStorage.getItem("meek_theme")=="light") {script.setAttribute("theme","github-light");}
+    else{script.setAttribute("theme","preferred-color-scheme");}
+    
+    script.setAttribute("crossorigin","anonymous");
+    script.setAttribute("async","");
+    cm.appendChild(script);
+
+    int=self.setInterval("iFrameLoading()",200);
+}
+
+function iFrameLoading(){
+    var utterances=document.getElementsByClassName('utterances');
+    if(utterances.length==1){
+        if(utterances[0].style.height!=""){
+            utterancesLoad=1;
+            int=window.clearInterval(int);
+            document.getElementById("cmButton").style.display="none";
+            console.log("utterances Load OK");
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const createClipboardHTML = (codeContent, additionalClasses = '') => `
+        <pre class="notranslate"><code class="notranslate">${codeContent}</code></pre>
+        <div class="clipboard-container position-absolute right-0 top-0 ${additionalClasses}">
+            <clipboard-copy class="ClipboardButton btn m-2 p-0" role="button" style="display: inherit;">
+                <svg height="16" width="16" class="octicon octicon-copy m-2"><path d="${IconList["copy"]}"></path></svg>
+                <svg height="16" width="16" class="octicon octicon-check color-fg-success m-2 d-none"><path d="${IconList["check"]}"></path></svg>
+            </clipboard-copy>
+            <div class="copy-feedback">Copied!</div>
+        </div>
+    `;
+
+    const handleCodeElements = (selector = '') => {
+        document.querySelectorAll(selector).forEach(codeElement => {
+            const codeContent = codeElement.innerHTML;
+            const newStructure = document.createElement('div');
+            newStructure.className = 'snippet-clipboard-content position-relative overflow-auto';
+            newStructure.innerHTML = createClipboardHTML(codeContent);
+
+            const parentElement = codeElement.parentElement;
+            if (selector.includes('highlight')) {
+                parentElement.insertBefore(newStructure, codeElement.nextSibling);
+                parentElement.removeChild(codeElement);
+            } else {
+                parentElement.parentElement.replaceChild(newStructure, parentElement);
+            }
+        });
+    };
+
+    handleCodeElements('pre.notranslate > code.notranslate');
+    handleCodeElements('div.highlight > pre.notranslate');
+
+    let currentFeedback = null;
+    document.querySelectorAll('clipboard-copy').forEach(copyButton => {
+        copyButton.addEventListener('click', () => {
+            const codeContent = copyButton.closest('.snippet-clipboard-content').innerText;
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = codeContent;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            const copyIcon = copyButton.querySelector('.octicon-copy');
+            const checkIcon = copyButton.querySelector('.octicon-check');
+            const copyFeedback = copyButton.nextElementSibling;
+
+            if (currentFeedback && currentFeedback !== copyFeedback) {currentFeedback.style.display = 'none';}
+            currentFeedback = copyFeedback;
+
+            copyIcon.classList.add('d-none');
+            checkIcon.classList.remove('d-none');
+            copyFeedback.style.display = 'block';
+            copyButton.style.borderColor = 'var(--color-success-fg)';
+
+            setTimeout(() => {
+                copyIcon.classList.remove('d-none');
+                checkIcon.classList.add('d-none');
+                copyFeedback.style.display = 'none';
+                copyButton.style.borderColor = '';
+            }, 2000);
+        });
+    });
+});
+
+</script>
+
+
+</html>

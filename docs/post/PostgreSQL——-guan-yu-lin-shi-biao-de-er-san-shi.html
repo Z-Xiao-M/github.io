@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html data-color-mode="light" data-dark-theme="dark" data-light-theme="light" lang="zh-CN">
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="content-type" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link href='https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/Primer/21.0.7/primer.css' rel='stylesheet' />
+    <script src='https://blog.meekdai.com/Gmeek/plugins/GmeekVercount.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script><style>body[data-ui-pending] #content {opacity:0;transition:opacity 0.3s ease;}</style><script>document.documentElement.setAttribute('data-ui-pending','true');</script><link rel='stylesheet' href='https://code.buxiantang.top/assets/GmeekBaseTheme.css'><script src='https://code.buxiantang.top/assets/GmeekCustomizeCss.js' defer></script>
+    <link rel="icon" href="https://z-xiao-m.github.io/github.io/avatar.svg"><script>
+        let theme = localStorage.getItem("meek_theme") || "light";
+        document.documentElement.setAttribute("data-color-mode", theme);
+    </script>
+<meta name="description" content="# 一、前言
+
+说起临时表，多数的DBA同学们第一时间都会想到Oracle的全局临时表，而对于PG而言，虽然存在对应的全局临时表语法，但是并没有实质的全局临时表功能。">
+<meta property="og:title" content="PostgreSQL——关于临时表的二三事">
+<meta property="og:description" content="# 一、前言
+
+说起临时表，多数的DBA同学们第一时间都会想到Oracle的全局临时表，而对于PG而言，虽然存在对应的全局临时表语法，但是并没有实质的全局临时表功能。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%E2%80%94%E2%80%94-guan-yu-lin-shi-biao-de-er-san-shi.html">
+<meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
+<title>PostgreSQL——关于临时表的二三事</title>
+
+
+
+</head>
+<style>
+body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;padding: 45px;font-size: 16px;font-family: sans-serif;line-height: 1.25;}
+#header{display:flex;padding-bottom:8px;border-bottom: 1px solid var(--borderColor-muted, var(--color-border-muted));margin-bottom: 16px;}
+#footer {margin-top:64px; text-align: center;font-size: small;}
+
+</style>
+
+<style>
+.postTitle{margin: auto 0;font-size:40px;font-weight:bold;}
+.title-right{display:flex;margin:auto 0 0 auto;}
+.title-right .circle{padding: 14px 16px;margin-right:8px;}
+#postBody{border-bottom: 1px solid var(--color-border-default);padding-bottom:36px;}
+#postBody hr{height:2px;}
+#cmButton{height:48px;margin-top:48px;}
+#comments{margin-top:64px;}
+.g-emoji{font-size:24px;}
+@media (max-width: 600px) {
+    body {padding: 8px;}
+    .postTitle{font-size:24px;}
+}
+.copy-feedback {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    color: var(--color-fg-on-emphasis);
+    background-color: var(--color-fg-muted);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+</style>
+<style>#postBody{font-size:20px}</style>
+
+
+
+<body>
+    <div id="header">
+<h1 class="postTitle">PostgreSQL——关于临时表的二三事</h1>
+<div class="title-right">
+    <a href="https://Z-Xiao-M.github.io/github.io" id="buttonHome" class="btn btn-invisible circle" title="首页">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathHome" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+    <a href="https://github.com/Z-Xiao-M/github.io/issues/1" target="_blank" class="btn btn-invisible circle" title="Issue">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathIssue" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+
+    <a class="btn btn-invisible circle" onclick="modeSwitch();" title="切换主题">
+        <svg class="octicon" width="16" height="16" >
+            <path id="themeSwitch" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+
+</div>
+</div>
+    <div id="content">
+<div class="markdown-body" id="postBody"><h1>一、前言</h1>
+<p>说起临时表，多数的DBA同学们第一时间都会想到Oracle的全局临时表，而对于PG而言，虽然存在对应的全局临时表语法，但是并没有实质的全局临时表功能。</p>
+<p>而如果我们在PG系数据库上使用全局临时表的功能，则要借助插件pgtt的功能，而为了更加了解pgtt实现全局临时表的实现思想，我们需要对PG原生的临时表有一定的理解。</p>
+<h1>二、PostgreSQL临时表</h1>
+<p>PostgreSQL存在两种临时表，一种是会话级临时表，另一种是事务级临时表。二者当会话结束时都会消失，区别主要是表中数据的生命周期不一致。</p>
+<h2>2.1、会话级临时表</h2>
+<p>会话级临时表中数据的生命周期为整个会话。语法如下</p>
+<pre class="notranslate"><code class="notranslate">CREATE TEMPORARY | TEMP TABLE ...
+</code></pre>
+<p>TEMP与TEMPORARY等价</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/1a418931dfec99b6c7073575e2513972245315dccb43410769029c4a69640980/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d36383439383461392d303534312d343237662d613838632d3865343265366363613434382e706e67"><img src="https://camo.githubusercontent.com/1a418931dfec99b6c7073575e2513972245315dccb43410769029c4a69640980/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d36383439383461392d303534312d343237662d613838632d3865343265366363613434382e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-684984a9-0541-427f-a88c-8e42e6cca448.png" style="max-width: 100%;"></a></p>
+<p>多个会话允许创建同名临时表，如下会话一创建完临时表的同时打开新的会话，会话二创建同名临时表，运行结果如下</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/6c13af72b59c9fb77806cdc25729691f022a40818b918c453fbaef333fd71e7b/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d34636466383064302d393639332d346534312d396436642d6664353034333461363333322e706e67"><img src="https://camo.githubusercontent.com/6c13af72b59c9fb77806cdc25729691f022a40818b918c453fbaef333fd71e7b/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d34636466383064302d393639332d346534312d396436642d6664353034333461363333322e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-4cdf80d0-9693-4e41-9d6d-fd50434a6332.png" style="max-width: 100%;"></a></p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/2c6d6de9827c9ac0a4c58284b9225706e15839cff83d19204fcd8e797f426c77/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d61636232643962312d363561322d343335372d623235622d3930303233633666656163342e706e67"><img src="https://camo.githubusercontent.com/2c6d6de9827c9ac0a4c58284b9225706e15839cff83d19204fcd8e797f426c77/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d61636232643962312d363561322d343335372d623235622d3930303233633666656163342e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-acb2d9b1-65a2-4357-b25b-90023c6feac4.png" style="max-width: 100%;"></a></p>
+<p><strong>两者最主要的区别在于，temp_ta的schema不一致！</strong></p>
+<p><strong>会话一为pg_temp_3.temp_ta</strong></p>
+<p><strong>会话二为pg_temp_4.temp_ta</strong></p>
+<h2>2.2、事务级临时表</h2>
+<p>语法如下</p>
+<pre class="notranslate"><code class="notranslate">CREATE TEMPORARY | TEMP TABLE ... ON COMMIT ...
+</code></pre>
+<p>在ON COMMIT后面有三个选项分别是</p>
+<p><strong>DELETE ROWS：数据仅存在事务周期中，事务提交后，临时表中的数据就清除掉了。</strong></p>
+<p>**DROP：**<strong>数据仅存在事务周期中，事务提交后，临时表就删除了，所以需要把建表语句放在一个事务中</strong>。</p>
+<p>PERSERVE ROWS：（默认）创建会话级临时表的选项，可以不写。</p>
+<h3>2.2.1、ON COMMIT DELETE ROWS</h3>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/0885e962288a750714a5763e61214a4e351fbf82a0856c3662d4425137332ce3/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d31656231323465302d306132622d346330382d396536342d3563393631303330363165642e706e67"><img src="https://camo.githubusercontent.com/0885e962288a750714a5763e61214a4e351fbf82a0856c3662d4425137332ce3/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d31656231323465302d306132622d346330382d396536342d3563393631303330363165642e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-1eb124e0-0a2b-4c08-9e64-5c96103061ed.png" style="max-width: 100%;"></a></p>
+<h3>2.2.2、ON COMMIT DROP</h3>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/d682b9cee42df15156f9158eac60e00f7c8a4ac95fa302b482180ef8c17d0500/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d65643135633033352d396237312d346233372d396265662d6435623135643233376462382e706e67"><img src="https://camo.githubusercontent.com/d682b9cee42df15156f9158eac60e00f7c8a4ac95fa302b482180ef8c17d0500/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d65643135633033352d396237312d346233372d396265662d6435623135643233376462382e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-ed15c035-9b71-4b37-9bef-d5b15d237db8.png" style="max-width: 100%;"></a></p>
+<h1>三、pg_temp和pg_temp_xx</h1>
+<p>在上面我们查看执行计划的时候，能看到pg_temp_xx（当然还是要区分版本，好像是15版本之后，仅会显示pg_temp），</p>
+<p>而这个pg_temp_xx和pg_temp有什么关系了，我们接着用PG14来研究研究。</p>
+<p>我们先创建一张会话级的临时表，然后插入一点数据。</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/60fb3a3340c2e920a167ec102d92506b24467febf16516d5430e0c622f90ce09/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d64306165346466392d643637642d346665302d386330332d3635323661306261393932392e706e67"><img src="https://camo.githubusercontent.com/60fb3a3340c2e920a167ec102d92506b24467febf16516d5430e0c622f90ce09/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d64306165346466392d643637642d346665302d386330332d3635323661306261393932392e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-d0ae4df9-d67d-4fe0-8c03-6526a0ba9929.png" style="max-width: 100%;"></a></p>
+<p>接着我们查看一下执行计划，看看是pg_temp_xx多少，</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/20b20eb6f27022719eb74114c057d9e286209683b240a9943f048f117a63b6b0/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d36383332623561342d376139362d346364662d623335642d3330363631666635393836662e706e67"><img src="https://camo.githubusercontent.com/20b20eb6f27022719eb74114c057d9e286209683b240a9943f048f117a63b6b0/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d36383332623561342d376139362d346364662d623335642d3330363631666635393836662e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-6832b5a4-7a96-4cdf-b35d-30661ff5986f.png" style="max-width: 100%;"></a></p>
+<p>可以看到的是此时为pg_temp_3，这个时候我们使用查询一下pg_temp_3.temp_ta</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/96f7a3386ab99d759b8dbe83a0050101971e2828694fd6607e708dc020b49484/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d65636466393234312d333431392d343331392d383531332d6438623263353135663863632e706e67"><img src="https://camo.githubusercontent.com/96f7a3386ab99d759b8dbe83a0050101971e2828694fd6607e708dc020b49484/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d65636466393234312d333431392d343331392d383531332d6438623263353135663863632e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-ecdf9241-3419-4319-8513-d8b2c515f8cc.png" style="max-width: 100%;"></a></p>
+<p>可以看到就是我们刚刚插入的数据，这个时候我们再使用pg_temp，查询一下表temp_ta</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/173c55e97172165fb09742632ce51b5dda4e3c04986c78edf6e3ccb802f2e23b/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d61356563323934652d333335342d343037632d393165332d3932356434386632356436392e706e67"><img src="https://camo.githubusercontent.com/173c55e97172165fb09742632ce51b5dda4e3c04986c78edf6e3ccb802f2e23b/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d61356563323934652d333335342d343037632d393165332d3932356434386632356436392e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-a5ec294e-3354-407c-91e3-925d48f25d69.png" style="max-width: 100%;"></a></p>
+<p>可以看到二者的结果一模一样，再查看一下此时的执行计划</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/55a85551e41d28ad31b9a305858d404ed76e8137c7de4f0f46dff65d5cbe9b81/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d61613638313030352d383233372d343566322d623838392d3164343762323864626539312e706e67"><img src="https://camo.githubusercontent.com/55a85551e41d28ad31b9a305858d404ed76e8137c7de4f0f46dff65d5cbe9b81/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d61613638313030352d383233372d343566322d623838392d3164343762323864626539312e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-aa681005-8237-45f2-b889-1d47b28dbe91.png" style="max-width: 100%;"></a></p>
+<p>可以看到，实际上还是访问的pg_temp_3下的temp_ta表。</p>
+<p>所以pg_temp是外在表现，而pg_temp_xx是内在本质，PG允许你使用pg_temp访问当前会话下的临时表，</p>
+<p>在内部处理时，会根据实际情形，将pg_temp变换成pg_temp_xx。而xx的含义是什么呢？</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/01f9d41927f89913a983b58d9ad4ff66f7ad614f117885ed10ec783cb0942a4f/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d36353033613937322d383430392d343336612d623265322d3861636337653035396662332e706e67"><img src="https://camo.githubusercontent.com/01f9d41927f89913a983b58d9ad4ff66f7ad614f117885ed10ec783cb0942a4f/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d36353033613937322d383430392d343336612d623265322d3861636337653035396662332e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-6503a972-8409-436a-b2e2-8acc7e059fb3.png" style="max-width: 100%;"></a></p>
+<p>xx其实就是MyBackendId。</p>
+<h1>四、MyBackendId</h1>
+<p>都看到这了，肯定有同学好奇，想问“那有什么办法知道当前的会话的MyBackendId吗？”我想说“木有”</p>
+<p>更为准确的说法是“没有直接的方法告知你当前会话的MyBackendId，PG没有提供函数给大家直接获取这个值，但是通过弯弯绕绕的话，我们还是有办法获取到MyBackendId的”</p>
+<p>那就是<strong>virtualxid（虚拟事务ID）</strong></p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/335d19da37a22ef7c60b3192619f2e83e683db69df97c7ca64ede3b897f38c49/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d66633536353935362d313231312d343663352d623265642d3762373939373238616238612e706e67"><img src="https://camo.githubusercontent.com/335d19da37a22ef7c60b3192619f2e83e683db69df97c7ca64ede3b897f38c49/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d66633536353935362d313231312d343663352d623265642d3762373939373238616238612e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-fc565956-1211-46c5-b2ed-7b799728ab8a.png" style="max-width: 100%;"></a></p>
+<p>上图为虚拟事务ID的数据结构，而实际在使用虚拟事务ID时如下</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/bc4b384cf4854c3898366399c5c0437d5c7a53949c125f78f5cfba07b4d3624e/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d65316638326436612d393231622d343135612d613464662d3731633339366536393932332e706e67"><img src="https://camo.githubusercontent.com/bc4b384cf4854c3898366399c5c0437d5c7a53949c125f78f5cfba07b4d3624e/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d65316638326436612d393231622d343135612d613464662d3731633339366536393932332e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-e1f82d6a-921b-415a-a4df-71c396e69923.png" style="max-width: 100%;"></a></p>
+<p>可以看到上虚拟事务ID的组成之一便为MyBackendId。因此我们可以通过查询pg_lock_status函数或者pg_locks视图获取virtualxid，最后获取MyBackendId</p>
+<pre class="notranslate"><code class="notranslate">postgres=# \sv pg_locks
+CREATE OR REPLACE VIEW pg_catalog.pg_locks AS
+ SELECT l.locktype,
+    l.database,
+    l.relation,
+    l.page,
+    l.tuple,
+    l.virtualxid,
+    l.transactionid,
+    l.classid,
+    l.objid,
+    l.objsubid,
+    l.virtualtransaction,
+    l.pid,
+    l.mode,
+    l.granted,
+    l.fastpath,
+    l.waitstart
+   FROM pg_lock_status() l(locktype, database, relation, page, tuple, virtualxid, transactionid, classid, objid, objsubid, virtualtransaction, pid, mode, granted, fastpath, waitstart)
+
+postgres=# \sf pg_lock_status
+CREATE OR REPLACE FUNCTION pg_catalog.pg_lock_status(OUT locktype text, OUT database oid, OUT relation oid, OUT page integer, OUT tuple smallint, OUT virtualxid text, OUT transactionid xid, OUT classid oid, OUT objid oid, OUT objsubid smallint, OUT virtualtransaction text, OUT pid integer, OUT mode text, OUT granted boolean, OUT fastpath boolean, OUT waitstart timestamp with time zone)
+ RETURNS SETOF record
+ LANGUAGE internal
+ PARALLEL SAFE STRICT
+AS $function$pg_lock_status$function$
+</code></pre>
+<p>获取virtualxid</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/3414983e35893880b907c8894b5c2e3dd399df1e2f120a96fdab8581526013ef/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d61386437633136642d316137612d343737642d626436312d3635386136303436623532322e706e67"><img src="https://camo.githubusercontent.com/3414983e35893880b907c8894b5c2e3dd399df1e2f120a96fdab8581526013ef/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d61386437633136642d316137612d343737642d626436312d3635386136303436623532322e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-a8d7c16d-1a7a-477d-bd61-658a6046b522.png" style="max-width: 100%;"></a></p>
+<p>而这个3即为MyBackendId，我们可以创建一张临时表，然后再通过查询执行计划验证一下</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/d3dc98ef65240ba2ff01d8e5c41db372f6598c233066af1cced497df0865e4c4/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d31633731643633632d356436652d346662352d613264352d6139373539636435383939632e706e67"><img src="https://camo.githubusercontent.com/d3dc98ef65240ba2ff01d8e5c41db372f6598c233066af1cced497df0865e4c4/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d31633731643633632d356436652d346662352d613264352d6139373539636435383939632e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-1c71d63c-5d6e-4fb5-a2d5-a9759cd5899c.png" style="max-width: 100%;"></a></p>
+<p>可以看到当前会话的MyBackendId，此时也正是使用的pg_temp3。</p>
+<p>其实到这里就差不多该结束了，不过可能你对虚拟事务ID还有别的问题？</p>
+<p><a target="_blank" rel="noopener noreferrer nofollow" href="https://camo.githubusercontent.com/6678e55bf7dcc7a972e4a1f35440c780326b309d039af9edfda288ee42347860/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d66663937623132312d636537642d343935642d613061362d3666616638633165623633342e706e67"><img src="https://camo.githubusercontent.com/6678e55bf7dcc7a972e4a1f35440c780326b309d039af9edfda288ee42347860/68747470733a2f2f6f73732d656d637370726f642d7075626c69632e6d6f64622e70726f2f696d6167652f656469746f722f32303234303632342d66663937623132312d636537642d343935642d613061362d3666616638633165623633342e706e67" alt="" data-canonical-src="https://oss-emcsprod-public.modb.pro/image/editor/20240624-ff97b121-ce7d-495d-a0a6-6faf8c1eb634.png" style="max-width: 100%;"></a></p>
+<p>就像下面的图一样，每执行一次，数值增加一个。这是为什么呢？</p>
+<p>或者说是PG不是已经有事务ID的功能了吗，怎么还有一个虚拟事务ID，它们之间有什么关系吗?</p>
+<p>那如果你想更加深入的理解虚拟事务ID的话，或许你可以想想如果每一条SELECT语句都能实实在在获取到一个真实的事务ID的话，</p>
+<p>对于大多数应用系统都是读多写少，那该是一个怎样的画面，当然这仅仅只是一方面。</p>
+<p>碍于篇幅的原因，就聊的这，如果后续有时间的话，到时候可以分享分享虚拟事务ID的意义。</p>
+<h1>五、声明</h1>
+<p>若文中存在错误或不当之处，敬请指出，以便我进行修正和完善。希望这篇文章能够帮助到各位。</p>
+<p>文章转载请联系，谢谢合作。</p></div>
+<div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
+
+<button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
+<div class="comments" id="comments"></div>
+
+</div>
+    <div id="footer"><div id="footer1">Copyright © <span id="copyrightYear"></span> <a href="https://Z-Xiao-M.github.io/github.io">包里装着个卡比兽</a></div>
+<div id="footer2">
+    <span id="runday"></span><span>Powered by <a href="https://meekdai.com/Gmeek.html" target="_blank">Gmeek</a></span>
+</div>
+
+<script>
+var now=new Date();
+document.getElementById("copyrightYear").innerHTML=now.getFullYear();
+
+if("08/31/2025"!=""){
+    var startSite=new Date("08/31/2025");
+    var diff=now.getTime()-startSite.getTime();
+    var diffDay=Math.floor(diff/(1000*60*60*24));
+    document.getElementById("runday").innerHTML="网站运行"+diffDay+"天"+" • ";
+}
+</script></div>
+</body>
+<script>
+var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z', 'copy': 'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z', 'check': 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'};
+var utterancesLoad=0;
+
+let themeSettings={
+    "dark": ["dark","moon","#00f0ff","dark-blue"],
+    "light": ["light","sun","#ff5000","github-light"],
+    "auto": ["auto","sync","","preferred-color-scheme"]
+};
+function changeTheme(mode, icon, color, utheme){
+    document.documentElement.setAttribute("data-color-mode",mode);
+    document.getElementById("themeSwitch").setAttribute("d",value=IconList[icon]);
+    document.getElementById("themeSwitch").parentNode.style.color=color;
+    if(utterancesLoad==1){utterancesTheme(utheme);}
+}
+function modeSwitch(){
+    let currentMode=document.documentElement.getAttribute('data-color-mode');
+    let newMode = currentMode === "light" ? "dark" : currentMode === "dark" ? "auto" : "light";
+    localStorage.setItem("meek_theme", newMode);
+    if(themeSettings[newMode]){
+        changeTheme(...themeSettings[newMode]);
+    }
+}
+function utterancesTheme(theme){
+    const message={type:'set-theme',theme: theme};
+    const iframe=document.getElementsByClassName('utterances-frame')[0];
+    iframe.contentWindow.postMessage(message,'https://utteranc.es');
+}
+if(themeSettings[theme]){changeTheme(...themeSettings[theme]);}
+console.log("\n %c Gmeek last https://github.com/Meekdai/Gmeek \n","padding:5px 0;background:#02d81d;color:#fff");
+</script>
+
+<script>
+document.getElementById("pathHome").setAttribute("d",IconList["home"]);
+document.getElementById("pathIssue").setAttribute("d",IconList["github"]);
+
+
+
+function openComments(){
+    cm=document.getElementById("comments");
+    cmButton=document.getElementById("cmButton");
+    cmButton.innerHTML="loading";
+    span=document.createElement("span");
+    span.setAttribute("class","AnimatedEllipsis");
+    cmButton.appendChild(span);
+
+    script=document.createElement("script");
+    script.setAttribute("src","https://utteranc.es/client.js");
+    script.setAttribute("repo","Z-Xiao-M/github.io");
+    script.setAttribute("issue-term","title");
+    
+    if(localStorage.getItem("meek_theme")=="dark"){script.setAttribute("theme","dark-blue");}
+    else if(localStorage.getItem("meek_theme")=="light") {script.setAttribute("theme","github-light");}
+    else{script.setAttribute("theme","preferred-color-scheme");}
+    
+    script.setAttribute("crossorigin","anonymous");
+    script.setAttribute("async","");
+    cm.appendChild(script);
+
+    int=self.setInterval("iFrameLoading()",200);
+}
+
+function iFrameLoading(){
+    var utterances=document.getElementsByClassName('utterances');
+    if(utterances.length==1){
+        if(utterances[0].style.height!=""){
+            utterancesLoad=1;
+            int=window.clearInterval(int);
+            document.getElementById("cmButton").style.display="none";
+            console.log("utterances Load OK");
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const createClipboardHTML = (codeContent, additionalClasses = '') => `
+        <pre class="notranslate"><code class="notranslate">${codeContent}</code></pre>
+        <div class="clipboard-container position-absolute right-0 top-0 ${additionalClasses}">
+            <clipboard-copy class="ClipboardButton btn m-2 p-0" role="button" style="display: inherit;">
+                <svg height="16" width="16" class="octicon octicon-copy m-2"><path d="${IconList["copy"]}"></path></svg>
+                <svg height="16" width="16" class="octicon octicon-check color-fg-success m-2 d-none"><path d="${IconList["check"]}"></path></svg>
+            </clipboard-copy>
+            <div class="copy-feedback">Copied!</div>
+        </div>
+    `;
+
+    const handleCodeElements = (selector = '') => {
+        document.querySelectorAll(selector).forEach(codeElement => {
+            const codeContent = codeElement.innerHTML;
+            const newStructure = document.createElement('div');
+            newStructure.className = 'snippet-clipboard-content position-relative overflow-auto';
+            newStructure.innerHTML = createClipboardHTML(codeContent);
+
+            const parentElement = codeElement.parentElement;
+            if (selector.includes('highlight')) {
+                parentElement.insertBefore(newStructure, codeElement.nextSibling);
+                parentElement.removeChild(codeElement);
+            } else {
+                parentElement.parentElement.replaceChild(newStructure, parentElement);
+            }
+        });
+    };
+
+    handleCodeElements('pre.notranslate > code.notranslate');
+    handleCodeElements('div.highlight > pre.notranslate');
+
+    let currentFeedback = null;
+    document.querySelectorAll('clipboard-copy').forEach(copyButton => {
+        copyButton.addEventListener('click', () => {
+            const codeContent = copyButton.closest('.snippet-clipboard-content').innerText;
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = codeContent;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            const copyIcon = copyButton.querySelector('.octicon-copy');
+            const checkIcon = copyButton.querySelector('.octicon-check');
+            const copyFeedback = copyButton.nextElementSibling;
+
+            if (currentFeedback && currentFeedback !== copyFeedback) {currentFeedback.style.display = 'none';}
+            currentFeedback = copyFeedback;
+
+            copyIcon.classList.add('d-none');
+            checkIcon.classList.remove('d-none');
+            copyFeedback.style.display = 'block';
+            copyButton.style.borderColor = 'var(--color-success-fg)';
+
+            setTimeout(() => {
+                copyIcon.classList.remove('d-none');
+                checkIcon.classList.add('d-none');
+                copyFeedback.style.display = 'none';
+                copyButton.style.borderColor = '';
+            }, 2000);
+        });
+    });
+});
+
+</script>
+
+
+</html>

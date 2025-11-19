@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html data-color-mode="light" data-dark-theme="dark" data-light-theme="light" lang="zh-CN">
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="content-type" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link href='https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/Primer/21.0.7/primer.css' rel='stylesheet' />
+    <script src='https://blog.meekdai.com/Gmeek/plugins/GmeekVercount.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script><style>body[data-ui-pending] #content {opacity:0;transition:opacity 0.3s ease;}</style><script>document.documentElement.setAttribute('data-ui-pending','true');</script><link rel='stylesheet' href='https://code.buxiantang.top/assets/GmeekBaseTheme.css'><script src='https://code.buxiantang.top/assets/GmeekCustomizeCss.js' defer></script>
+    <link rel="icon" href="https://z-xiao-m.github.io/github.io/avatar.svg"><script>
+        let theme = localStorage.getItem("meek_theme") || "light";
+        document.documentElement.setAttribute("data-color-mode", theme);
+    </script>
+<meta name="description" content="> [!CAUTION]
+> 以下内容来自AI总结 如有错误 需自行甄别 此处用作记录
+> 原文：https://boringsql.com/posts/postgresql-predefined-roles/
+
+### 1. 一段话总结
+PostgreSQL的**预定义角色**是15个内置的专项权限集合，旨在解决传统管理中“基础权限不足”与“超级用户权限过度授予”的二元困境，无需授予超级用户权限即可实现精细化运维——按功能分为数据访问（如`pg_read_all_data`）、监控与可观测性（如`pg_monitor`）、系统操作（如`pg_signal_backend`）、文件系统访问（如`pg_read_server_files`）及特殊用途五大类；其演进从PostgreSQL 9.6（2016）的首个角色`pg_signal_backend`持续到18（2025）的`pg_signal_autovacuum_worker`，不断解决实际运维痛点；其中**pg_database_owner**为特殊角色，无默认权限、成员资格随数据库动态变化且不可显式授予，修复了`public` schema的权限问题并支持模板继承，最终实现PostgreSQL运维从临时权限管理到**系统化工夫委派**的转变。">
+<meta property="og:title" content="PostgreSQL Predefined Roles (PostgreSQL预定义角色)">
+<meta property="og:description" content="> [!CAUTION]
+> 以下内容来自AI总结 如有错误 需自行甄别 此处用作记录
+> 原文：https://boringsql.com/posts/postgresql-predefined-roles/
+
+### 1. 一段话总结
+PostgreSQL的**预定义角色**是15个内置的专项权限集合，旨在解决传统管理中“基础权限不足”与“超级用户权限过度授予”的二元困境，无需授予超级用户权限即可实现精细化运维——按功能分为数据访问（如`pg_read_all_data`）、监控与可观测性（如`pg_monitor`）、系统操作（如`pg_signal_backend`）、文件系统访问（如`pg_read_server_files`）及特殊用途五大类；其演进从PostgreSQL 9.6（2016）的首个角色`pg_signal_backend`持续到18（2025）的`pg_signal_autovacuum_worker`，不断解决实际运维痛点；其中**pg_database_owner**为特殊角色，无默认权限、成员资格随数据库动态变化且不可显式授予，修复了`public` schema的权限问题并支持模板继承，最终实现PostgreSQL运维从临时权限管理到**系统化工夫委派**的转变。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%20Predefined%20Roles%20%28PostgreSQL-yu-ding-yi-jiao-se-%29.html">
+<meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
+<title>PostgreSQL Predefined Roles (PostgreSQL预定义角色)</title>
+<link href="//unpkg.com/@wooorm/starry-night@2.1.1/style/both.css" rel="stylesheet" />
+
+
+</head>
+<style>
+body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;padding: 45px;font-size: 16px;font-family: sans-serif;line-height: 1.25;}
+#header{display:flex;padding-bottom:8px;border-bottom: 1px solid var(--borderColor-muted, var(--color-border-muted));margin-bottom: 16px;}
+#footer {margin-top:64px; text-align: center;font-size: small;}
+
+</style>
+
+<style>
+.postTitle{margin: auto 0;font-size:40px;font-weight:bold;}
+.title-right{display:flex;margin:auto 0 0 auto;}
+.title-right .circle{padding: 14px 16px;margin-right:8px;}
+#postBody{border-bottom: 1px solid var(--color-border-default);padding-bottom:36px;}
+#postBody hr{height:2px;}
+#cmButton{height:48px;margin-top:48px;}
+#comments{margin-top:64px;}
+.g-emoji{font-size:24px;}
+@media (max-width: 600px) {
+    body {padding: 8px;}
+    .postTitle{font-size:24px;}
+}
+.copy-feedback {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    color: var(--color-fg-on-emphasis);
+    background-color: var(--color-fg-muted);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+</style>
+<style>#postBody{font-size:20px}</style><style>.markdown-alert{padding:0.5rem 1rem;margin-bottom:1rem;border-left:.25em solid var(--borderColor-default,var(--color-border-default));}.markdown-alert .markdown-alert-title {display:flex;font-weight:var(--base-text-weight-medium,500);align-items:center;line-height:1;}.markdown-alert>:first-child {margin-top:0;}.markdown-alert>:last-child {margin-bottom:0;}</style><style>.markdown-alert.markdown-alert-caution {border-left-color:var(--borderColor-danger-emphasis, var(--color-danger-emphasis));background-color:var(--color-danger-subtle);}.markdown-alert.markdown-alert-caution .markdown-alert-title {color: var(--fgColor-danger,var(--color-danger-fg));}</style>
+
+
+
+<body>
+    <div id="header">
+<h1 class="postTitle">PostgreSQL Predefined Roles (PostgreSQL预定义角色)</h1>
+<div class="title-right">
+    <a href="https://Z-Xiao-M.github.io/github.io" id="buttonHome" class="btn btn-invisible circle" title="首页">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathHome" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+    <a href="https://github.com/Z-Xiao-M/github.io/issues/36" target="_blank" class="btn btn-invisible circle" title="Issue">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathIssue" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+
+    <a class="btn btn-invisible circle" onclick="modeSwitch();" title="切换主题">
+        <svg class="octicon" width="16" height="16" >
+            <path id="themeSwitch" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+
+</div>
+</div>
+    <div id="content">
+<div class="markdown-body" id="postBody"><div class="markdown-alert markdown-alert-caution"><p class="markdown-alert-title"><svg class="octicon octicon-stop mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6a.749.749 0 0 1-.22.53l-4.25 4.25A.749.749 0 0 1 11 16H5a.749.749 0 0 1-.53-.22L.22 11.53A.749.749 0 0 1 0 11V5c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Caution</p><p>以下内容来自AI总结 如有错误 需自行甄别 此处用作记录<br>
+原文：<a href="https://boringsql.com/posts/postgresql-predefined-roles/" rel="nofollow">https://boringsql.com/posts/postgresql-predefined-roles/</a></p>
+</div>
+<h3>1. 一段话总结</h3>
+<p>PostgreSQL的<strong>预定义角色</strong>是15个内置的专项权限集合，旨在解决传统管理中“基础权限不足”与“超级用户权限过度授予”的二元困境，无需授予超级用户权限即可实现精细化运维——按功能分为数据访问（如<code class="notranslate">pg_read_all_data</code>）、监控与可观测性（如<code class="notranslate">pg_monitor</code>）、系统操作（如<code class="notranslate">pg_signal_backend</code>）、文件系统访问（如<code class="notranslate">pg_read_server_files</code>）及特殊用途五大类；其演进从PostgreSQL 9.6（2016）的首个角色<code class="notranslate">pg_signal_backend</code>持续到18（2025）的<code class="notranslate">pg_signal_autovacuum_worker</code>，不断解决实际运维痛点；其中<strong>pg_database_owner</strong>为特殊角色，无默认权限、成员资格随数据库动态变化且不可显式授予，修复了<code class="notranslate">public</code> schema的权限问题并支持模板继承，最终实现PostgreSQL运维从临时权限管理到<strong>系统化工夫委派</strong>的转变。</p>
+<hr>
+<h3>2. 思维导图（mindmap）</h3>
+<ul>
+<li>PostgreSQL预定义角色
+<ul>
+<li>
+<ol>
+<li>定义与核心价值</li>
+</ol>
+<ul>
+<li>解决“超级用户权限过度授予”痛点</li>
+<li>15个内置行政角色，提供granular（精细化）访问</li>
+<li>无需超级用户权限，覆盖常见运维场景</li>
+</ul>
+</li>
+<li>
+<ol start="2">
+<li>角色分类（按功能）</li>
+</ol>
+<ul>
+<li>数据访问角色
+<ul>
+<li><code class="notranslate">pg_database_owner</code>：数据库级ownership，特殊角色</li>
+<li><code class="notranslate">pg_read_all_data</code>：所有表、视图、序列的读权限</li>
+<li><code class="notranslate">pg_write_all_data</code>：所有表、视图、序列的写权限</li>
+</ul>
+</li>
+<li>监控与可观测性角色
+<ul>
+<li><code class="notranslate">pg_monitor</code>：元角色（包含以下3个角色）</li>
+<li><code class="notranslate">pg_read_all_settings</code>：配置信息访问</li>
+<li><code class="notranslate">pg_read_all_stats</code>：统计视图访问</li>
+<li><code class="notranslate">pg_stat_scan_tables</code>：表扫描统计</li>
+</ul>
+</li>
+<li>系统操作角色
+<ul>
+<li><code class="notranslate">pg_signal_backend</code>：取消查询、终止会话</li>
+<li><code class="notranslate">pg_checkpoint</code>：执行CHECKPOINT命令（15+）</li>
+<li><code class="notranslate">pg_maintain</code>：VACUUM/ANALYZE/REINDEX等（17+）</li>
+<li><code class="notranslate">pg_signal_autovacuum_worker</code>：信号自动清理进程（18+）</li>
+</ul>
+</li>
+<li>文件系统访问角色
+<ul>
+<li><code class="notranslate">pg_read_server_files</code>：读取服务器文件</li>
+<li><code class="notranslate">pg_write_server_files</code>：写入服务器文件</li>
+<li><code class="notranslate">pg_execute_server_program</code>：执行服务器程序</li>
+</ul>
+</li>
+<li>特殊用途角色
+<ul>
+<li><code class="notranslate">pg_create_subscription</code>：逻辑复制管理（16+）</li>
+<li><code class="notranslate">pg_use_reserved_connections</code>：使用预留连接（16+）</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<ol start="3">
+<li>演进历程（按版本）</li>
+</ol>
+<ul>
+<li>9.6（2016）：<code class="notranslate">pg_signal_backend</code>（解决无超级用户取消查询问题）</li>
+<li>10（2017）：<code class="notranslate">pg_monitor</code>等4个监控角色（提升可观测性）</li>
+<li>11（2018）：3个文件系统角色（安全管理文件访问）</li>
+<li>14（2021）：<code class="notranslate">pg_read_all_data</code>/<code class="notranslate">pg_write_all_data</code>/<code class="notranslate">pg_database_owner</code>（优化数据访问）</li>
+<li>15（2022）：<code class="notranslate">pg_checkpoint</code>（授权CHECKPOINT操作）</li>
+<li>16（2023）：<code class="notranslate">pg_use_reserved_connections</code>/<code class="notranslate">pg_create_subscription</code>（高流量连接/逻辑复制）</li>
+<li>17（2024）：<code class="notranslate">pg_maintain</code>（非超级用户执行维护操作）</li>
+<li>18（2025）：<code class="notranslate">pg_signal_autovacuum_worker</code>（信号自动清理进程）</li>
+</ul>
+</li>
+<li>
+<ol start="4">
+<li>特殊角色：pg_database_owner</li>
+</ol>
+<ul>
+<li>特性：数据库级动态成员、零默认权限、不可显式授予</li>
+<li>作用：修复<code class="notranslate">public</code> schema权限问题、支持模板继承（如函数自动应用到新数据库）</li>
+</ul>
+</li>
+<li>
+<ol start="5">
+<li>核心优势</li>
+</ol>
+<ul>
+<li>避免超级用户权限过度授予</li>
+<li>覆盖当前+未来创建的对象</li>
+<li>集群级作用域（除<code class="notranslate">pg_database_owner</code>）</li>
+<li>自动适配PostgreSQL新功能</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3>3. 详细总结</h3>
+<h4>1. 引言：PostgreSQL传统权限管理的痛点</h4>
+<p>传统PostgreSQL运维中，权限分配存在<strong>二元选择困境</strong>：要么仅授予基础权限（无法满足运维需求），要么直接授予超级用户权限（风险极高，如误删数据库）。这一问题源于PostgreSQL历史上运维权限选项有限，或用户对现有选项认知不足，导致大量非必要场景下过度授予超级用户权限。</p>
+<h4>2. 什么是预定义角色？</h4>
+<ul>
+<li><strong>定义</strong>：PostgreSQL内置的<strong>15个专项行政角色</strong>，为常见运维任务提供“按需分配”的精细化权限，无需授予超级用户权限即可完成监控、备份、维护等操作。</li>
+<li><strong>角色分类详情</strong>（按功能划分）：</li>
+</ul>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>功能类别</th>
+<th>角色名称</th>
+<th>核心权限</th>
+<th>备注（适用版本）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数据访问</td>
+<td><code class="notranslate">pg_database_owner</code></td>
+<td>数据库级ownership，无默认权限，成员资格随数据库动态变化</td>
+<td>特殊角色，14+</td>
+</tr>
+<tr>
+<td>数据访问</td>
+<td><code class="notranslate">pg_read_all_data</code></td>
+<td>读取所有表、视图、序列的数据</td>
+<td>14+</td>
+</tr>
+<tr>
+<td>数据访问</td>
+<td><code class="notranslate">pg_write_all_data</code></td>
+<td>写入所有表、视图、序列的数据</td>
+<td>14+，仍受RLS（行级安全）限制</td>
+</tr>
+<tr>
+<td>监控与可观测性</td>
+<td><code class="notranslate">pg_monitor</code></td>
+<td>元角色，继承<code class="notranslate">pg_read_all_settings</code>/<code class="notranslate">pg_read_all_stats</code>/<code class="notranslate">pg_stat_scan_tables</code></td>
+<td>10+，覆盖全面监控需求</td>
+</tr>
+<tr>
+<td>监控与可观测性</td>
+<td><code class="notranslate">pg_read_all_settings</code></td>
+<td>访问数据库配置参数（如<code class="notranslate">pg_settings</code>）</td>
+<td>10+</td>
+</tr>
+<tr>
+<td>监控与可观测性</td>
+<td><code class="notranslate">pg_read_all_stats</code></td>
+<td>访问统计视图（如<code class="notranslate">pg_stat_database</code>/<code class="notranslate">pg_stat_activity</code>）</td>
+<td>10+</td>
+</tr>
+<tr>
+<td>监控与可观测性</td>
+<td><code class="notranslate">pg_stat_scan_tables</code></td>
+<td>扫描表以收集详细统计信息（如I/O模式）</td>
+<td>10+</td>
+</tr>
+<tr>
+<td>系统操作</td>
+<td><code class="notranslate">pg_signal_backend</code></td>
+<td>取消查询（<code class="notranslate">pg_cancel_backend</code>）、终止会话（<code class="notranslate">pg_terminate_backend</code>）</td>
+<td>9.6+，首个预定义角色</td>
+</tr>
+<tr>
+<td>系统操作</td>
+<td><code class="notranslate">pg_checkpoint</code></td>
+<td>执行<code class="notranslate">CHECKPOINT</code>命令</td>
+<td>15+</td>
+</tr>
+<tr>
+<td>系统操作</td>
+<td><code class="notranslate">pg_maintain</code></td>
+<td>执行VACUUM、ANALYZE、REINDEX、REFRESH MATERIALIZED VIEW等维护操作</td>
+<td>17+</td>
+</tr>
+<tr>
+<td>系统操作</td>
+<td><code class="notranslate">pg_signal_autovacuum_worker</code></td>
+<td>向自动清理进程发送信号（如取消特定表的VACUUM）</td>
+<td>18+</td>
+</tr>
+<tr>
+<td>文件系统访问</td>
+<td><code class="notranslate">pg_read_server_files</code></td>
+<td>读取服务器文件系统中的文件</td>
+<td>11+</td>
+</tr>
+<tr>
+<td>文件系统访问</td>
+<td><code class="notranslate">pg_write_server_files</code></td>
+<td>向服务器文件系统写入文件</td>
+<td>11+</td>
+</tr>
+<tr>
+<td>文件系统访问</td>
+<td><code class="notranslate">pg_execute_server_program</code></td>
+<td>在服务器上执行外部程序</td>
+<td>11+</td>
+</tr>
+<tr>
+<td>特殊用途</td>
+<td><code class="notranslate">pg_create_subscription</code></td>
+<td>管理逻辑复制订阅</td>
+<td>16+</td>
+</tr>
+<tr>
+<td>特殊用途</td>
+<td><code class="notranslate">pg_use_reserved_connections</code></td>
+<td>使用预留连接（解决高流量数据库运维连接问题）</td>
+<td>16+</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<h4>3. 为什么使用预定义角色？</h4>
+<ol>
+<li><strong>解决权限过度授予问题</strong>：打破“基础权限→超级用户”的二元限制，将运维能力拆解为专项角色（如监控团队仅需<code class="notranslate">pg_monitor</code>，备份服务仅需<code class="notranslate">pg_read_all_data</code>）。</li>
+<li><strong>抽象化权限管理</strong>：从“手动管理单个对象权限”转向“管理逻辑能力集”，明确“允许做什么”而非“允许访问哪个对象”，降低维护复杂度。</li>
+<li><strong>覆盖范围广</strong>：
+<ul>
+<li>自动包含<strong>当前及未来创建的所有表、视图、序列、schema</strong>，无需重复授权；</li>
+<li>多数角色作用于<strong>集群级</strong>（仅<code class="notranslate">pg_database_owner</code>为数据库级），简化多数据库运维。</li>
+</ul>
+</li>
+<li><strong>自动适配新功能</strong>：PostgreSQL新版本的运维功能会自动纳入预定义角色体系，无需手动调整权限。</li>
+</ol>
+<ul>
+<li><strong>示例对比</strong>：传统授权 vs 预定义角色授权
+<ul>
+<li>传统授权（需逐个schema授权）：
+<div class="highlight highlight-source-sql"><pre class="notranslate"><span class="pl-k">GRANT</span> USAGE <span class="pl-k">ON</span> SCHEMA finance, hr, app, audit TO analytics_team;
+<span class="pl-k">GRANT</span> <span class="pl-k">SELECT</span> <span class="pl-k">ON</span> ALL TABLES <span class="pl-k">IN</span> SCHEMA finance TO analytics_team;
+<span class="pl-k">GRANT</span> <span class="pl-k">SELECT</span> <span class="pl-k">ON</span> ALL SEQUENCES <span class="pl-k">IN</span> SCHEMA finance TO analytics_team;</pre></div>
+</li>
+<li>预定义角色授权（一次完成）：
+<div class="highlight highlight-source-sql"><pre class="notranslate"><span class="pl-k">GRANT</span> pg_read_all_data TO analytics_team;</pre></div>
+</li>
+</ul>
+</li>
+</ul>
+<h4>4. 预定义角色的演进历程</h4>
+<p>PostgreSQL各版本通过新增预定义角色，持续解决实际运维痛点，演进趋势从“单一功能”到“覆盖全运维场景”：</p>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>PostgreSQL版本</th>
+<th>发布年份</th>
+<th>新增角色</th>
+<th>解决的核心问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>9.6</td>
+<td>2016</td>
+<td><code class="notranslate">pg_signal_backend</code></td>
+<td>无超级用户权限时无法取消查询、终止会话的问题</td>
+</tr>
+<tr>
+<td>10</td>
+<td>2017</td>
+<td><code class="notranslate">pg_monitor</code>/<code class="notranslate">pg_read_all_settings</code>/<code class="notranslate">pg_read_all_stats</code>/<code class="notranslate">pg_stat_scan_tables</code></td>
+<td>缺乏精细化监控权限，无法安全授予监控团队访问配置和统计数据的能力</td>
+</tr>
+<tr>
+<td>11</td>
+<td>2018</td>
+<td><code class="notranslate">pg_read_server_files</code>/<code class="notranslate">pg_write_server_files</code>/<code class="notranslate">pg_execute_server_program</code></td>
+<td>服务器文件操作（如COPY FROM）需超级用户权限，存在安全风险</td>
+</tr>
+<tr>
+<td>14</td>
+<td>2021</td>
+<td><code class="notranslate">pg_read_all_data</code>/<code class="notranslate">pg_write_all_data</code>/<code class="notranslate">pg_database_owner</code></td>
+<td>备份、ETL等场景需批量访问数据，且<code class="notranslate">public</code> schema权限混乱</td>
+</tr>
+<tr>
+<td>15</td>
+<td>2022</td>
+<td><code class="notranslate">pg_checkpoint</code></td>
+<td>执行CHECKPOINT维护操作需超级用户权限，过度授权</td>
+</tr>
+<tr>
+<td>16</td>
+<td>2023</td>
+<td><code class="notranslate">pg_use_reserved_connections</code>/<code class="notranslate">pg_create_subscription</code></td>
+<td>高流量数据库无法让非超级用户使用预留连接；逻辑复制管理需超级用户权限</td>
+</tr>
+<tr>
+<td>17</td>
+<td>2024</td>
+<td><code class="notranslate">pg_maintain</code></td>
+<td>VACUUM、REINDEX等核心维护操作需超级用户权限，自动化脚本风险高</td>
+</tr>
+<tr>
+<td>18</td>
+<td>2025</td>
+<td><code class="notranslate">pg_signal_autovacuum_worker</code></td>
+<td>无法在非超级用户权限下调整自动清理进程，导致性能问题（如峰值期VACUUM阻塞）</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<h4>5. 特殊角色：<code class="notranslate">pg_database_owner</code>的“魔法特性”</h4>
+<p><code class="notranslate">pg_database_owner</code>是唯一与其他预定义角色差异显著的角色，核心特性如下：</p>
+<ol>
+<li><strong>动态成员资格</strong>：成员资格随当前数据库变化，数据库所有者自动成为该角色成员（如<code class="notranslate">app_prod</code>数据库所有者<code class="notranslate">first_app</code>，自动拥有<code class="notranslate">pg_database_owner</code>权限）。</li>
+<li><strong>零默认权限</strong>：自身无任何预设权限，权限仅通过“手动授予”或“继承”获得，支持灵活的模板继承（如在<code class="notranslate">template1</code>中定义函数并授予该角色，新数据库自动继承）。</li>
+<li><strong>不可显式授予</strong>：无法通过<code class="notranslate">GRANT pg_database_owner TO 角色名</code>显式分配，避免权限滥用（执行该命令会报错：<code class="notranslate">ERROR: role "pg_database_owner" cannot have explicit members</code>）。</li>
+<li><strong>修复<code class="notranslate">public</code> schema权限</strong>：PostgreSQL 15前<code class="notranslate">public</code> schema由<code class="notranslate">postgres</code>用户所有，默认允许所有用户创建对象；15+后<code class="notranslate">public</code> schema由<code class="notranslate">pg_database_owner</code>所有，解决默认权限宽松的问题。</li>
+</ol>
+<ul>
+<li><strong>模板继承示例</strong>：
+<div class="highlight highlight-source-sql"><pre class="notranslate"><span class="pl-c"><span class="pl-c">--</span> 1. 在template1中定义函数并授予pg_database_owner</span>
+\c template1 postgres
+<span class="pl-k">CREATE OR REPLACE</span> <span class="pl-k">FUNCTION</span> <span class="pl-en">db_owner_stats</span>() RETURN ... SECURITY DEFINER;
+<span class="pl-k">GRANT</span> EXECUTE <span class="pl-k">ON</span> FUNCTION db_owner_stats() TO pg_database_owner;
+
+<span class="pl-c"><span class="pl-c">--</span> 2. 新创建的数据库自动继承该函数权限</span>
+<span class="pl-k">CREATE</span> <span class="pl-k">DATABASE</span> <span class="pl-en">app_prod</span> OWNER first_app; <span class="pl-c"><span class="pl-c">--</span> first_app自动拥有db_owner_stats执行权限</span>
+<span class="pl-k">CREATE</span> <span class="pl-k">DATABASE</span> <span class="pl-en">demo_prod</span> OWNER second_app; <span class="pl-c"><span class="pl-c">--</span> second_app自动拥有db_owner_stats执行权限</span></pre></div>
+</li>
+</ul>
+<h4>6. 结论</h4>
+<p>PostgreSQL预定义角色将运维从“临时权限管理”升级为“系统化工夫委派”，核心价值在于：无需信任用户即可授予必要的运维能力，避免超级用户权限滥用；且其演进持续贴合实际运维需求，每个版本新增角色均针对性解决痛点。建议在需要超级用户权限完成运维任务时，优先检查是否存在对应的预定义角色。</p>
+<hr>
+<h3>4. 关键问题</h3>
+<h4>问题1：PostgreSQL预定义角色如何解决传统权限管理中“超级用户权限过度授予”的痛点？</h4>
+<p>答案：传统权限管理存在“基础权限不足”与“超级用户权限过度”的二元困境，预定义角色通过以下方式解决：</p>
+<ol>
+<li><strong>精细化权限拆分</strong>：将超级用户的运维能力拆解为15个专项角色（如监控用<code class="notranslate">pg_monitor</code>、数据读取用<code class="notranslate">pg_read_all_data</code>、维护用<code class="notranslate">pg_maintain</code>），仅授予用户完成任务所需的最小权限；</li>
+<li><strong>抽象化权限逻辑</strong>：从“管理单个表/ schema权限”转向“管理功能能力集”，例如授予<code class="notranslate">pg_read_all_data</code>即可覆盖所有当前及未来表的读权限，无需逐个授权；</li>
+<li><strong>集群级覆盖</strong>：多数角色作用于集群级（非数据库级），简化多数据库运维，同时避免为每个数据库重复授予权限；</li>
+<li><strong>安全默认策略</strong>：即使是<code class="notranslate">pg_write_all_data</code>这类广权限角色，仍受Row Level Security（RLS）限制，进一步降低风险。</li>
+</ol>
+<h4>问题2：<code class="notranslate">pg_database_owner</code>作为特殊预定义角色，其“特殊性”体现在哪些方面？与其他角色有何核心差异？</h4>
+<p>答案：<code class="notranslate">pg_database_owner</code>的特殊性体现在4个核心维度，与其他角色差异显著：</p>
+<ol>
+<li><strong>动态成员资格</strong>：其他角色（如<code class="notranslate">pg_monitor</code>）的成员固定，而<code class="notranslate">pg_database_owner</code>的成员随数据库变化——数据库所有者自动成为该角色成员（如<code class="notranslate">app_prod</code>所有者<code class="notranslate">first_app</code>，仅在<code class="notranslate">app_prod</code>中拥有该角色权限）；</li>
+<li><strong>零默认权限</strong>：其他角色（如<code class="notranslate">pg_read_all_data</code>）有明确预设权限，而<code class="notranslate">pg_database_owner</code>自身无任何权限，仅通过“手动授予”或“模板继承”获得能力；</li>
+<li><strong>不可显式授予</strong>：其他角色可通过<code class="notranslate">GRANT</code>命令分配（如<code class="notranslate">GRANT pg_monitor TO exporter</code>），而<code class="notranslate">pg_database_owner</code>无法显式授予，执行<code class="notranslate">GRANT pg_database_owner TO 角色名</code>会报错，避免权限滥用；</li>
+<li><strong>数据库级作用域</strong>：其他角色（如<code class="notranslate">pg_signal_backend</code>）作用于集群级，而<code class="notranslate">pg_database_owner</code>仅作用于单个数据库，解决了<code class="notranslate">public</code> schema默认权限混乱的历史问题（15+后<code class="notranslate">public</code> schema由其所有，而非<code class="notranslate">postgres</code>用户）。</li>
+</ol>
+<h4>问题3：PostgreSQL预定义角色的演进呈现出怎样的趋势？各关键版本的角色分别针对哪些运维痛点？</h4>
+<p>答案：预定义角色的演进趋势为“从单一功能到全场景覆盖”，每个关键版本均针对当时的核心运维痛点新增角色，具体如下：</p>
+<ol>
+<li><strong>初始阶段（9.6，2016）</strong>：首个角色<code class="notranslate">pg_signal_backend</code>，解决“无超级用户权限无法取消异常查询、终止会话”的痛点，是预定义角色体系的起点；</li>
+<li><strong>监控强化（10，2017）</strong>：新增<code class="notranslate">pg_monitor</code>及3个下属监控角色，解决“监控团队需访问配置/统计数据，但无法安全授予超级用户权限”的痛点，提升生产环境可观测性；</li>
+<li><strong>文件安全（11，2018）</strong>：新增3个文件系统角色（如<code class="notranslate">pg_read_server_files</code>），解决“ETL/数据导入需读取服务器文件，但需超级用户权限”的安全风险；</li>
+<li><strong>数据访问优化（14，2021）</strong>：新增<code class="notranslate">pg_read_all_data</code>/<code class="notranslate">pg_write_all_data</code>，解决“备份、ETL需批量访问数据，需逐个schema授权”的繁琐问题；同时新增<code class="notranslate">pg_database_owner</code>，修复<code class="notranslate">public</code> schema权限混乱；</li>
+<li><strong>维护权限下放（15-17，2022-2024）</strong>：15年<code class="notranslate">pg_checkpoint</code>授权CHECKPOINT操作，17年<code class="notranslate">pg_maintain</code>开放VACUUM/REINDEX等核心维护操作，解决“自动化维护脚本需超级用户权限，风险高”的痛点；</li>
+<li><strong>高可用与性能（16-18，2023-2025）</strong>：16年<code class="notranslate">pg_use_reserved_connections</code>解决高流量数据库运维连接问题、<code class="notranslate">pg_create_subscription</code>支持逻辑复制；18年<code class="notranslate">pg_signal_autovacuum_worker</code>允许调整自动清理进程，解决峰值期VACUUM阻塞性能的问题。<br>
+整体演进始终围绕“降低超级用户依赖、贴合实际运维需求”展开，逐步覆盖监控、文件、数据、维护、高可用全场景。</li>
+</ol></div>
+<div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
+
+<button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
+<div class="comments" id="comments"></div>
+
+</div>
+    <div id="footer"><div id="footer1">Copyright © <span id="copyrightYear"></span> <a href="https://Z-Xiao-M.github.io/github.io">包里装着个卡比兽</a></div>
+<div id="footer2">
+    <span id="runday"></span><span>Powered by <a href="https://meekdai.com/Gmeek.html" target="_blank">Gmeek</a></span>
+</div>
+
+<script>
+var now=new Date();
+document.getElementById("copyrightYear").innerHTML=now.getFullYear();
+
+if("08/31/2025"!=""){
+    var startSite=new Date("08/31/2025");
+    var diff=now.getTime()-startSite.getTime();
+    var diffDay=Math.floor(diff/(1000*60*60*24));
+    document.getElementById("runday").innerHTML="网站运行"+diffDay+"天"+" • ";
+}
+</script></div>
+</body>
+<script>
+var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z', 'copy': 'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z', 'check': 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'};
+var utterancesLoad=0;
+
+let themeSettings={
+    "dark": ["dark","moon","#00f0ff","dark-blue"],
+    "light": ["light","sun","#ff5000","github-light"],
+    "auto": ["auto","sync","","preferred-color-scheme"]
+};
+function changeTheme(mode, icon, color, utheme){
+    document.documentElement.setAttribute("data-color-mode",mode);
+    document.getElementById("themeSwitch").setAttribute("d",value=IconList[icon]);
+    document.getElementById("themeSwitch").parentNode.style.color=color;
+    if(utterancesLoad==1){utterancesTheme(utheme);}
+}
+function modeSwitch(){
+    let currentMode=document.documentElement.getAttribute('data-color-mode');
+    let newMode = currentMode === "light" ? "dark" : currentMode === "dark" ? "auto" : "light";
+    localStorage.setItem("meek_theme", newMode);
+    if(themeSettings[newMode]){
+        changeTheme(...themeSettings[newMode]);
+    }
+}
+function utterancesTheme(theme){
+    const message={type:'set-theme',theme: theme};
+    const iframe=document.getElementsByClassName('utterances-frame')[0];
+    iframe.contentWindow.postMessage(message,'https://utteranc.es');
+}
+if(themeSettings[theme]){changeTheme(...themeSettings[theme]);}
+console.log("\n %c Gmeek last https://github.com/Meekdai/Gmeek \n","padding:5px 0;background:#02d81d;color:#fff");
+</script>
+
+<script>
+document.getElementById("pathHome").setAttribute("d",IconList["home"]);
+document.getElementById("pathIssue").setAttribute("d",IconList["github"]);
+
+
+
+function openComments(){
+    cm=document.getElementById("comments");
+    cmButton=document.getElementById("cmButton");
+    cmButton.innerHTML="loading";
+    span=document.createElement("span");
+    span.setAttribute("class","AnimatedEllipsis");
+    cmButton.appendChild(span);
+
+    script=document.createElement("script");
+    script.setAttribute("src","https://utteranc.es/client.js");
+    script.setAttribute("repo","Z-Xiao-M/github.io");
+    script.setAttribute("issue-term","title");
+    
+    if(localStorage.getItem("meek_theme")=="dark"){script.setAttribute("theme","dark-blue");}
+    else if(localStorage.getItem("meek_theme")=="light") {script.setAttribute("theme","github-light");}
+    else{script.setAttribute("theme","preferred-color-scheme");}
+    
+    script.setAttribute("crossorigin","anonymous");
+    script.setAttribute("async","");
+    cm.appendChild(script);
+
+    int=self.setInterval("iFrameLoading()",200);
+}
+
+function iFrameLoading(){
+    var utterances=document.getElementsByClassName('utterances');
+    if(utterances.length==1){
+        if(utterances[0].style.height!=""){
+            utterancesLoad=1;
+            int=window.clearInterval(int);
+            document.getElementById("cmButton").style.display="none";
+            console.log("utterances Load OK");
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const createClipboardHTML = (codeContent, additionalClasses = '') => `
+        <pre class="notranslate"><code class="notranslate">${codeContent}</code></pre>
+        <div class="clipboard-container position-absolute right-0 top-0 ${additionalClasses}">
+            <clipboard-copy class="ClipboardButton btn m-2 p-0" role="button" style="display: inherit;">
+                <svg height="16" width="16" class="octicon octicon-copy m-2"><path d="${IconList["copy"]}"></path></svg>
+                <svg height="16" width="16" class="octicon octicon-check color-fg-success m-2 d-none"><path d="${IconList["check"]}"></path></svg>
+            </clipboard-copy>
+            <div class="copy-feedback">Copied!</div>
+        </div>
+    `;
+
+    const handleCodeElements = (selector = '') => {
+        document.querySelectorAll(selector).forEach(codeElement => {
+            const codeContent = codeElement.innerHTML;
+            const newStructure = document.createElement('div');
+            newStructure.className = 'snippet-clipboard-content position-relative overflow-auto';
+            newStructure.innerHTML = createClipboardHTML(codeContent);
+
+            const parentElement = codeElement.parentElement;
+            if (selector.includes('highlight')) {
+                parentElement.insertBefore(newStructure, codeElement.nextSibling);
+                parentElement.removeChild(codeElement);
+            } else {
+                parentElement.parentElement.replaceChild(newStructure, parentElement);
+            }
+        });
+    };
+
+    handleCodeElements('pre.notranslate > code.notranslate');
+    handleCodeElements('div.highlight > pre.notranslate');
+
+    let currentFeedback = null;
+    document.querySelectorAll('clipboard-copy').forEach(copyButton => {
+        copyButton.addEventListener('click', () => {
+            const codeContent = copyButton.closest('.snippet-clipboard-content').innerText;
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = codeContent;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            const copyIcon = copyButton.querySelector('.octicon-copy');
+            const checkIcon = copyButton.querySelector('.octicon-check');
+            const copyFeedback = copyButton.nextElementSibling;
+
+            if (currentFeedback && currentFeedback !== copyFeedback) {currentFeedback.style.display = 'none';}
+            currentFeedback = copyFeedback;
+
+            copyIcon.classList.add('d-none');
+            checkIcon.classList.remove('d-none');
+            copyFeedback.style.display = 'block';
+            copyButton.style.borderColor = 'var(--color-success-fg)';
+
+            setTimeout(() => {
+                copyIcon.classList.remove('d-none');
+                checkIcon.classList.add('d-none');
+                copyFeedback.style.display = 'none';
+                copyButton.style.borderColor = '';
+            }, 2000);
+        });
+    });
+});
+
+</script>
+
+
+</html>

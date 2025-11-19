@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html data-color-mode="light" data-dark-theme="dark" data-light-theme="light" lang="zh-CN">
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="content-type" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link href='https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/Primer/21.0.7/primer.css' rel='stylesheet' />
+    <script src='https://blog.meekdai.com/Gmeek/plugins/GmeekVercount.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script><style>body[data-ui-pending] #content {opacity:0;transition:opacity 0.3s ease;}</style><script>document.documentElement.setAttribute('data-ui-pending','true');</script><link rel='stylesheet' href='https://code.buxiantang.top/assets/GmeekBaseTheme.css'><script src='https://code.buxiantang.top/assets/GmeekCustomizeCss.js' defer></script>
+    <link rel="icon" href="https://z-xiao-m.github.io/github.io/avatar.svg"><script>
+        let theme = localStorage.getItem("meek_theme") || "light";
+        document.documentElement.setAttribute("data-color-mode", theme);
+    </script>
+<meta name="description" content="> [!CAUTION]
+> 以下内容来自AI总结 如有错误 需自行甄别 
+> 此处用作记录 参考 https://berthub.eu/articles/posts/practical-peg-parsing/ 生成
+> 或许可能替代Lex/Yacc 完成SQL的词法语法解析 duckdb有望成为先行者 官方文章[Runtime-Extensible SQL Parsers Using PEG](https://duckdb.org/2024/11/22/runtime-extensible-parsers.html)
+
+在软件开发中，“解析”是个绕不开的需求——小到解析配置文件里的向量数据，大到处理Prometheus监控指标、JSON/XML格式，甚至自定义协议。">
+<meta property="og:title" content="用PEG与cpp-peglib轻松搞定解析">
+<meta property="og:description" content="> [!CAUTION]
+> 以下内容来自AI总结 如有错误 需自行甄别 
+> 此处用作记录 参考 https://berthub.eu/articles/posts/practical-peg-parsing/ 生成
+> 或许可能替代Lex/Yacc 完成SQL的词法语法解析 duckdb有望成为先行者 官方文章[Runtime-Extensible SQL Parsers Using PEG](https://duckdb.org/2024/11/22/runtime-extensible-parsers.html)
+
+在软件开发中，“解析”是个绕不开的需求——小到解析配置文件里的向量数据，大到处理Prometheus监控指标、JSON/XML格式，甚至自定义协议。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/yong-PEG-yu-cpp-peglib-qing-song-gao-ding-jie-xi.html">
+<meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
+<title>用PEG与cpp-peglib轻松搞定解析</title>
+<link href="//unpkg.com/@wooorm/starry-night@2.1.1/style/both.css" rel="stylesheet" />
+
+
+</head>
+<style>
+body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;padding: 45px;font-size: 16px;font-family: sans-serif;line-height: 1.25;}
+#header{display:flex;padding-bottom:8px;border-bottom: 1px solid var(--borderColor-muted, var(--color-border-muted));margin-bottom: 16px;}
+#footer {margin-top:64px; text-align: center;font-size: small;}
+
+</style>
+
+<style>
+.postTitle{margin: auto 0;font-size:40px;font-weight:bold;}
+.title-right{display:flex;margin:auto 0 0 auto;}
+.title-right .circle{padding: 14px 16px;margin-right:8px;}
+#postBody{border-bottom: 1px solid var(--color-border-default);padding-bottom:36px;}
+#postBody hr{height:2px;}
+#cmButton{height:48px;margin-top:48px;}
+#comments{margin-top:64px;}
+.g-emoji{font-size:24px;}
+@media (max-width: 600px) {
+    body {padding: 8px;}
+    .postTitle{font-size:24px;}
+}
+.copy-feedback {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    color: var(--color-fg-on-emphasis);
+    background-color: var(--color-fg-muted);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+</style>
+<style>#postBody{font-size:20px}</style><style>.markdown-alert{padding:0.5rem 1rem;margin-bottom:1rem;border-left:.25em solid var(--borderColor-default,var(--color-border-default));}.markdown-alert .markdown-alert-title {display:flex;font-weight:var(--base-text-weight-medium,500);align-items:center;line-height:1;}.markdown-alert>:first-child {margin-top:0;}.markdown-alert>:last-child {margin-bottom:0;}</style><style>.markdown-alert.markdown-alert-caution {border-left-color:var(--borderColor-danger-emphasis, var(--color-danger-emphasis));background-color:var(--color-danger-subtle);}.markdown-alert.markdown-alert-caution .markdown-alert-title {color: var(--fgColor-danger,var(--color-danger-fg));}</style>
+
+
+
+<body>
+    <div id="header">
+<h1 class="postTitle">用PEG与cpp-peglib轻松搞定解析</h1>
+<div class="title-right">
+    <a href="https://Z-Xiao-M.github.io/github.io" id="buttonHome" class="btn btn-invisible circle" title="首页">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathHome" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+    <a href="https://github.com/Z-Xiao-M/github.io/issues/43" target="_blank" class="btn btn-invisible circle" title="Issue">
+        <svg class="octicon" width="16" height="16">
+            <path id="pathIssue" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+    
+
+    <a class="btn btn-invisible circle" onclick="modeSwitch();" title="切换主题">
+        <svg class="octicon" width="16" height="16" >
+            <path id="themeSwitch" fill-rule="evenodd"></path>
+        </svg>
+    </a>
+
+</div>
+</div>
+    <div id="content">
+<div class="markdown-body" id="postBody"><div class="markdown-alert markdown-alert-caution"><p class="markdown-alert-title"><svg class="octicon octicon-stop mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6a.749.749 0 0 1-.22.53l-4.25 4.25A.749.749 0 0 1 11 16H5a.749.749 0 0 1-.53-.22L.22 11.53A.749.749 0 0 1 0 11V5c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Caution</p><p>以下内容来自AI总结 如有错误 需自行甄别<br>
+此处用作记录 参考 <a href="https://berthub.eu/articles/posts/practical-peg-parsing/" rel="nofollow">https://berthub.eu/articles/posts/practical-peg-parsing/</a> 生成<br>
+或许可能替代Lex/Yacc 完成SQL的词法语法解析 duckdb有望成为先行者 官方文章<a href="https://duckdb.org/2024/11/22/runtime-extensible-parsers.html" rel="nofollow">Runtime-Extensible SQL Parsers Using PEG</a></p>
+</div>
+<p>在软件开发中，“解析”是个绕不开的需求——小到解析配置文件里的向量数据，大到处理Prometheus监控指标、JSON/XML格式，甚至自定义协议。过去，开发者要么靠正则表达式硬啃，要么用Lex/Yacc这类传统工具搭建解析器，但前者易出错、难维护，后者配置复杂、与现代语言集成度低。直到<strong>Parsing Expression Grammars（PEG，解析表达式语法）</strong> 与轻量级库<a href="https://github.com/yhirose/cpp-peglib">cpp-peglib</a>的出现，才让“写一个健壮的解析器”从“麻烦事”变成了“随手能做的事”。</p>
+<h2>一、PEG：比传统语法更“懂开发者”的解析逻辑</h2>
+<p>PEG之所以能替代Lex/Yacc，核心在于它抛弃了传统LALR语法的“歧义处理”“冲突解决”等复杂概念，用更贴近人类思维的规则定义解析逻辑。它的关键特性的是“<strong>有序选择</strong>”和“<strong>前瞻断言</strong>”，这两个能力直接解决了很多解析场景的痛点。</p>
+<h3>1.  PEG的核心规则与运算符</h3>
+<p>与传统语法不同，PEG的规则更像“一步一步描述如何匹配文本”，核心运算符只有几个，但足够灵活：</p>
+<ul>
+<li><code class="notranslate">Rule &lt;- Expression</code>：定义规则，比如<code class="notranslate">Vector &lt;- '(' Number (',' Number)* ')'</code>表示“Vector是左括号+一个Number+零个或多个‘逗号+Number’+右括号”；</li>
+<li><code class="notranslate">/</code>：<strong>有序选择</strong>，不是“或”（OR），而是“按顺序尝试，第一个匹配成功的生效”。比如<code class="notranslate">Char &lt;- ('\\.' ) / (!'\\' .)</code>，会先尝试匹配转义字符（如<code class="notranslate">\"</code>），失败了再匹配普通字符；</li>
+<li><code class="notranslate">!</code>：<strong>否定前瞻断言</strong>，“看一眼下一个字符，如果是目标字符就不匹配当前规则”，且不消费文本。比如解析字符串时用<code class="notranslate">!'"' Char</code>，确保遇到双引号时停止，避免提前终止字符串；</li>
+<li><code class="notranslate">*</code>/<code class="notranslate">+</code>：分别表示“零或多次重复”“一次或多次重复”，与正则类似，但更严格（不会出现正则的“贪婪/非贪婪”混乱）；</li>
+<li><code class="notranslate">%whitespace &lt;- [\t ]*</code>：cpp-peglib的语法糖，自动忽略规则间的空格、制表符，不用手动在每个规则里加空格匹配。</li>
+</ul>
+<h3>2.  PEG vs Lex/Yacc：为什么选PEG？</h3>
+<p>传统的Lex/Yacc是“词法分析（Lex）+语法分析（Yacc）”分离的模式，需要分别写词法规则和语法规则，还得处理“移进-归约冲突”等问题，对新手极不友好。而PEG的优势很明确：</p>
+<ul>
+<li>无歧义：有序选择确保“只有一个正确匹配路径”，不用处理冲突；</li>
+<li>自顶向下解析：直接从“最终目标”（如Vector、Prometheus指标行）拆解到“最小单元”（如Number、字符），逻辑更直观；</li>
+<li>无需分离词法与语法：一个规则就能覆盖“词法+语法”，比如<code class="notranslate">Number &lt;- [+-]?[0-9]*([.][0-9]*)?</code>既定义了数字的格式，也完成了词法匹配。</li>
+</ul>
+<h2>二、cpp-peglib：让PEG在C++里“开箱即用”</h2>
+<p>cpp-peglib是一个单文件C++库（只需包含<code class="notranslate">peglib.h</code>），无需预处理、无外部依赖，甚至能直接解析docx这类复杂格式。它的核心设计理念是“简单的事简单做，复杂的事能做到”——用几行代码就能实现基础解析，扩展后也能处理HTML、XML等复杂场景。</p>
+<h3>实战1：解析向量数据（入门案例）</h3>
+<p>比如要解析<code class="notranslate">(0.123, -.987, 2.4, 3)</code>这样的向量，用cpp-peglib只需3步：定义语法、绑定语义动作、执行解析。</p>
+<h4>1. 定义PEG语法</h4>
+<p>首先用PEG描述向量的格式，明确“Vector由什么组成”“Number是什么样的”：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate">#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">"</span>peglib.h<span class="pl-pds">"</span></span>
+#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">&lt;</span>vector<span class="pl-pds">&gt;</span></span>
+#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">&lt;</span>fmt/format.h<span class="pl-pds">&gt;</span></span> <span class="pl-c"><span class="pl-c">//</span> 用于打印结果</span>
+
+<span class="pl-k">int</span> <span class="pl-en">main</span>(<span class="pl-k">int</span> argc, <span class="pl-k">char</span>** argv) {
+    <span class="pl-c"><span class="pl-c">//</span> 1. 定义PEG语法</span>
+    peg::parser <span class="pl-smi">parser</span>(<span class="pl-s"><span class="pl-pds">R"(</span></span>
+<span class="pl-s">        Vector      &lt;- '(' Number (',' Number)* ')'  # 向量结构：(数字, 数字, ...)</span>
+<span class="pl-s">        Number      &lt;- [+-]?[0-9]*([.][0-9]*)?       # 数字：支持正负、整数、小数</span>
+<span class="pl-s">        %whitespace &lt;- [\t ]*                        # 自动忽略空格、制表符</span>
+<span class="pl-s">    <span class="pl-pds">)"</span></span>);</pre></div>
+<h4>2. 绑定“语义动作”：把匹配的文本转成数据</h4>
+<p>语法只负责“匹配文本”，而我们需要的是“解析出的数值”（比如把<code class="notranslate">"0.123"</code>转成<code class="notranslate">double</code>）。cpp-peglib允许给每个规则绑定一个函数，这个函数就是“语义动作”：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate">    <span class="pl-c"><span class="pl-c">//</span> 给Number规则绑定动作：将匹配的文本转成double</span>
+    parser[<span class="pl-s"><span class="pl-pds">"</span>Number<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
+        <span class="pl-c"><span class="pl-c">//</span> vs.token_to_number&lt;double&gt;()：直接把匹配的文本转成double</span>
+        <span class="pl-k">return</span> vs.<span class="pl-smi">token_to_number</span>&lt;<span class="pl-k">double</span>&gt;();
+    };
+
+    <span class="pl-c"><span class="pl-c">//</span> 给Vector规则绑定动作：收集所有Number的结果，组成vector&lt;double&gt;</span>
+    parser[<span class="pl-s"><span class="pl-pds">"</span>Vector<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
+        <span class="pl-c"><span class="pl-c">//</span> vs是vector&lt;std::any&gt;，存储每个子规则（这里是Number）的返回值</span>
+        std::vector&lt;<span class="pl-k">double</span>&gt; result;
+        <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-k">auto</span>&amp; val : vs) {
+            <span class="pl-c"><span class="pl-c">//</span> 把std::any转成double，存入result</span>
+            result.<span class="pl-c1">push_back</span>(std::any_cast&lt;<span class="pl-k">double</span>&gt;(val));
+        }
+        <span class="pl-c"><span class="pl-c">//</span> 也可以用cpp-peglib的简写：return vs.transform&lt;double&gt;();</span>
+        <span class="pl-k">return</span> result;
+    };</pre></div>
+<h4>3. 执行解析并输出结果</h4>
+<p>最后调用<code class="notranslate">parser.parse()</code>，传入要解析的字符串，就能得到解析后的向量：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate">    <span class="pl-c"><span class="pl-c">//</span> 3. 执行解析</span>
+    std::vector&lt;<span class="pl-k">double</span>&gt; vector_result;
+    <span class="pl-k">if</span> (parser.parse(argv[<span class="pl-c1">1</span>], vector_result)) {
+        <span class="pl-c"><span class="pl-c">//</span> 用fmt打印结果</span>
+        <span class="pl-c1">fmt::print</span>(<span class="pl-s"><span class="pl-pds">"</span>解析结果：<span class="pl-pds">"</span></span>);
+        <span class="pl-k">for</span> (<span class="pl-c1">size_t</span> i = <span class="pl-c1">0</span>; i &lt; vector_result.<span class="pl-c1">size</span>(); ++i) {
+            <span class="pl-c1">fmt::print</span>(<span class="pl-s"><span class="pl-pds">"</span>{}{}<span class="pl-pds">"</span></span>, vector_result[i], i == vector_result.<span class="pl-c1">size</span>()-<span class="pl-c1">1</span> ? <span class="pl-s"><span class="pl-pds">"</span><span class="pl-cce">\n</span><span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>, <span class="pl-pds">"</span></span>);
+        }
+    } <span class="pl-k">else</span> {
+        <span class="pl-c1">fmt::print</span>(<span class="pl-s"><span class="pl-pds">"</span>解析失败！<span class="pl-cce">\n</span><span class="pl-pds">"</span></span>);
+    }
+
+    <span class="pl-k">return</span> <span class="pl-c1">0</span>;
+}</pre></div>
+<p>运行程序测试，输入<code class="notranslate">./vector_parser "(0.123, -.987, 2.4, 3)"</code>，输出如下：</p>
+<pre class="notranslate"><code class="notranslate">解析结果：0.123, -0.987, 2.4, 3
+</code></pre>
+<p>这个案例只用了20多行代码，比手动切割字符串、写正则验证的代码更简洁，且容错性更强（比如输入<code class="notranslate">( 1.2 , 3.4 )</code>带空格也能解析）。</p>
+<h2>三、攻克解析“老大难”：字符串转义处理</h2>
+<p>很多解析场景的痛点不是“匹配格式”，而是“处理转义”——比如解析<code class="notranslate">"This is a \"test\" string"</code>时，如何区分“转义的<code class="notranslate">"</code>”和“字符串结束的<code class="notranslate">"</code>”？PEG的“前瞻断言”和cpp-peglib的语义动作能轻松解决这个问题。</p>
+<h3>1. 定义支持转义的字符串语法</h3>
+<p>首先用PEG描述“带转义的字符串”：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate">peg::parser <span class="pl-en">str_parser</span>(<span class="pl-s"><span class="pl-pds">R"(</span></span>
+<span class="pl-s">    QuotedString  &lt;- "\"" String "\""  # 字符串："开头 + String + "结尾</span>
+<span class="pl-s">    String        &lt;- (!"\"" Char)*     # String：零或多个Char，直到遇到"</span>
+<span class="pl-s">    Char          &lt;- ('\\.' ) / (!'\\' .)  # Char：要么是转义字符（如\"），要么是普通字符</span>
+<span class="pl-s"><span class="pl-pds">)"</span></span>);</pre></div>
+<p>这里的关键是<code class="notranslate">! "\"" Char</code>：用<code class="notranslate">! "\""</code>判断“下一个字符是不是<code class="notranslate">"</code>”，如果是就停止匹配String，确保<code class="notranslate">"</code>只作为字符串结束符；而<code class="notranslate">Char</code>的规则用<code class="notranslate">/</code>有序选择，优先匹配转义字符（避免把<code class="notranslate">\</code>当成普通字符）。</p>
+<h3>2. 处理转义：从“匹配文本”到“干净字符”</h3>
+<p>匹配到<code class="notranslate">\"</code>后，我们需要的是<code class="notranslate">"</code>而不是<code class="notranslate">\"</code>，所以要在语义动作里处理：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate"><span class="pl-c"><span class="pl-c">//</span> 给Char绑定动作：处理转义</span>
+str_parser[<span class="pl-s"><span class="pl-pds">"</span>Char<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
+    std::string matched = vs.<span class="pl-c1">token_to_string</span>(); <span class="pl-c"><span class="pl-c">//</span> 拿到匹配的文本（如\"或a）</span>
+    <span class="pl-k">if</span> (vs.<span class="pl-c1">choice</span>() == <span class="pl-c1">0</span>) { <span class="pl-c"><span class="pl-c">//</span> choice()返回“选择运算符/的第几个分支匹配成功”，0表示转义分支</span>
+        <span class="pl-k">return</span> matched.<span class="pl-c1">substr</span>(<span class="pl-c1">1</span>); <span class="pl-c"><span class="pl-c">//</span> 截取\后面的字符（如\"→"）</span>
+    }
+    <span class="pl-k">return</span> matched; <span class="pl-c"><span class="pl-c">//</span> 普通字符直接返回</span>
+};
+
+<span class="pl-c"><span class="pl-c">//</span> 给String绑定动作：拼接所有Char的结果，组成完整字符串</span>
+str_parser[<span class="pl-s"><span class="pl-pds">"</span>QuotedString<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
+    std::string result;
+    <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-k">auto</span>&amp; val : vs) {
+        result += std::any_cast&lt;std::string&gt;(val);
+    }
+    <span class="pl-k">return</span> result;
+};</pre></div>
+<p>测试输入<code class="notranslate">./string_parser "\"This is a \\\"test\\\" string\""</code>，输出如下：</p>
+<pre class="notranslate"><code class="notranslate">解析结果：This is a "test" string
+</code></pre>
+<p>cpp-peglib还提供了一个简化技巧：用<code class="notranslate">&lt; &gt;</code>指定“需要保留的token部分”，比如把<code class="notranslate">Char</code>规则改成<code class="notranslate">Char &lt;- ('\\' &lt;.&gt; ) / (!'\\' .)</code>，<code class="notranslate">&lt;.&gt;</code>表示“只保留<code class="notranslate">.</code>匹配的字符”（即<code class="notranslate">\</code>后面的部分），这样语义动作里就不用手动截取了：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate">str_parser[<span class="pl-s"><span class="pl-pds">"</span>Char<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
+    <span class="pl-k">return</span> vs.<span class="pl-c1">token_to_string</span>(); <span class="pl-c"><span class="pl-c">//</span> 直接返回保留的部分，无需截取</span>
+};</pre></div>
+<h2>四、实战升级：解析Prometheus监控指标</h2>
+<p>Prometheus指标格式是典型的“非 trivial 解析场景”——包含注释（HELP/TYPE/普通）、指标行（带可选标签和时间戳）、UTF-8支持和转义规则。用cpp-peglib，200行代码就能实现一个合规的解析器。</p>
+<h3>1. Prometheus指标格式回顾</h3>
+<p>一个标准的Prometheus指标文件如下：</p>
+<pre class="notranslate"><code class="notranslate"># 普通注释
+# HELP apt_autoremove_pending Apt packages pending autoremoval.
+# TYPE apt_autoremove_pending gauge
+apt_autoremove_pending 73
+# HELP apt_upgrades_held Apt packages pending updates but held back.
+# TYPE apt_upgrades_held gauge
+apt_upgrades_held{arch="",origin=""} 0 1712003163000
+</code></pre>
+<p>核心结构包括：</p>
+<ul>
+<li>注释行：<code class="notranslate"># HELP 指标名 描述</code>、<code class="notranslate"># TYPE 指标名 类型</code>、普通<code class="notranslate"># 注释</code>；</li>
+<li>指标行：<code class="notranslate">指标名 [标签集] 值 [时间戳]</code>；</li>
+<li>标签值：需转义<code class="notranslate">\</code>、<code class="notranslate">"</code>、<code class="notranslate">\n</code>；</li>
+<li>值：支持普通浮点数、<code class="notranslate">+Inf</code>、<code class="notranslate">-Inf</code>、<code class="notranslate">NaN</code>。</li>
+</ul>
+<h3>2. 定义Prometheus的PEG语法</h3>
+<p>先拆解规则，从“根规则”到“最小单元”：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate">peg::parser <span class="pl-en">prom_parser</span>(<span class="pl-s"><span class="pl-pds">R"(</span></span>
+<span class="pl-s">    # 根规则：文件由多个“注释行/指标行 + 换行”组成</span>
+<span class="pl-s">    root        &lt;- (commentline / vline) '\n'+</span>
+<span class="pl-s">    # 注释行：区分HELP、TYPE、普通注释</span>
+<span class="pl-s">    commentline &lt;- ('# HELP ' name ' ' comment) / </span>
+<span class="pl-s">                   ('# TYPE ' name ' ' comment) / </span>
+<span class="pl-s">                   ('#' comment)</span>
+<span class="pl-s">    # 指标行：带标签或不带标签</span>
+<span class="pl-s">    vline       &lt;- (name ' ' value (' ' timestamp)?) / </span>
+<span class="pl-s">                   (name labels ' ' value (' ' timestamp)?)</span>
+<span class="pl-s">    # 标签集：{键=值, 键=值}</span>
+<span class="pl-s">    labels      &lt;- '{' nvpair (',' nvpair)* '}'</span>
+<span class="pl-s">    # 标签键值对：name="label_value"</span>
+<span class="pl-s">    nvpair      &lt;- name '=' "\"" label_value "\""</span>
+<span class="pl-s">    # 标签值：支持转义，直到遇到"</span>
+<span class="pl-s">    label_value &lt;- (!"\"" char)*</span>
+<span class="pl-s">    # 字符：支持转义（\、"、\n）</span>
+<span class="pl-s">    char        &lt;- ('\\.' ) / (!'\\' .)</span>
+<span class="pl-s">    # 辅助规则：注释内容（直到换行）、指标名（字母数字下划线）</span>
+<span class="pl-s">    comment     &lt;- (!'\n' .)*</span>
+<span class="pl-s">    name        &lt;- [a-zA-Z0-9_]+</span>
+<span class="pl-s">    # 值：优先匹配+Inf/-Inf/NaN，再匹配普通浮点数</span>
+<span class="pl-s">    value       &lt;- '+Inf' / '-Inf' / 'NaN' / [0-9.+e-]+</span>
+<span class="pl-s">    # 时间戳：整数（毫秒时间戳）</span>
+<span class="pl-s">    timestamp   &lt;- [+-]?[0-9]+</span>
+<span class="pl-s"><span class="pl-pds">)"</span></span>);</pre></div>
+<p>这里有个关键设计：<code class="notranslate">value</code>规则把<code class="notranslate">+Inf</code>/<code class="notranslate">-Inf</code>/<code class="notranslate">NaN</code>放在前面。因为如果先匹配<code class="notranslate">[0-9.+e-]+</code>，<code class="notranslate">+Inf</code>会被拆成<code class="notranslate">+</code>和<code class="notranslate">Inf</code>，导致解析失败。PEG的“有序选择”正好解决了这个问题——先匹配特殊值，再匹配普通值。</p>
+<h3>3. 绑定语义动作：处理特殊值与转义</h3>
+<h4>（1）处理指标值（含Inf/NaN）</h4>
+<p>Prometheus的<code class="notranslate">value</code>支持特殊浮点数，需要在语义动作里单独处理：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate">#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">&lt;</span>limits<span class="pl-pds">&gt;</span></span> <span class="pl-c"><span class="pl-c">//</span> 用于获取Inf/NaN</span>
+
+prom_parser[<span class="pl-s"><span class="pl-pds">"</span>value<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
+    <span class="pl-k">switch</span> (vs.<span class="pl-c1">choice</span>()) {
+        <span class="pl-k">case</span> <span class="pl-c1">0</span>: <span class="pl-k">return</span> std::numeric_limits&lt;<span class="pl-k">double</span>&gt;::<span class="pl-c1">infinity</span>(); <span class="pl-c"><span class="pl-c">//</span> +Inf</span>
+        <span class="pl-k">case</span> <span class="pl-c1">1</span>: <span class="pl-k">return</span> -std::numeric_limits&lt;<span class="pl-k">double</span>&gt;::<span class="pl-c1">infinity</span>(); <span class="pl-c"><span class="pl-c">//</span> -Inf</span>
+        <span class="pl-k">case</span> <span class="pl-c1">2</span>: <span class="pl-k">return</span> std::numeric_limits&lt;<span class="pl-k">double</span>&gt;::<span class="pl-c1">quiet_NaN</span>(); <span class="pl-c"><span class="pl-c">//</span> NaN</span>
+        <span class="pl-k">default</span>: <span class="pl-k">return</span> vs.<span class="pl-smi">token_to_number</span>&lt;<span class="pl-k">double</span>&gt;(); <span class="pl-c"><span class="pl-c">//</span> 普通浮点数</span>
+    }
+};</pre></div>
+<h4>（2）处理标签值的转义</h4>
+<p>根据Prometheus规范，标签值只能转义<code class="notranslate">\</code>、<code class="notranslate">"</code>、<code class="notranslate">\n</code>，其他转义字符需报错：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate">prom_parser[<span class="pl-s"><span class="pl-pds">"</span>char<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
+    std::string matched = vs.<span class="pl-c1">token_to_string</span>();
+    <span class="pl-k">if</span> (vs.<span class="pl-c1">choice</span>() == <span class="pl-c1">0</span>) { <span class="pl-c"><span class="pl-c">//</span> 转义分支</span>
+        <span class="pl-k">char</span> c = matched.<span class="pl-c1">at</span>(<span class="pl-c1">1</span>);
+        <span class="pl-c"><span class="pl-c">//</span> 检查是否为合规转义</span>
+        <span class="pl-k">if</span> (c != <span class="pl-s"><span class="pl-pds">'</span><span class="pl-cce">\\</span><span class="pl-pds">'</span></span> &amp;&amp; c != <span class="pl-s"><span class="pl-pds">'</span>"<span class="pl-pds">'</span></span> &amp;&amp; c != <span class="pl-s"><span class="pl-pds">'</span>n<span class="pl-pds">'</span></span>) {
+            <span class="pl-k">throw</span> <span class="pl-smi">std::runtime_error</span>(<span class="pl-c1">fmt::format</span>(<span class="pl-s"><span class="pl-pds">"</span>非法转义：<span class="pl-cce">\\</span>{}<span class="pl-pds">"</span></span>, c));
+        }
+        <span class="pl-c"><span class="pl-c">//</span> 把\n转成换行符</span>
+        <span class="pl-k">return</span> c == <span class="pl-s"><span class="pl-pds">'</span>n<span class="pl-pds">'</span></span> ? <span class="pl-c1">std::string</span>(<span class="pl-c1">1</span>, <span class="pl-s"><span class="pl-pds">'</span><span class="pl-cce">\n</span><span class="pl-pds">'</span></span>) : <span class="pl-c1">std::string</span>(<span class="pl-c1">1</span>, c);
+    }
+    <span class="pl-k">return</span> matched; <span class="pl-c"><span class="pl-c">//</span> 普通字符</span>
+};</pre></div>
+<h4>（3）收集指标数据</h4>
+<p>最后定义一个<code class="notranslate">PromMetric</code>结构体，存储解析后的指标信息（名称、标签、值、时间戳、HELP/TYPE），并在语义动作里填充数据（完整代码可参考<a href="https://berthub.eu/articles/posts/practical-peg-parsing/" rel="nofollow">网页示例</a>的<code class="notranslate">promparser.cc</code>）。</p>
+<h2>五、避坑指南：正则表达式不用“完美”</h2>
+<p>在PEG里用正则时，很多人会陷入“追求完美正则”的误区——比如为了匹配浮点数，写一个长达几十字符的正则（如<code class="notranslate">[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?</code>）。但实际上，PEG的正则只需“匹配文本范围”，无需“完整验证格式”。</p>
+<p>比如<code class="notranslate">Number &lt;- [+-]?[0-9]*([.][0-9]*)?</code>会匹配<code class="notranslate">+</code>、<code class="notranslate">.</code>这类“非合法浮点数”，但我们可以用cpp-peglib的<code class="notranslate">predicate</code>钩子在解析后验证：</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate"><span class="pl-c"><span class="pl-c">//</span> 给Number添加验证：确保是合法浮点数</span>
+parser[<span class="pl-s"><span class="pl-pds">"</span>Number<span class="pl-pds">"</span></span>].predicate = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
+    std::string token = vs.<span class="pl-c1">token_to_string</span>();
+    <span class="pl-c"><span class="pl-c">//</span> 尝试把token转成double，失败则返回false（解析报错）</span>
+    <span class="pl-k">try</span> {
+        <span class="pl-c1">std::stod</span>(token);
+        <span class="pl-k">return</span> <span class="pl-c1">true</span>;
+    } <span class="pl-k">catch</span> (...) {
+        <span class="pl-k">return</span> <span class="pl-c1">false</span>;
+    }
+};</pre></div>
+<p>这样既简化了正则语法，又能通过“解析后验证”确保数据合法性，还能自定义错误信息（比如“无效数字：+”），比复杂正则更灵活。</p>
+<h2>六、cpp-peglib的进阶能力</h2>
+<p>除了基础解析，cpp-peglib还有很多实用特性，能应对更复杂的场景：</p>
+<ul>
+<li><strong>AST生成</strong>：自动生成抽象语法树（AST），无需手动拼接数据，适合解析编程语言（如自定义脚本）；</li>
+<li><strong>增量解析</strong>：支持流式数据解析（如从文件流、网络流中逐段解析），不用等完整数据；</li>
+<li><strong>工具支持</strong>：提供在线语法调试工具（<a href="https://yhirose.github.io/cpp-peglib/" rel="nofollow">cpp-peglib在线编辑器</a>），能实时查看匹配过程，快速定位语法错误；</li>
+<li><strong>跨语言参考</strong>：如果不用C++，也可以用其他语言的PEG库——Go的<code class="notranslate">peggo</code>、Rust的<code class="notranslate">pest</code>、Python的<code class="notranslate">parsimonious</code>，核心逻辑与PEG一致。</li>
+</ul>
+<h2>总结：用PEG+cpp-peglib告别“糟糕的解析”</h2>
+<p>过去，写一个解析器需要权衡“复杂度”和“健壮性”——手动写的解析器易出错，Lex/Yacc又太复杂。而PEG+cpp-peglib打破了这个权衡：</p>
+<ul>
+<li>简单场景（如向量、配置项）：几行代码就能实现，比正则更可靠；</li>
+<li>复杂场景（如Prometheus、自定义协议）：200行代码就能覆盖转义、特殊值、错误处理，比手写代码少一半；</li>
+<li>可扩展性：从基础解析到AST生成、流式解析，能随需求升级。</li>
+</ul>
+<p>如果你下次再遇到“解析文本”的需求，不妨试试PEG+cpp-peglib——不用再靠正则“硬扛”，也不用为Lex/Yacc的配置头疼，用直观的规则就能写出健壮的解析器。</p></div>
+<div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
+
+<button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
+<div class="comments" id="comments"></div>
+
+</div>
+    <div id="footer"><div id="footer1">Copyright © <span id="copyrightYear"></span> <a href="https://Z-Xiao-M.github.io/github.io">包里装着个卡比兽</a></div>
+<div id="footer2">
+    <span id="runday"></span><span>Powered by <a href="https://meekdai.com/Gmeek.html" target="_blank">Gmeek</a></span>
+</div>
+
+<script>
+var now=new Date();
+document.getElementById("copyrightYear").innerHTML=now.getFullYear();
+
+if("08/31/2025"!=""){
+    var startSite=new Date("08/31/2025");
+    var diff=now.getTime()-startSite.getTime();
+    var diffDay=Math.floor(diff/(1000*60*60*24));
+    document.getElementById("runday").innerHTML="网站运行"+diffDay+"天"+" • ";
+}
+</script></div>
+</body>
+<script>
+var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z', 'copy': 'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z', 'check': 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'};
+var utterancesLoad=0;
+
+let themeSettings={
+    "dark": ["dark","moon","#00f0ff","dark-blue"],
+    "light": ["light","sun","#ff5000","github-light"],
+    "auto": ["auto","sync","","preferred-color-scheme"]
+};
+function changeTheme(mode, icon, color, utheme){
+    document.documentElement.setAttribute("data-color-mode",mode);
+    document.getElementById("themeSwitch").setAttribute("d",value=IconList[icon]);
+    document.getElementById("themeSwitch").parentNode.style.color=color;
+    if(utterancesLoad==1){utterancesTheme(utheme);}
+}
+function modeSwitch(){
+    let currentMode=document.documentElement.getAttribute('data-color-mode');
+    let newMode = currentMode === "light" ? "dark" : currentMode === "dark" ? "auto" : "light";
+    localStorage.setItem("meek_theme", newMode);
+    if(themeSettings[newMode]){
+        changeTheme(...themeSettings[newMode]);
+    }
+}
+function utterancesTheme(theme){
+    const message={type:'set-theme',theme: theme};
+    const iframe=document.getElementsByClassName('utterances-frame')[0];
+    iframe.contentWindow.postMessage(message,'https://utteranc.es');
+}
+if(themeSettings[theme]){changeTheme(...themeSettings[theme]);}
+console.log("\n %c Gmeek last https://github.com/Meekdai/Gmeek \n","padding:5px 0;background:#02d81d;color:#fff");
+</script>
+
+<script>
+document.getElementById("pathHome").setAttribute("d",IconList["home"]);
+document.getElementById("pathIssue").setAttribute("d",IconList["github"]);
+
+
+
+function openComments(){
+    cm=document.getElementById("comments");
+    cmButton=document.getElementById("cmButton");
+    cmButton.innerHTML="loading";
+    span=document.createElement("span");
+    span.setAttribute("class","AnimatedEllipsis");
+    cmButton.appendChild(span);
+
+    script=document.createElement("script");
+    script.setAttribute("src","https://utteranc.es/client.js");
+    script.setAttribute("repo","Z-Xiao-M/github.io");
+    script.setAttribute("issue-term","title");
+    
+    if(localStorage.getItem("meek_theme")=="dark"){script.setAttribute("theme","dark-blue");}
+    else if(localStorage.getItem("meek_theme")=="light") {script.setAttribute("theme","github-light");}
+    else{script.setAttribute("theme","preferred-color-scheme");}
+    
+    script.setAttribute("crossorigin","anonymous");
+    script.setAttribute("async","");
+    cm.appendChild(script);
+
+    int=self.setInterval("iFrameLoading()",200);
+}
+
+function iFrameLoading(){
+    var utterances=document.getElementsByClassName('utterances');
+    if(utterances.length==1){
+        if(utterances[0].style.height!=""){
+            utterancesLoad=1;
+            int=window.clearInterval(int);
+            document.getElementById("cmButton").style.display="none";
+            console.log("utterances Load OK");
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const createClipboardHTML = (codeContent, additionalClasses = '') => `
+        <pre class="notranslate"><code class="notranslate">${codeContent}</code></pre>
+        <div class="clipboard-container position-absolute right-0 top-0 ${additionalClasses}">
+            <clipboard-copy class="ClipboardButton btn m-2 p-0" role="button" style="display: inherit;">
+                <svg height="16" width="16" class="octicon octicon-copy m-2"><path d="${IconList["copy"]}"></path></svg>
+                <svg height="16" width="16" class="octicon octicon-check color-fg-success m-2 d-none"><path d="${IconList["check"]}"></path></svg>
+            </clipboard-copy>
+            <div class="copy-feedback">Copied!</div>
+        </div>
+    `;
+
+    const handleCodeElements = (selector = '') => {
+        document.querySelectorAll(selector).forEach(codeElement => {
+            const codeContent = codeElement.innerHTML;
+            const newStructure = document.createElement('div');
+            newStructure.className = 'snippet-clipboard-content position-relative overflow-auto';
+            newStructure.innerHTML = createClipboardHTML(codeContent);
+
+            const parentElement = codeElement.parentElement;
+            if (selector.includes('highlight')) {
+                parentElement.insertBefore(newStructure, codeElement.nextSibling);
+                parentElement.removeChild(codeElement);
+            } else {
+                parentElement.parentElement.replaceChild(newStructure, parentElement);
+            }
+        });
+    };
+
+    handleCodeElements('pre.notranslate > code.notranslate');
+    handleCodeElements('div.highlight > pre.notranslate');
+
+    let currentFeedback = null;
+    document.querySelectorAll('clipboard-copy').forEach(copyButton => {
+        copyButton.addEventListener('click', () => {
+            const codeContent = copyButton.closest('.snippet-clipboard-content').innerText;
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = codeContent;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            const copyIcon = copyButton.querySelector('.octicon-copy');
+            const checkIcon = copyButton.querySelector('.octicon-check');
+            const copyFeedback = copyButton.nextElementSibling;
+
+            if (currentFeedback && currentFeedback !== copyFeedback) {currentFeedback.style.display = 'none';}
+            currentFeedback = copyFeedback;
+
+            copyIcon.classList.add('d-none');
+            checkIcon.classList.remove('d-none');
+            copyFeedback.style.display = 'block';
+            copyButton.style.borderColor = 'var(--color-success-fg)';
+
+            setTimeout(() => {
+                copyIcon.classList.remove('d-none');
+                checkIcon.classList.add('d-none');
+                copyFeedback.style.display = 'none';
+                copyButton.style.borderColor = '';
+            }, 2000);
+        });
+    });
+});
+
+</script>
+
+
+</html>
