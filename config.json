@@ -12,7 +12,6 @@
     "themeMode":"manual",
     "dayTheme":"light",
     "nightTheme":"dark",
-    "urlMode":"ru_translit",
     "style":"<style>#postBody{font-size:20px}</style>",
     "head":"",
     "indexStyle":"",
