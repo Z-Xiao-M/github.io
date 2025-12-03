@@ -21,7 +21,7 @@ PostgreSQL 的 TOAST（The Oversized-Attribute Storage Technique，超大属性�
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-PostgreSQL-de-Toast.html">
 <meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
 <title>简单解析下PostgreSQL的Toast</title>
-<link href="//unpkg.com/@wooorm/starry-night@2.1.1/style/both.css" rel="stylesheet" />
+
 
 
 </head>
@@ -45,17 +45,7 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
     body {padding: 8px;}
     .postTitle{font-size:24px;}
 }
-.copy-feedback {
-    display: none;
-    position: absolute;
-    top: 10px;
-    right: 50px;
-    color: var(--color-fg-on-emphasis);
-    background-color: var(--color-fg-muted);
-    border-radius: 3px;
-    padding: 5px 8px;
-    font-size: 12px;
-}
+
 </style>
 <style>#postBody{font-size:20px}</style>
 
@@ -90,31 +80,31 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 <div class="markdown-body" id="postBody"><h1>什么是TOAST</h1>
 <p>PostgreSQL 的 TOAST（The Oversized-Attribute Storage Technique，超大属性存储技术）是针对大尺寸数据（如长文本、二进制数据等）的存储优化机制，当字段数据超过阈值时，会自动将其压缩或拆分后存储到独立的 TOAST 表中，主表仅保留引用指针，既解决了单条记录存储容量受限问题，又通过透明操作、多种存储策略和独立表设计，平衡了存储效率与访问性能，对 TEXT、BYTEA、JSONB 等可能存储大数据的类型尤为有效。</p>
 <h1>基础内容演示</h1>
-<div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 创建一个带有text字段的测试表</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> create table t(a text);</span>
+<pre lang="sql" class="notranslate"><code class="notranslate">postgres=# -- 创建一个带有text字段的测试表
+postgres=# create table t(a text);
 CREATE TABLE
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 查询相关元数据信息 可以看到reltoastrelid不为0</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_class where relname = 't' \gx</span>
-<span class="pl-k">-</span>[ RECORD <span class="pl-c1">1</span> ]<span class="pl-c"><span class="pl-c">--</span>-----+-------</span>
-<span class="pl-k">oid</span>                 | <span class="pl-c1">190095</span>
+postgres=# -- 查询相关元数据信息 可以看到reltoastrelid不为0
+postgres=# select * from pg_class where relname = 't' \gx
+-[ RECORD 1 ]-------+-------
+oid                 | 190095
 relname             | t
-relnamespace        | <span class="pl-c1">2200</span>
-reltype             | <span class="pl-c1">190097</span>
-reloftype           | <span class="pl-c1">0</span>
-relowner            | <span class="pl-c1">10</span>
-relam               | <span class="pl-c1">2</span>
-relfilenode         | <span class="pl-c1">190095</span>
-reltablespace       | <span class="pl-c1">0</span>
-relpages            | <span class="pl-c1">0</span>
-reltuples           | <span class="pl-k">-</span><span class="pl-c1">1</span>
-relallvisible       | <span class="pl-c1">0</span>
-reltoastrelid       | <span class="pl-c1">190098</span>
+relnamespace        | 2200
+reltype             | 190097
+reloftype           | 0
+relowner            | 10
+relam               | 2
+relfilenode         | 190095
+reltablespace       | 0
+relpages            | 0
+reltuples           | -1
+relallvisible       | 0
+reltoastrelid       | 190098
 relhasindex         | f
 relisshared         | f
 relpersistence      | p
 relkind             | r
-relnatts            | <span class="pl-c1">1</span>
-relchecks           | <span class="pl-c1">0</span>
+relnatts            | 1
+relchecks           | 0
 relhasrules         | f
 relhastriggers      | f
 relhassubclass      | f
@@ -123,36 +113,36 @@ relforcerowsecurity | f
 relispopulated      | t
 relreplident        | d
 relispartition      | f
-relrewrite          | <span class="pl-c1">0</span>
-relfrozenxid        | <span class="pl-c1">7322</span>
-relminmxid          | <span class="pl-c1">1</span>
+relrewrite          | 0
+relfrozenxid        | 7322
+relminmxid          | 1
 relacl              | 
 reloptions          | 
 relpartbound        | 
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 依据reltoastrelid 查询元数据信息</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 大致可以看到toast表是没有同名数据类型的</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from pg_class where oid = 190098 \gx</span>
-<span class="pl-k">-</span>[ RECORD <span class="pl-c1">1</span> ]<span class="pl-c"><span class="pl-c">--</span>-----+----------------</span>
-<span class="pl-k">oid</span>                 | <span class="pl-c1">190098</span>
+postgres=# -- 依据reltoastrelid 查询元数据信息
+postgres=# -- 大致可以看到toast表是没有同名数据类型的
+postgres=# select * from pg_class where oid = 190098 \gx
+-[ RECORD 1 ]-------+----------------
+oid                 | 190098
 relname             | pg_toast_190095
-relnamespace        | <span class="pl-c1">99</span>
-reltype             | <span class="pl-c1">0</span>
-reloftype           | <span class="pl-c1">0</span>
-relowner            | <span class="pl-c1">10</span>
-relam               | <span class="pl-c1">2</span>
-relfilenode         | <span class="pl-c1">190098</span>
-reltablespace       | <span class="pl-c1">0</span>
-relpages            | <span class="pl-c1">0</span>
-reltuples           | <span class="pl-k">-</span><span class="pl-c1">1</span>
-relallvisible       | <span class="pl-c1">0</span>
-reltoastrelid       | <span class="pl-c1">0</span>
+relnamespace        | 99
+reltype             | 0
+reloftype           | 0
+relowner            | 10
+relam               | 2
+relfilenode         | 190098
+reltablespace       | 0
+relpages            | 0
+reltuples           | -1
+relallvisible       | 0
+reltoastrelid       | 0
 relhasindex         | t
 relisshared         | f
 relpersistence      | p
 relkind             | t
-relnatts            | <span class="pl-c1">3</span>
-relchecks           | <span class="pl-c1">0</span>
+relnatts            | 3
+relchecks           | 0
 relhasrules         | f
 relhastriggers      | f
 relhassubclass      | f
@@ -161,333 +151,343 @@ relforcerowsecurity | f
 relispopulated      | t
 relreplident        | n
 relispartition      | f
-relrewrite          | <span class="pl-c1">0</span>
-relfrozenxid        | <span class="pl-c1">7322</span>
-relminmxid          | <span class="pl-c1">1</span>
+relrewrite          | 0
+relfrozenxid        | 7322
+relminmxid          | 1
 relacl              | 
 reloptions          | 
 relpartbound        | 
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 查看toast表 附加上pg_toast</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \d+ pg_toast.pg_toast_190095</span>
-TOAST table <span class="pl-s"><span class="pl-pds">"</span>pg_toast.pg_toast_190095<span class="pl-pds">"</span></span>
+postgres=# -- 查看toast表 附加上pg_toast
+postgres=# \d+ pg_toast.pg_toast_190095
+TOAST table "pg_toast.pg_toast_190095"
    Column   |  Type   | Storage 
-<span class="pl-c"><span class="pl-c">--</span>----------+---------+---------</span>
- chunk_id   | <span class="pl-k">oid</span>     | plain
- chunk_seq  | <span class="pl-k">integer</span> | plain
- chunk_data | <span class="pl-k">bytea</span>   | plain
-Owning table: <span class="pl-s"><span class="pl-pds">"</span>public.t<span class="pl-pds">"</span></span>
+------------+---------+---------
+ chunk_id   | oid     | plain
+ chunk_seq  | integer | plain
+ chunk_data | bytea   | plain
+Owning table: "public.t"
 Indexes:
-    <span class="pl-s"><span class="pl-pds">"</span>pg_toast_190095_index<span class="pl-pds">"</span></span> <span class="pl-k">PRIMARY KEY</span>, btree (chunk_id, chunk_seq)
+    "pg_toast_190095_index" PRIMARY KEY, btree (chunk_id, chunk_seq)
 Access method: heap
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 查询表对应的toast表名</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT </span>
-  <span class="pl-k">oid</span> <span class="pl-k">AS</span> main_table_oid,
-  reltoastrelid <span class="pl-k">AS</span> toast_table_oid,
-  reltoastrelid::regclass::<span class="pl-k">text</span> <span class="pl-k">AS</span> toast_table_name
-<span class="pl-k">FROM</span> pg_class <span class="pl-k">WHERE</span> relname<span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>t<span class="pl-pds">'</span></span>; 
+postgres=# -- 查询表对应的toast表名
+postgres=# SELECT 
+  oid AS main_table_oid,
+  reltoastrelid AS toast_table_oid,
+  reltoastrelid::regclass::text AS toast_table_name
+FROM pg_class WHERE relname='t'; 
  main_table_oid | toast_table_oid |     toast_table_name     
-<span class="pl-c"><span class="pl-c">--</span>--------------+-----------------+--------------------------</span>
-         <span class="pl-c1">190095</span> |          <span class="pl-c1">190098</span> | <span class="pl-c1">pg_toast</span>.<span class="pl-c1">pg_toast_190095</span>
-(<span class="pl-c1">1</span> row)
+----------------+-----------------+--------------------------
+         190095 |          190098 | pg_toast.pg_toast_190095
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 删除表</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> drop table t;</span>
-<span class="pl-k">DROP</span> <span class="pl-k">TABLE</span></pre></div>
+postgres=# -- 删除表
+postgres=# drop table t;
+DROP TABLE
+</code></pre>
 <h1>尝试触发toast机制</h1>
-<div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 创建一个带有text字段的测试表</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE TABLE t (c text);</span>
+<pre lang="sql" class="notranslate"><code class="notranslate">postgres=# -- 创建一个带有text字段的测试表
+postgres=# CREATE TABLE t (c text);
 CREATE TABLE
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 生成指定长度的随机字符串数据</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE OR REPLACE FUNCTION random_string(length integer)</span>
- RETURNS <span class="pl-k">text</span>
+postgres=# -- 生成指定长度的随机字符串数据
+postgres=# CREATE OR REPLACE FUNCTION random_string(length integer)
+ RETURNS text
  LANGUAGE sql
  IMMUTABLE
-<span class="pl-k">AS</span> $function$
-<span class="pl-k">SELECT</span> 
+AS $function$
+SELECT 
   string_agg(
-    (ARRAY[<span class="pl-s"><span class="pl-pds">'</span>0<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>1<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>2<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>3<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>4<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>5<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>6<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>7<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>8<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>9<span class="pl-pds">'</span></span>,
-           <span class="pl-s"><span class="pl-pds">'</span>A<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>B<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>C<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>D<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>E<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>F<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>G<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>H<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>I<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>J<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>K<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>L<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>M<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>N<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>O<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>P<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>Q<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>R<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>S<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>T<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>U<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>V<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>W<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>X<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>Y<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>Z<span class="pl-pds">'</span></span>,
-           <span class="pl-s"><span class="pl-pds">'</span>a<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>b<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>c<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>d<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>e<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>f<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>g<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>h<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>i<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>j<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>k<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>l<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>m<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>n<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>o<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>p<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>q<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>r<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>s<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>t<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>u<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>v<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>w<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>x<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>y<span class="pl-pds">'</span></span>,<span class="pl-s"><span class="pl-pds">'</span>z<span class="pl-pds">'</span></span>]) [floor(random() <span class="pl-k">*</span> <span class="pl-c1">62</span> <span class="pl-k">+</span> <span class="pl-c1">1</span>)::<span class="pl-k">INTEGER</span>],
-    <span class="pl-s"><span class="pl-pds">'</span><span class="pl-pds">'</span></span>) <span class="pl-k">FROM</span> generate_series(<span class="pl-c1">1</span>, GREATEST(length, <span class="pl-c1">1</span>));
+    (ARRAY['0','1','2','3','4','5','6','7','8','9',
+           'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+           'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z']) [floor(random() * 62 + 1)::INTEGER],
+    '') FROM generate_series(1, GREATEST(length, 1));
 $function$;
 CREATE FUNCTION
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 查看对应的toast表名</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT </span>
-  <span class="pl-k">oid</span> <span class="pl-k">AS</span> main_table_oid,
-  reltoastrelid <span class="pl-k">AS</span> toast_table_oid,
-  reltoastrelid::regclass::<span class="pl-k">text</span> <span class="pl-k">AS</span> toast_table_name
-<span class="pl-k">FROM</span> pg_class <span class="pl-k">WHERE</span> relname<span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>t<span class="pl-pds">'</span></span>; 
+postgres=# -- 查看对应的toast表名
+postgres=# SELECT 
+  oid AS main_table_oid,
+  reltoastrelid AS toast_table_oid,
+  reltoastrelid::regclass::text AS toast_table_name
+FROM pg_class WHERE relname='t'; 
  main_table_oid | toast_table_oid |     toast_table_name     
-<span class="pl-c"><span class="pl-c">--</span>--------------+-----------------+--------------------------</span>
-         <span class="pl-c1">190100</span> |          <span class="pl-c1">190103</span> | <span class="pl-c1">pg_toast</span>.<span class="pl-c1">pg_toast_190100</span>
-(<span class="pl-c1">1</span> row)
+----------------+-----------------+--------------------------
+         190100 |          190103 | pg_toast.pg_toast_190100
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 插入长度为2004的数据看是否触发</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> insert into t select random_string(2004);</span>
-INSERT <span class="pl-c1">0</span> <span class="pl-c1">1</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 可以看到对应的toast表大小为0 没有触发</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select pg_relation_size('t'), pg_relation_size('pg_toast.pg_toast_190100');</span>
+postgres=# -- 插入长度为2004的数据看是否触发
+postgres=# insert into t select random_string(2004);
+INSERT 0 1
+postgres=# -- 可以看到对应的toast表大小为0 没有触发
+postgres=# select pg_relation_size('t'), pg_relation_size('pg_toast.pg_toast_190100');
  pg_relation_size | pg_relation_size 
-<span class="pl-c"><span class="pl-c">--</span>----------------+------------------</span>
-             <span class="pl-c1">8192</span> |                <span class="pl-c1">0</span>
-(<span class="pl-c1">1</span> row)
+------------------+------------------
+             8192 |                0
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 插入长度为2005的数据看是否触发</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> insert into t select random_string(2005);</span>
-INSERT <span class="pl-c1">0</span> <span class="pl-c1">1</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> -- 成功触发</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select pg_relation_size('t'), pg_relation_size('pg_toast.pg_toast_190100');</span>
+postgres=# -- 插入长度为2005的数据看是否触发
+postgres=# insert into t select random_string(2005);
+INSERT 0 1
+postgres=# -- 成功触发
+postgres=# select pg_relation_size('t'), pg_relation_size('pg_toast.pg_toast_190100');
  pg_relation_size | pg_relation_size 
-<span class="pl-c"><span class="pl-c">--</span>----------------+------------------</span>
-             <span class="pl-c1">8192</span> |             <span class="pl-c1">8192</span>
-(<span class="pl-c1">1</span> row)
+------------------+------------------
+             8192 |             8192
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+postgres=# 
+</code></pre>
 <h1>为什么2005长度才能触发</h1>
 <p>有的资料写的是2KB触发，有的资料写的是2000字节触发，当然这是可以配置的，这里是2005，至于为什么是2005，那么需要我们来瞅瞅代码，值得关注的宏为<code class="notranslate">TOAST_TUPLE_THRESHOLD</code></p>
-<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">/*</span>
-<span class="pl-c"> * Find the maximum size of a tuple if there are to be N tuples per page.</span>
-<span class="pl-c"> */</span>
-<span class="pl-k">#define</span> <span class="pl-en">MaximumBytesPerTuple</span>(<span class="pl-s1">tuplesPerPage</span>) \
+<pre lang="c" class="notranslate"><code class="notranslate">/*
+ * Find the maximum size of a tuple if there are to be N tuples per page.
+ */
+#define MaximumBytesPerTuple(tuplesPerPage) \
 	MAXALIGN_DOWN((BLCKSZ - \
 				   MAXALIGN(SizeOfPageHeaderData + (tuplesPerPage) * sizeof(ItemIdData))) \
 				  / (tuplesPerPage))
 
-<span class="pl-c">/*</span>
-<span class="pl-c"> * These symbols control toaster activation.  If a tuple is larger than</span>
-<span class="pl-c"> * TOAST_TUPLE_THRESHOLD, we will try to toast it down to no more than</span>
-<span class="pl-c"> * TOAST_TUPLE_TARGET bytes through compressing compressible fields and</span>
-<span class="pl-c"> * moving EXTENDED and EXTERNAL data out-of-line.</span>
-<span class="pl-c"> *</span>
-<span class="pl-c"> * The numbers need not be the same, though they currently are.  It doesn't</span>
-<span class="pl-c"> * make sense for TARGET to exceed THRESHOLD, but it could be useful to make</span>
-<span class="pl-c"> * it be smaller.</span>
-<span class="pl-c"> *</span>
-<span class="pl-c"> * Currently we choose both values to match the largest tuple size for which</span>
-<span class="pl-c"> * TOAST_TUPLES_PER_PAGE tuples can fit on a heap page.</span>
-<span class="pl-c"> *</span>
-<span class="pl-c"> * XXX while these can be modified without initdb, some thought needs to be</span>
-<span class="pl-c"> * given to needs_toast_table() in toasting.c before unleashing random</span>
-<span class="pl-c"> * changes.  Also see LOBLKSIZE in large_object.h, which can *not* be</span>
-<span class="pl-c"> * changed without initdb.</span>
-<span class="pl-c"> */</span>
-<span class="pl-k">#define</span> <span class="pl-c1">TOAST_TUPLES_PER_PAGE</span>	4
+/*
+ * These symbols control toaster activation.  If a tuple is larger than
+ * TOAST_TUPLE_THRESHOLD, we will try to toast it down to no more than
+ * TOAST_TUPLE_TARGET bytes through compressing compressible fields and
+ * moving EXTENDED and EXTERNAL data out-of-line.
+ *
+ * The numbers need not be the same, though they currently are.  It doesn't
+ * make sense for TARGET to exceed THRESHOLD, but it could be useful to make
+ * it be smaller.
+ *
+ * Currently we choose both values to match the largest tuple size for which
+ * TOAST_TUPLES_PER_PAGE tuples can fit on a heap page.
+ *
+ * XXX while these can be modified without initdb, some thought needs to be
+ * given to needs_toast_table() in toasting.c before unleashing random
+ * changes.  Also see LOBLKSIZE in large_object.h, which can *not* be
+ * changed without initdb.
+ */
+#define TOAST_TUPLES_PER_PAGE	4
 
-<span class="pl-k">#define</span> <span class="pl-c1">TOAST_TUPLE_THRESHOLD</span>	MaximumBytesPerTuple(TOAST_TUPLES_PER_PAGE)
+#define TOAST_TUPLE_THRESHOLD	MaximumBytesPerTuple(TOAST_TUPLES_PER_PAGE)
 
-<span class="pl-k">#define</span> <span class="pl-c1">TOAST_TUPLE_TARGET</span>		TOAST_TUPLE_THRESHOLD</pre></div>
+#define TOAST_TUPLE_TARGET		TOAST_TUPLE_THRESHOLD
+</code></pre>
 <p>AI说的比我写的好，这里就直接贴一下好了<br>
 <a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/1f1f2d17-4a40-45fc-af1d-32ff113d80e6"><img width="799" height="589" alt="Image" src="https://github.com/user-attachments/assets/1f1f2d17-4a40-45fc-af1d-32ff113d80e6" style="max-width: 100%; height: auto; max-height: 589px;"></a></p>
 <p>代码逻辑</p>
-<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-k">static</span> <span class="pl-smi">HeapTuple</span>
-<span class="pl-en">heap_prepare_insert</span>(<span class="pl-smi">Relation</span> <span class="pl-s1">relation</span>, <span class="pl-smi">HeapTuple</span> <span class="pl-s1">tup</span>, <span class="pl-smi">TransactionId</span> <span class="pl-s1">xid</span>,
-					<span class="pl-smi">CommandId</span> <span class="pl-s1">cid</span>, <span class="pl-smi">int</span> <span class="pl-s1">options</span>)
+<pre lang="c" class="notranslate"><code class="notranslate">static HeapTuple
+heap_prepare_insert(Relation relation, HeapTuple tup, TransactionId xid,
+					CommandId cid, int options)
 {
-	<span class="pl-c">/*</span>
-<span class="pl-c">	 * To allow parallel inserts, we need to ensure that they are safe to be</span>
-<span class="pl-c">	 * performed in workers. We have the infrastructure to allow parallel</span>
-<span class="pl-c">	 * inserts in general except for the cases where inserts generate a new</span>
-<span class="pl-c">	 * CommandId (eg. inserts into a table having a foreign key column).</span>
-<span class="pl-c">	 */</span>
-	<span class="pl-k">if</span> (<span class="pl-en">IsParallelWorker</span>())
-		<span class="pl-en">ereport</span>(<span class="pl-c1">ERROR</span>,
-				(<span class="pl-en">errcode</span>(<span class="pl-c1">ERRCODE_INVALID_TRANSACTION_STATE</span>),
-				 <span class="pl-en">errmsg</span>(<span class="pl-s">"cannot insert tuples in a parallel worker"</span>)));
+	/*
+	 * To allow parallel inserts, we need to ensure that they are safe to be
+	 * performed in workers. We have the infrastructure to allow parallel
+	 * inserts in general except for the cases where inserts generate a new
+	 * CommandId (eg. inserts into a table having a foreign key column).
+	 */
+	if (IsParallelWorker())
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_TRANSACTION_STATE),
+				 errmsg("cannot insert tuples in a parallel worker")));
 
-	<span class="pl-s1">tup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_data</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_infomask</span> &amp;= ~(<span class="pl-c1">HEAP_XACT_MASK</span>);
-	<span class="pl-s1">tup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_data</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_infomask2</span> &amp;= ~(<span class="pl-c1">HEAP2_XACT_MASK</span>);
-	<span class="pl-s1">tup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_data</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_infomask</span> |= <span class="pl-c1">HEAP_XMAX_INVALID</span>;
-	<span class="pl-en">HeapTupleHeaderSetXmin</span>(<span class="pl-s1">tup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_data</span>, <span class="pl-s1">xid</span>);
-	<span class="pl-k">if</span> (<span class="pl-s1">options</span> <span class="pl-c1">&amp;</span> <span class="pl-c1">HEAP_INSERT_FROZEN</span>)
-		<span class="pl-en">HeapTupleHeaderSetXminFrozen</span>(<span class="pl-s1">tup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_data</span>);
+	tup-&gt;t_data-&gt;t_infomask &amp;= ~(HEAP_XACT_MASK);
+	tup-&gt;t_data-&gt;t_infomask2 &amp;= ~(HEAP2_XACT_MASK);
+	tup-&gt;t_data-&gt;t_infomask |= HEAP_XMAX_INVALID;
+	HeapTupleHeaderSetXmin(tup-&gt;t_data, xid);
+	if (options &amp; HEAP_INSERT_FROZEN)
+		HeapTupleHeaderSetXminFrozen(tup-&gt;t_data);
 
-	<span class="pl-en">HeapTupleHeaderSetCmin</span>(<span class="pl-s1">tup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_data</span>, <span class="pl-s1">cid</span>);
-	<span class="pl-en">HeapTupleHeaderSetXmax</span>(<span class="pl-s1">tup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_data</span>, <span class="pl-c1">0</span>); <span class="pl-c">/* for cleanliness */</span>
-	<span class="pl-s1">tup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_tableOid</span> <span class="pl-c1">=</span> <span class="pl-en">RelationGetRelid</span>(<span class="pl-s1">relation</span>);
+	HeapTupleHeaderSetCmin(tup-&gt;t_data, cid);
+	HeapTupleHeaderSetXmax(tup-&gt;t_data, 0); /* for cleanliness */
+	tup-&gt;t_tableOid = RelationGetRelid(relation);
 
-	<span class="pl-c">/*</span>
-<span class="pl-c">	 * If the new tuple is too big for storage or contains already toasted</span>
-<span class="pl-c">	 * out-of-line attributes from some other relation, invoke the toaster.</span>
-<span class="pl-c">	 */</span>
-	<span class="pl-k">if</span> (<span class="pl-s1">relation</span><span class="pl-c1">-&gt;</span><span class="pl-c1">rd_rel</span><span class="pl-c1">-&gt;</span><span class="pl-c1">relkind</span> <span class="pl-c1">!=</span> <span class="pl-c1">RELKIND_RELATION</span> <span class="pl-c1">&amp;&amp;</span>
-		<span class="pl-s1">relation</span><span class="pl-c1">-&gt;</span><span class="pl-c1">rd_rel</span><span class="pl-c1">-&gt;</span><span class="pl-c1">relkind</span> <span class="pl-c1">!=</span> <span class="pl-c1">RELKIND_MATVIEW</span>)
+	/*
+	 * If the new tuple is too big for storage or contains already toasted
+	 * out-of-line attributes from some other relation, invoke the toaster.
+	 */
+	if (relation-&gt;rd_rel-&gt;relkind != RELKIND_RELATION &amp;&amp;
+		relation-&gt;rd_rel-&gt;relkind != RELKIND_MATVIEW)
 	{
-		<span class="pl-c">/* toast table entries should never be recursively toasted */</span>
-		<span class="pl-en">Assert</span>(!<span class="pl-en">HeapTupleHasExternal</span>(<span class="pl-s1">tup</span>));
-		<span class="pl-k">return</span> <span class="pl-s1">tup</span>;
+		/* toast table entries should never be recursively toasted */
+		Assert(!HeapTupleHasExternal(tup));
+		return tup;
 	}
-	<span class="pl-k">else</span> <span class="pl-k">if</span> (<span class="pl-en">HeapTupleHasExternal</span>(<span class="pl-s1">tup</span>) <span class="pl-c1">||</span> <span class="pl-s1">tup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_len</span> <span class="pl-c1">&gt;</span> <span class="pl-c1">TOAST_TUPLE_THRESHOLD</span>)  <span class="pl-c">// 关注此处</span>
-		<span class="pl-k">return</span> <span class="pl-en">heap_toast_insert_or_update</span>(<span class="pl-s1">relation</span>, <span class="pl-s1">tup</span>, <span class="pl-c1">NULL</span>, <span class="pl-s1">options</span>);		<span class="pl-c">// 后续设计插入数据至toast表 可以参考后面的调用堆栈</span>
-	<span class="pl-k">else</span>
-		<span class="pl-k">return</span> <span class="pl-s1">tup</span>;
-}</pre></div>
+	else if (HeapTupleHasExternal(tup) || tup-&gt;t_len &gt; TOAST_TUPLE_THRESHOLD)  // 关注此处
+		return heap_toast_insert_or_update(relation, tup, NULL, options);		// 后续设计插入数据至toast表 可以参考后面的调用堆栈
+	else
+		return tup;
+}
+</code></pre>
 <p>在64位系统，默认page为8KB的场景，需要2005字节长度触发，因为2005 + 24（HeapTupleHeaderData堆元组头对齐） + 4（变长数据四字节VARHDRSZ） = 2033，而TOAST_TUPLE_THRESHOLD刚好是2032。</p>
 <p>对更多细节感兴趣的同学，还可以关注函数<code class="notranslate">SET_VARSIZE、heap_form_tuple</code>，应该可以解决你的疑惑。</p>
 <h1>明明仅仅插入了一条数据，为什么显示toast的表中存在两条</h1>
-<div class="highlight highlight-source-sql"><pre class="notranslate">postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE TABLE t (c text);</span>
+<pre lang="sql" class="notranslate"><code class="notranslate">postgres=# CREATE TABLE t (c text);
 CREATE TABLE
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> insert into t select random_string(2005);</span>
-INSERT <span class="pl-c1">0</span> <span class="pl-c1">1</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT </span>
-  <span class="pl-k">oid</span> <span class="pl-k">AS</span> main_table_oid,
-  reltoastrelid <span class="pl-k">AS</span> toast_table_oid,
-  reltoastrelid::regclass::<span class="pl-k">text</span> <span class="pl-k">AS</span> toast_table_name
-<span class="pl-k">FROM</span> pg_class <span class="pl-k">WHERE</span> relname<span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>t<span class="pl-pds">'</span></span>; 
+postgres=# insert into t select random_string(2005);
+INSERT 0 1
+postgres=# SELECT 
+  oid AS main_table_oid,
+  reltoastrelid AS toast_table_oid,
+  reltoastrelid::regclass::text AS toast_table_name
+FROM pg_class WHERE relname='t'; 
  main_table_oid | toast_table_oid |     toast_table_name     
-<span class="pl-c"><span class="pl-c">--</span>--------------+-----------------+--------------------------</span>
-         <span class="pl-c1">190106</span> |          <span class="pl-c1">190109</span> | <span class="pl-c1">pg_toast</span>.<span class="pl-c1">pg_toast_190106</span>
-(<span class="pl-c1">1</span> row)
+----------------+-----------------+--------------------------
+         190106 |          190109 | pg_toast.pg_toast_190106
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select count(*) from t;</span>
+postgres=# select count(*) from t;
  count 
-<span class="pl-c"><span class="pl-c">--</span>-----</span>
-     <span class="pl-c1">1</span>
-(<span class="pl-c1">1</span> row)
+-------
+     1
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select count(*) from pg_toast.pg_toast_190106;</span>
+postgres=# select count(*) from pg_toast.pg_toast_190106;
  count 
-<span class="pl-c"><span class="pl-c">--</span>-----</span>
-     <span class="pl-c1">2</span>
-(<span class="pl-c1">1</span> row)
+-------
+     2
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select length(chunk_data) from pg_toast.pg_toast_190106;</span>
+postgres=# select length(chunk_data) from pg_toast.pg_toast_190106;
  length 
-<span class="pl-c"><span class="pl-c">--</span>------</span>
-   <span class="pl-c1">1996</span>
-      <span class="pl-c1">9</span>
-(<span class="pl-c1">2</span> rows)</pre></div>
+--------
+   1996
+      9
+(2 rows)
+</code></pre>
 <p>因为数据太长被切片了，可以直接通过运行pg_controldata读取Maximum size of a TOAST chunk获得chunk大小</p>
-<div class="highlight highlight-source-shell"><pre class="notranslate">postgres@zxm-VMware-Virtual-Platform:<span class="pl-k">~</span>$ pg_controldata <span class="pl-k">|</span> grep <span class="pl-s"><span class="pl-pds">'</span>Maximum size of a TOAST chunk<span class="pl-pds">'</span></span> 
-Maximum size of a TOAST chunk:        1996</pre></div>
+<pre lang="shell" class="notranslate"><code class="notranslate">postgres@zxm-VMware-Virtual-Platform:~$ pg_controldata | grep 'Maximum size of a TOAST chunk' 
+Maximum size of a TOAST chunk:        1996
+</code></pre>
 <p>也可以通过计算宏<code class="notranslate">TOAST_MAX_CHUNK_SIZE</code>，</p>
-<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">/*</span>
-<span class="pl-c"> * When we store an oversize datum externally, we divide it into chunks</span>
-<span class="pl-c"> * containing at most TOAST_MAX_CHUNK_SIZE data bytes.  This number *must*</span>
-<span class="pl-c"> * be small enough that the completed toast-table tuple (including the</span>
-<span class="pl-c"> * ID and sequence fields and all overhead) will fit on a page.</span>
-<span class="pl-c"> * The coding here sets the size on the theory that we want to fit</span>
-<span class="pl-c"> * EXTERN_TUPLES_PER_PAGE tuples of maximum size onto a page.</span>
-<span class="pl-c"> *</span>
-<span class="pl-c"> * NB: Changing TOAST_MAX_CHUNK_SIZE requires an initdb.</span>
-<span class="pl-c"> */</span>
-<span class="pl-k">#define</span> <span class="pl-c1">EXTERN_TUPLES_PER_PAGE</span>	4	<span class="pl-c">/* tweak only this */</span>
+<pre lang="c" class="notranslate"><code class="notranslate">/*
+ * When we store an oversize datum externally, we divide it into chunks
+ * containing at most TOAST_MAX_CHUNK_SIZE data bytes.  This number *must*
+ * be small enough that the completed toast-table tuple (including the
+ * ID and sequence fields and all overhead) will fit on a page.
+ * The coding here sets the size on the theory that we want to fit
+ * EXTERN_TUPLES_PER_PAGE tuples of maximum size onto a page.
+ *
+ * NB: Changing TOAST_MAX_CHUNK_SIZE requires an initdb.
+ */
+#define EXTERN_TUPLES_PER_PAGE	4	/* tweak only this */
 
-<span class="pl-k">#define</span> <span class="pl-c1">EXTERN_TUPLE_MAX_SIZE</span>	MaximumBytesPerTuple(EXTERN_TUPLES_PER_PAGE)
+#define EXTERN_TUPLE_MAX_SIZE	MaximumBytesPerTuple(EXTERN_TUPLES_PER_PAGE)
 
-<span class="pl-k">#define</span> <span class="pl-c1">TOAST_MAX_CHUNK_SIZE</span>	\
+#define TOAST_MAX_CHUNK_SIZE	\
 	(EXTERN_TUPLE_MAX_SIZE -							\
 	 MAXALIGN(SizeofHeapTupleHeader) -					\
 	 sizeof(Oid) -										\
 	 sizeof(int32) -									\
-	 VARHDRSZ)</pre></div>
+	 VARHDRSZ)
+
+</code></pre>
 <p>2032 - 24（元组头）- 4（chunk_id）- 4 (chunk_seq) - 4 (变长类型四字节头) = 1996</p>
 <p>实际处理逻辑位于 <code class="notranslate">src/backend/access/common/toast_internals.c</code> <code class="notranslate">toast_save_datum</code></p>
-<div class="highlight highlight-source-c"><pre class="notranslate">	<span class="pl-c">/*</span>
-<span class="pl-c">	 * Split up the item into chunks</span>
-<span class="pl-c">	 */</span>
-	<span class="pl-k">while</span> (<span class="pl-s1">data_todo</span> <span class="pl-c1">&gt;</span> <span class="pl-c1">0</span>)
+<pre lang="c" class="notranslate"><code class="notranslate">	/*
+	 * Split up the item into chunks
+	 */
+	while (data_todo &gt; 0)
 	{
-		<span class="pl-smi">int</span>			<span class="pl-s1">i</span>;
+		int			i;
 
-		<span class="pl-en">CHECK_FOR_INTERRUPTS</span>();
+		CHECK_FOR_INTERRUPTS();
 
-		<span class="pl-c">/*</span>
-<span class="pl-c">		 * Calculate the size of this chunk</span>
-<span class="pl-c">		 */</span>
-		<span class="pl-c">// 超过1996的大小 按照1996分割 多次处理</span>
-		<span class="pl-s1">chunk_size</span> <span class="pl-c1">=</span> <span class="pl-en">Min</span>(<span class="pl-c1">TOAST_MAX_CHUNK_SIZE</span>, <span class="pl-s1">data_todo</span>);
+		/*
+		 * Calculate the size of this chunk
+		 */
+		// 超过1996的大小 按照1996分割 多次处理
+		chunk_size = Min(TOAST_MAX_CHUNK_SIZE, data_todo);
 
-		<span class="pl-c">/*</span>
-<span class="pl-c">		 * Build a tuple and store it</span>
-<span class="pl-c">		 */</span>
-		<span class="pl-s1">t_values</span>[<span class="pl-c1">1</span>] <span class="pl-c1">=</span> <span class="pl-en">Int32GetDatum</span>(<span class="pl-s1">chunk_seq</span><span class="pl-c1">++</span>);
-		<span class="pl-en">SET_VARSIZE</span>(<span class="pl-c1">&amp;</span><span class="pl-s1">chunk_data</span>, <span class="pl-s1">chunk_size</span> <span class="pl-c1">+</span> <span class="pl-c1">VARHDRSZ</span>);
-		<span class="pl-en">memcpy</span>(<span class="pl-en">VARDATA</span>(<span class="pl-c1">&amp;</span><span class="pl-s1">chunk_data</span>), <span class="pl-s1">data_p</span>, <span class="pl-s1">chunk_size</span>);
-		<span class="pl-s1">toasttup</span> <span class="pl-c1">=</span> <span class="pl-en">heap_form_tuple</span>(<span class="pl-s1">toasttupDesc</span>, <span class="pl-s1">t_values</span>, <span class="pl-s1">t_isnull</span>);
-		<span class="pl-c">// 插入toast表</span>
-		<span class="pl-en">heap_insert</span>(<span class="pl-s1">toastrel</span>, <span class="pl-s1">toasttup</span>, <span class="pl-s1">mycid</span>, <span class="pl-s1">options</span>, <span class="pl-c1">NULL</span>);
+		/*
+		 * Build a tuple and store it
+		 */
+		t_values[1] = Int32GetDatum(chunk_seq++);
+		SET_VARSIZE(&amp;chunk_data, chunk_size + VARHDRSZ);
+		memcpy(VARDATA(&amp;chunk_data), data_p, chunk_size);
+		toasttup = heap_form_tuple(toasttupDesc, t_values, t_isnull);
+		// 插入toast表
+		heap_insert(toastrel, toasttup, mycid, options, NULL);
 
-		<span class="pl-c">/*</span>
-<span class="pl-c">		 * Create the index entry.  We cheat a little here by not using</span>
-<span class="pl-c">		 * FormIndexDatum: this relies on the knowledge that the index columns</span>
-<span class="pl-c">		 * are the same as the initial columns of the table for all the</span>
-<span class="pl-c">		 * indexes.  We also cheat by not providing an IndexInfo: this is okay</span>
-<span class="pl-c">		 * for now because btree doesn't need one, but we might have to be</span>
-<span class="pl-c">		 * more honest someday.</span>
-<span class="pl-c">		 *</span>
-<span class="pl-c">		 * Note also that there had better not be any user-created index on</span>
-<span class="pl-c">		 * the TOAST table, since we don't bother to update anything else.</span>
-<span class="pl-c">		 */</span>
-		<span class="pl-c">// 处理toast表对应的索引</span>
-		<span class="pl-k">for</span> (<span class="pl-s1">i</span> <span class="pl-c1">=</span> <span class="pl-c1">0</span>; <span class="pl-s1">i</span> <span class="pl-c1">&lt;</span> <span class="pl-s1">num_indexes</span>; <span class="pl-s1">i</span><span class="pl-c1">++</span>)
+		/*
+		 * Create the index entry.  We cheat a little here by not using
+		 * FormIndexDatum: this relies on the knowledge that the index columns
+		 * are the same as the initial columns of the table for all the
+		 * indexes.  We also cheat by not providing an IndexInfo: this is okay
+		 * for now because btree doesn't need one, but we might have to be
+		 * more honest someday.
+		 *
+		 * Note also that there had better not be any user-created index on
+		 * the TOAST table, since we don't bother to update anything else.
+		 */
+		// 处理toast表对应的索引
+		for (i = 0; i &lt; num_indexes; i++)
 		{
-			<span class="pl-c">/* Only index relations marked as ready can be updated */</span>
-			<span class="pl-k">if</span> (<span class="pl-s1">toastidxs</span>[<span class="pl-s1">i</span>]<span class="pl-c1">-&gt;</span><span class="pl-c1">rd_index</span><span class="pl-c1">-&gt;</span><span class="pl-c1">indisready</span>)
-				<span class="pl-en">index_insert</span>(<span class="pl-s1">toastidxs</span>[<span class="pl-s1">i</span>], <span class="pl-s1">t_values</span>, <span class="pl-s1">t_isnull</span>,
-							 <span class="pl-c1">&amp;</span>(<span class="pl-s1">toasttup</span><span class="pl-c1">-&gt;</span><span class="pl-c1">t_self</span>),
-							 <span class="pl-s1">toastrel</span>,
-							 <span class="pl-s1">toastidxs</span>[<span class="pl-s1">i</span>]<span class="pl-c1">-&gt;</span><span class="pl-c1">rd_index</span><span class="pl-c1">-&gt;</span><span class="pl-c1">indisunique</span> ?
-							 <span class="pl-c1">UNIQUE_CHECK_YES</span> : <span class="pl-c1">UNIQUE_CHECK_NO</span>,
-							 false, <span class="pl-c1">NULL</span>);
+			/* Only index relations marked as ready can be updated */
+			if (toastidxs[i]-&gt;rd_index-&gt;indisready)
+				index_insert(toastidxs[i], t_values, t_isnull,
+							 &amp;(toasttup-&gt;t_self),
+							 toastrel,
+							 toastidxs[i]-&gt;rd_index-&gt;indisunique ?
+							 UNIQUE_CHECK_YES : UNIQUE_CHECK_NO,
+							 false, NULL);
 		}
 
-		<span class="pl-c">/*</span>
-<span class="pl-c">		 * Free memory</span>
-<span class="pl-c">		 */</span>
-		<span class="pl-en">heap_freetuple</span>(<span class="pl-s1">toasttup</span>);
+		/*
+		 * Free memory
+		 */
+		heap_freetuple(toasttup);
 
-		<span class="pl-c">/*</span>
-<span class="pl-c">		 * Move on to next chunk</span>
-<span class="pl-c">		 */</span>
-		<span class="pl-s1">data_todo</span> <span class="pl-c1">-=</span> <span class="pl-s1">chunk_size</span>;
-		<span class="pl-s1">data_p</span> <span class="pl-c1">+=</span> <span class="pl-s1">chunk_size</span>;
-	}</pre></div>
+		/*
+		 * Move on to next chunk
+		 */
+		data_todo -= chunk_size;
+		data_p += chunk_size;
+	}
+</code></pre>
 <h1>数据都在toast表中那么主表里面存了个啥</h1>
 <p>主表插入了一条18字节长度的"TOAST pointer"</p>
-<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql
-psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
-Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+<pre lang="sql" class="notranslate"><code class="notranslate">postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type "help" for help.
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> create extension pageinspect;</span>
+postgres=# create extension pageinspect;
 CREATE EXTENSION
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> CREATE TABLE t (c text);</span>
+postgres=# CREATE TABLE t (c text);
 CREATE TABLE
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> insert into t select random_string(2005);</span>
-INSERT <span class="pl-c1">0</span> <span class="pl-c1">1</span>
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT </span>
-  <span class="pl-k">oid</span> <span class="pl-k">AS</span> main_table_oid,
-  reltoastrelid <span class="pl-k">AS</span> toast_table_oid,
-  reltoastrelid::regclass::<span class="pl-k">text</span> <span class="pl-k">AS</span> toast_table_name
-<span class="pl-k">FROM</span> pg_class <span class="pl-k">WHERE</span> relname<span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>t<span class="pl-pds">'</span></span>; 
+postgres=# insert into t select random_string(2005);
+INSERT 0 1
+postgres=# SELECT 
+  oid AS main_table_oid,
+  reltoastrelid AS toast_table_oid,
+  reltoastrelid::regclass::text AS toast_table_name
+FROM pg_class WHERE relname='t'; 
  main_table_oid | toast_table_oid |     toast_table_name     
-<span class="pl-c"><span class="pl-c">--</span>--------------+-----------------+--------------------------</span>
-         <span class="pl-c1">190157</span> |          <span class="pl-c1">190160</span> | <span class="pl-c1">pg_toast</span>.<span class="pl-c1">pg_toast_190157</span>
-(<span class="pl-c1">1</span> row)
+----------------+-----------------+--------------------------
+         190157 |          190160 | pg_toast.pg_toast_190157
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select chunk_id from pg_toast.pg_toast_190157;</span>
+postgres=# select chunk_id from pg_toast.pg_toast_190157;
  chunk_id 
-<span class="pl-c"><span class="pl-c">--</span>--------</span>
-   <span class="pl-c1">190162</span>
-   <span class="pl-c1">190162</span>
-(<span class="pl-c1">2</span> rows)
+----------
+   190162
+   190162
+(2 rows)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> SELECT encode(t_data,'hex')</span>
-<span class="pl-k">FROM</span>   heap_page_items(get_raw_page(<span class="pl-s"><span class="pl-pds">'</span>t<span class="pl-pds">'</span></span>,<span class="pl-c1">0</span>));
+postgres=# SELECT encode(t_data,'hex')
+FROM   heap_page_items(get_raw_page('t',0));
                 encode                
-<span class="pl-c"><span class="pl-c">--</span>------------------------------------</span>
+--------------------------------------
  0112d9070000d5070000d2e60200d0e60200
-(<span class="pl-c1">1</span> row)
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select x'01'::int as va_header, x'12'::int as va_tag, x'07d9'::int as va_rawsize,</span>
-x<span class="pl-s"><span class="pl-pds">'</span>07d5<span class="pl-pds">'</span></span>::<span class="pl-k">int</span> <span class="pl-k">as</span> va_extinfo, x<span class="pl-s"><span class="pl-pds">'</span>02e6d2<span class="pl-pds">'</span></span>::<span class="pl-k">int</span> <span class="pl-k">as</span> va_valueid, x<span class="pl-s"><span class="pl-pds">'</span>02e6d0<span class="pl-pds">'</span></span>::<span class="pl-k">int</span> <span class="pl-k">as</span> va_toastrelid;
+postgres=# select x'01'::int as va_header, x'12'::int as va_tag, x'07d9'::int as va_rawsize,
+x'07d5'::int as va_extinfo, x'02e6d2'::int as va_valueid, x'02e6d0'::int as va_toastrelid;
  va_header | va_tag | va_rawsize | va_extinfo | va_valueid | va_toastrelid 
-<span class="pl-c"><span class="pl-c">--</span>---------+--------+------------+------------+------------+---------------</span>
-         <span class="pl-c1">1</span> |     <span class="pl-c1">18</span> |       <span class="pl-c1">2009</span> |       <span class="pl-c1">2005</span> |     <span class="pl-c1">190162</span> |        <span class="pl-c1">190160</span>
-(<span class="pl-c1">1</span> row)
+-----------+--------+------------+------------+------------+---------------
+         1 |     18 |       2009 |       2005 |     190162 |        190160
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+postgres=# 
+</code></pre>
 <ul>
 <li>va_header 是标识大端还是小端，决定了我们需要怎么去解析数据，这里是小端0x01，对于大端应该是0x80</li>
 <li>va_tag 标识"TOAST pointer"的状态</li>
@@ -497,217 +497,221 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 <li>va_toastrelid 就显而易见了，是toast表的oid</li>
 </ul>
 <p>相关数据结构和接口</p>
-<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-c">/*</span>
-<span class="pl-c"> * Type tag for the various sorts of "TOAST pointer" datums.  The peculiar</span>
-<span class="pl-c"> * value for VARTAG_ONDISK comes from a requirement for on-disk compatibility</span>
-<span class="pl-c"> * with a previous notion that the tag field was the pointer datum's length.</span>
-<span class="pl-c"> */</span>
-<span class="pl-k">typedef</span> <span class="pl-k">enum</span> <span class="pl-smi">vartag_external</span>
+<pre lang="c" class="notranslate"><code class="notranslate">/*
+ * Type tag for the various sorts of "TOAST pointer" datums.  The peculiar
+ * value for VARTAG_ONDISK comes from a requirement for on-disk compatibility
+ * with a previous notion that the tag field was the pointer datum's length.
+ */
+typedef enum vartag_external
 {
-	<span class="pl-c1">VARTAG_INDIRECT</span> <span class="pl-c1">=</span> <span class="pl-c1">1</span>,
-	<span class="pl-c1">VARTAG_EXPANDED_RO</span> <span class="pl-c1">=</span> <span class="pl-c1">2</span>,
-	<span class="pl-c1">VARTAG_EXPANDED_RW</span> <span class="pl-c1">=</span> <span class="pl-c1">3</span>,
-	<span class="pl-c1">VARTAG_ONDISK</span> <span class="pl-c1">=</span> <span class="pl-c1">18</span>
-} <span class="pl-smi">vartag_external</span>;
+	VARTAG_INDIRECT = 1,
+	VARTAG_EXPANDED_RO = 2,
+	VARTAG_EXPANDED_RW = 3,
+	VARTAG_ONDISK = 18
+} vartag_external;
 
-<span class="pl-c">/*</span>
-<span class="pl-c"> * struct varatt_external is a traditional "TOAST pointer", that is, the</span>
-<span class="pl-c"> * information needed to fetch a Datum stored out-of-line in a TOAST table.</span>
-<span class="pl-c"> * The data is compressed if and only if the external size stored in</span>
-<span class="pl-c"> * va_extinfo is less than va_rawsize - VARHDRSZ.</span>
-<span class="pl-c"> *</span>
-<span class="pl-c"> * This struct must not contain any padding, because we sometimes compare</span>
-<span class="pl-c"> * these pointers using memcmp.</span>
-<span class="pl-c"> *</span>
-<span class="pl-c"> * Note that this information is stored unaligned within actual tuples, so</span>
-<span class="pl-c"> * you need to memcpy from the tuple into a local struct variable before</span>
-<span class="pl-c"> * you can look at these fields!  (The reason we use memcmp is to avoid</span>
-<span class="pl-c"> * having to do that just to detect equality of two TOAST pointers...)</span>
-<span class="pl-c"> */</span>
-<span class="pl-k">typedef</span> <span class="pl-k">struct</span> <span class="pl-smi">varatt_external</span>
+/*
+ * struct varatt_external is a traditional "TOAST pointer", that is, the
+ * information needed to fetch a Datum stored out-of-line in a TOAST table.
+ * The data is compressed if and only if the external size stored in
+ * va_extinfo is less than va_rawsize - VARHDRSZ.
+ *
+ * This struct must not contain any padding, because we sometimes compare
+ * these pointers using memcmp.
+ *
+ * Note that this information is stored unaligned within actual tuples, so
+ * you need to memcpy from the tuple into a local struct variable before
+ * you can look at these fields!  (The reason we use memcmp is to avoid
+ * having to do that just to detect equality of two TOAST pointers...)
+ */
+typedef struct varatt_external
 {
-	<span class="pl-smi">int32</span>		<span class="pl-c1">va_rawsize</span>;		<span class="pl-c">/* Original data size (includes header) */</span>
-	<span class="pl-smi">uint32</span>		<span class="pl-c1">va_extinfo</span>;		<span class="pl-c">/* External saved size (without header) and</span>
-<span class="pl-c">								 * compression method */</span>
-	<span class="pl-smi">Oid</span>			<span class="pl-c1">va_valueid</span>;		<span class="pl-c">/* Unique ID of value within TOAST table */</span>
-	<span class="pl-smi">Oid</span>			<span class="pl-c1">va_toastrelid</span>;	<span class="pl-c">/* RelID of TOAST table containing it */</span>
-}			<span class="pl-smi">varatt_external</span>;
+	int32		va_rawsize;		/* Original data size (includes header) */
+	uint32		va_extinfo;		/* External saved size (without header) and
+								 * compression method */
+	Oid			va_valueid;		/* Unique ID of value within TOAST table */
+	Oid			va_toastrelid;	/* RelID of TOAST table containing it */
+}			varatt_external;
 
-<span class="pl-en">SET_VARTAG_EXTERNAL</span>(<span class="pl-s1">result</span>, <span class="pl-c1">VARTAG_ONDISK</span>);
+SET_VARTAG_EXTERNAL(result, VARTAG_ONDISK);
 
-<span class="pl-k">static</span> <span class="pl-k">inline</span> <span class="pl-smi">void</span>
-<span class="pl-en">SET_VARTAG_EXTERNAL</span>(<span class="pl-smi">void</span> <span class="pl-c1">*</span><span class="pl-c1">PTR</span>, <span class="pl-smi">vartag_external</span> <span class="pl-s1">tag</span>)
+static inline void
+SET_VARTAG_EXTERNAL(void *PTR, vartag_external tag)
 {
-  <span class="pl-en">SET_VARTAG_1B_E</span>(<span class="pl-c1">PTR</span>, <span class="pl-s1">tag</span>);
+  SET_VARTAG_1B_E(PTR, tag);
 }
 
-<span class="pl-k">#define</span> <span class="pl-en">SET_VARTAG_1B_E</span>(<span class="pl-c1">PTR</span>,<span class="pl-s1">tag</span>) \
+#define SET_VARTAG_1B_E(PTR,tag) \
   (((varattrib_1b_e *) (PTR))-&gt;va_header = 0x01, \
-   ((varattrib_1b_e *) (PTR))-&gt;va_tag = (tag))</pre></div>
+   ((varattrib_1b_e *) (PTR))-&gt;va_tag = (tag))
+</code></pre>
 <p>省略部分代码<code class="notranslate">src/backend/access/common/toast_internals.c</code> <code class="notranslate">toast_save_datum</code></p>
-<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-smi">Datum</span>
-<span class="pl-en">toast_save_datum</span>(<span class="pl-smi">Relation</span> <span class="pl-s1">rel</span>, <span class="pl-smi">Datum</span> <span class="pl-s1">value</span>,
-				 <span class="pl-k">struct</span> <span class="pl-smi">varlena</span> <span class="pl-c1">*</span><span class="pl-s1">oldexternal</span>, <span class="pl-smi">int</span> <span class="pl-s1">options</span>)
+<pre lang="c" class="notranslate"><code class="notranslate">Datum
+toast_save_datum(Relation rel, Datum value,
+				 struct varlena *oldexternal, int options)
 {
-	<span class="pl-k">struct</span> <span class="pl-smi">varlena</span> <span class="pl-c1">*</span><span class="pl-s1">result</span>;
-	<span class="pl-k">struct</span> <span class="pl-smi">varatt_external</span> <span class="pl-s1">toast_pointer</span>;
+	struct varlena *result;
+	struct varatt_external toast_pointer;
     
-	<span class="pl-c">// ......</span>
+	// ......
 
-	<span class="pl-c">/*</span>
-<span class="pl-c">	 * Get the data pointer and length, and compute va_rawsize and va_extinfo.</span>
-<span class="pl-c">	 *</span>
-<span class="pl-c">	 * va_rawsize is the size of the equivalent fully uncompressed datum, so</span>
-<span class="pl-c">	 * we have to adjust for short headers.</span>
-<span class="pl-c">	 *</span>
-<span class="pl-c">	 * va_extinfo stored the actual size of the data payload in the toast</span>
-<span class="pl-c">	 * records and the compression method in first 2 bits if data is</span>
-<span class="pl-c">	 * compressed.</span>
-<span class="pl-c">	 */</span>
-	<span class="pl-k">if</span> (<span class="pl-en">VARATT_IS_SHORT</span>(<span class="pl-s1">dval</span>))
+	/*
+	 * Get the data pointer and length, and compute va_rawsize and va_extinfo.
+	 *
+	 * va_rawsize is the size of the equivalent fully uncompressed datum, so
+	 * we have to adjust for short headers.
+	 *
+	 * va_extinfo stored the actual size of the data payload in the toast
+	 * records and the compression method in first 2 bits if data is
+	 * compressed.
+	 */
+	if (VARATT_IS_SHORT(dval))
 	{
-		<span class="pl-s1">toast_pointer</span>.<span class="pl-c1">va_rawsize</span> <span class="pl-c1">=</span> <span class="pl-s1">data_todo</span> <span class="pl-c1">+</span> <span class="pl-c1">VARHDRSZ</span>;	<span class="pl-c">/* as if not short */</span>
-		<span class="pl-s1">toast_pointer</span>.<span class="pl-c1">va_extinfo</span> <span class="pl-c1">=</span> <span class="pl-s1">data_todo</span>;
+		toast_pointer.va_rawsize = data_todo + VARHDRSZ;	/* as if not short */
+		toast_pointer.va_extinfo = data_todo;
 	}
-	<span class="pl-k">else</span> <span class="pl-k">if</span> (<span class="pl-en">VARATT_IS_COMPRESSED</span>(<span class="pl-s1">dval</span>))
+	else if (VARATT_IS_COMPRESSED(dval))
 	{
-		<span class="pl-c">/* rawsize in a compressed datum is just the size of the payload */</span>
-		<span class="pl-s1">toast_pointer</span>.<span class="pl-c1">va_rawsize</span> <span class="pl-c1">=</span> <span class="pl-en">VARDATA_COMPRESSED_GET_EXTSIZE</span>(<span class="pl-s1">dval</span>) <span class="pl-c1">+</span> <span class="pl-c1">VARHDRSZ</span>;
+		/* rawsize in a compressed datum is just the size of the payload */
+		toast_pointer.va_rawsize = VARDATA_COMPRESSED_GET_EXTSIZE(dval) + VARHDRSZ;
 
-		<span class="pl-c">/* set external size and compression method */</span>
-		<span class="pl-en">VARATT_EXTERNAL_SET_SIZE_AND_COMPRESS_METHOD</span>(<span class="pl-s1">toast_pointer</span>, <span class="pl-s1">data_todo</span>,
-													 <span class="pl-en">VARDATA_COMPRESSED_GET_COMPRESS_METHOD</span>(<span class="pl-s1">dval</span>));
-		<span class="pl-c">/* Assert that the numbers look like it's compressed */</span>
-		<span class="pl-en">Assert</span>(<span class="pl-en">VARATT_EXTERNAL_IS_COMPRESSED</span>(<span class="pl-s1">toast_pointer</span>));
+		/* set external size and compression method */
+		VARATT_EXTERNAL_SET_SIZE_AND_COMPRESS_METHOD(toast_pointer, data_todo,
+													 VARDATA_COMPRESSED_GET_COMPRESS_METHOD(dval));
+		/* Assert that the numbers look like it's compressed */
+		Assert(VARATT_EXTERNAL_IS_COMPRESSED(toast_pointer));
 	}
-	<span class="pl-k">else</span>
+	else
 	{
-		<span class="pl-s1">toast_pointer</span>.<span class="pl-c1">va_rawsize</span> <span class="pl-c1">=</span> <span class="pl-en">VARSIZE</span>(<span class="pl-s1">dval</span>);
-		<span class="pl-s1">toast_pointer</span>.<span class="pl-c1">va_extinfo</span> <span class="pl-c1">=</span> <span class="pl-s1">data_todo</span>;
+		toast_pointer.va_rawsize = VARSIZE(dval);
+		toast_pointer.va_extinfo = data_todo;
 	}
 
-	<span class="pl-c">/*</span>
-<span class="pl-c">	 * Insert the correct table OID into the result TOAST pointer.</span>
-<span class="pl-c">	 *</span>
-<span class="pl-c">	 * Normally this is the actual OID of the target toast table, but during</span>
-<span class="pl-c">	 * table-rewriting operations such as CLUSTER, we have to insert the OID</span>
-<span class="pl-c">	 * of the table's real permanent toast table instead.  rd_toastoid is set</span>
-<span class="pl-c">	 * if we have to substitute such an OID.</span>
-<span class="pl-c">	 */</span>
-	<span class="pl-k">if</span> (<span class="pl-en">OidIsValid</span>(<span class="pl-s1">rel</span><span class="pl-c1">-&gt;</span><span class="pl-c1">rd_toastoid</span>))
-		<span class="pl-s1">toast_pointer</span>.<span class="pl-c1">va_toastrelid</span> <span class="pl-c1">=</span> <span class="pl-s1">rel</span><span class="pl-c1">-&gt;</span><span class="pl-c1">rd_toastoid</span>;
-	<span class="pl-k">else</span>
-		<span class="pl-s1">toast_pointer</span>.<span class="pl-c1">va_toastrelid</span> <span class="pl-c1">=</span> <span class="pl-en">RelationGetRelid</span>(<span class="pl-s1">toastrel</span>);
+	/*
+	 * Insert the correct table OID into the result TOAST pointer.
+	 *
+	 * Normally this is the actual OID of the target toast table, but during
+	 * table-rewriting operations such as CLUSTER, we have to insert the OID
+	 * of the table's real permanent toast table instead.  rd_toastoid is set
+	 * if we have to substitute such an OID.
+	 */
+	if (OidIsValid(rel-&gt;rd_toastoid))
+		toast_pointer.va_toastrelid = rel-&gt;rd_toastoid;
+	else
+		toast_pointer.va_toastrelid = RelationGetRelid(toastrel);
 
-      <span class="pl-c">// ......</span>
+      // ......
 
-	<span class="pl-c">/*</span>
-<span class="pl-c">	 * Create the TOAST pointer value that we'll return</span>
-<span class="pl-c">	 */</span>
-	<span class="pl-s1">result</span> <span class="pl-c1">=</span> (<span class="pl-k">struct</span> <span class="pl-smi">varlena</span> <span class="pl-c1">*</span>) <span class="pl-en">palloc</span>(<span class="pl-c1">TOAST_POINTER_SIZE</span>);
-	<span class="pl-en">SET_VARTAG_EXTERNAL</span>(<span class="pl-s1">result</span>, <span class="pl-c1">VARTAG_ONDISK</span>);  <span class="pl-c">// 这里设置VARTAG_ONDISK</span>
-	<span class="pl-en">memcpy</span>(<span class="pl-en">VARDATA_EXTERNAL</span>(<span class="pl-s1">result</span>), <span class="pl-c1">&amp;</span><span class="pl-s1">toast_pointer</span>, <span class="pl-k">sizeof</span>(<span class="pl-s1">toast_pointer</span>));
+	/*
+	 * Create the TOAST pointer value that we'll return
+	 */
+	result = (struct varlena *) palloc(TOAST_POINTER_SIZE);
+	SET_VARTAG_EXTERNAL(result, VARTAG_ONDISK);  // 这里设置VARTAG_ONDISK
+	memcpy(VARDATA_EXTERNAL(result), &amp;toast_pointer, sizeof(toast_pointer));
 
-	<span class="pl-k">return</span> <span class="pl-en">PointerGetDatum</span>(<span class="pl-s1">result</span>);
-}</pre></div>
+	return PointerGetDatum(result);
+}
+</code></pre>
 <h1>调用堆栈</h1>
-<div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-s1">toast_save_datum</span>(<span class="pl-smi">Relation</span> <span class="pl-s1">rel</span>, <span class="pl-s1">Datum</span> <span class="pl-s1">value</span>, <span class="pl-s1">struct</span> <span class="pl-s1">varlena</span> <span class="pl-c1">*</span> <span class="pl-s1">oldexternal</span>, <span class="pl-en">int</span> <span class="pl-s1">options</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">access</span>\<span class="pl-s1">common</span>\<span class="pl-s1">toast_internals</span>.<span class="pl-s1">c</span>:<span class="pl-c1">198</span>)
-<span class="pl-en">toast_tuple_externalize</span>(<span class="pl-s1">ToastTupleContext</span> <span class="pl-c1">*</span> <span class="pl-s1">ttc</span>, <span class="pl-s1">int</span> <span class="pl-s1">attribute</span>, <span class="pl-s1">int</span> <span class="pl-s1">options</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">access</span>\<span class="pl-s1">table</span>\<span class="pl-s1">toast_helper</span>.<span class="pl-s1">c</span>:<span class="pl-c1">263</span>)
-<span class="pl-en">heap_toast_insert_or_update</span>(<span class="pl-s1">Relation</span> <span class="pl-s1">rel</span>, <span class="pl-s1">HeapTuple</span> <span class="pl-s1">newtup</span>, <span class="pl-s1">HeapTuple</span> <span class="pl-s1">oldtup</span>, <span class="pl-s1">int</span> <span class="pl-s1">options</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">access</span>\<span class="pl-s1">heap</span>\<span class="pl-s1">heaptoast</span>.<span class="pl-s1">c</span>:<span class="pl-c1">217</span>)
-<span class="pl-en">heap_prepare_insert</span>(<span class="pl-s1">Relation</span> <span class="pl-s1">relation</span>, <span class="pl-s1">HeapTuple</span> <span class="pl-s1">tup</span>, <span class="pl-s1">TransactionId</span> <span class="pl-s1">xid</span>, <span class="pl-s1">CommandId</span> <span class="pl-s1">cid</span>, <span class="pl-s1">int</span> <span class="pl-s1">options</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">access</span>\<span class="pl-s1">heap</span>\<span class="pl-s1">heapam</span>.<span class="pl-s1">c</span>:<span class="pl-c1">2305</span>)
-<span class="pl-en">heap_insert</span>(<span class="pl-s1">Relation</span> <span class="pl-s1">relation</span>, <span class="pl-s1">HeapTuple</span> <span class="pl-s1">tup</span>, <span class="pl-s1">CommandId</span> <span class="pl-s1">cid</span>, <span class="pl-s1">int</span> <span class="pl-s1">options</span>, <span class="pl-s1">BulkInsertState</span> <span class="pl-s1">bistate</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">access</span>\<span class="pl-s1">heap</span>\<span class="pl-s1">heapam</span>.<span class="pl-s1">c</span>:<span class="pl-c1">2098</span>)
-<span class="pl-en">heapam_tuple_insert</span>(<span class="pl-s1">Relation</span> <span class="pl-s1">relation</span>, <span class="pl-s1">TupleTableSlot</span> <span class="pl-c1">*</span> <span class="pl-s1">slot</span>, <span class="pl-s1">CommandId</span> <span class="pl-s1">cid</span>, <span class="pl-s1">int</span> <span class="pl-s1">options</span>, <span class="pl-s1">BulkInsertState</span> <span class="pl-s1">bistate</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">access</span>\<span class="pl-s1">heap</span>\<span class="pl-s1">heapam_handler</span>.<span class="pl-s1">c</span>:<span class="pl-c1">255</span>)
-<span class="pl-en">table_tuple_insert</span>(<span class="pl-s1">Relation</span> <span class="pl-s1">rel</span>, <span class="pl-s1">TupleTableSlot</span> <span class="pl-c1">*</span> <span class="pl-s1">slot</span>, <span class="pl-s1">CommandId</span> <span class="pl-s1">cid</span>, <span class="pl-s1">int</span> <span class="pl-s1">options</span>, <span class="pl-s1">struct</span> <span class="pl-s1">BulkInsertStateData</span> <span class="pl-c1">*</span> <span class="pl-s1">bistate</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">include</span>\<span class="pl-s1">access</span>\<span class="pl-s1">tableam</span>.<span class="pl-s1">h</span>:<span class="pl-c1">1365</span>)
-<span class="pl-en">ExecInsert</span>(<span class="pl-s1">ModifyTableContext</span> <span class="pl-c1">*</span> <span class="pl-s1">context</span>, <span class="pl-s1">ResultRelInfo</span> <span class="pl-c1">*</span> <span class="pl-s1">resultRelInfo</span>, <span class="pl-s1">TupleTableSlot</span> <span class="pl-c1">*</span> <span class="pl-s1">slot</span>, <span class="pl-s1">_Bool</span> <span class="pl-s1">canSetTag</span>, <span class="pl-s1">TupleTableSlot</span> <span class="pl-c1">*</span><span class="pl-c1">*</span> <span class="pl-s1">inserted_tuple</span>, <span class="pl-s1">ResultRelInfo</span> <span class="pl-c1">*</span><span class="pl-c1">*</span> <span class="pl-s1">insert_destrel</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">executor</span>\<span class="pl-s1">nodeModifyTable</span>.<span class="pl-s1">c</span>:<span class="pl-c1">1234</span>)
-<span class="pl-en">ExecModifyTable</span>(<span class="pl-s1">PlanState</span> <span class="pl-c1">*</span> <span class="pl-s1">pstate</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">executor</span>\<span class="pl-s1">nodeModifyTable</span>.<span class="pl-s1">c</span>:<span class="pl-c1">4468</span>)
-<span class="pl-en">ExecProcNodeFirst</span>(<span class="pl-s1">PlanState</span> <span class="pl-c1">*</span> <span class="pl-s1">node</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">executor</span>\<span class="pl-s1">execProcnode</span>.<span class="pl-s1">c</span>:<span class="pl-c1">469</span>)
-<span class="pl-en">ExecProcNode</span>(<span class="pl-s1">PlanState</span> <span class="pl-c1">*</span> <span class="pl-s1">node</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">include</span>\<span class="pl-s1">executor</span>\<span class="pl-s1">executor</span>.<span class="pl-s1">h</span>:<span class="pl-c1">315</span>)
-<span class="pl-en">ExecutePlan</span>(<span class="pl-s1">QueryDesc</span> <span class="pl-c1">*</span> <span class="pl-s1">queryDesc</span>, <span class="pl-s1">CmdType</span> <span class="pl-s1">operation</span>, <span class="pl-s1">_Bool</span> <span class="pl-s1">sendTuples</span>, <span class="pl-s1">uint64</span> <span class="pl-s1">numberTuples</span>, <span class="pl-s1">ScanDirection</span> <span class="pl-s1">direction</span>, <span class="pl-s1">DestReceiver</span> <span class="pl-c1">*</span> <span class="pl-s1">dest</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">executor</span>\<span class="pl-s1">execMain</span>.<span class="pl-s1">c</span>:<span class="pl-c1">1678</span>)
-<span class="pl-en">standard_ExecutorRun</span>(<span class="pl-s1">QueryDesc</span> <span class="pl-c1">*</span> <span class="pl-s1">queryDesc</span>, <span class="pl-s1">ScanDirection</span> <span class="pl-s1">direction</span>, <span class="pl-s1">uint64</span> <span class="pl-s1">count</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">executor</span>\<span class="pl-s1">execMain</span>.<span class="pl-s1">c</span>:<span class="pl-c1">366</span>)
-<span class="pl-en">ExecutorRun</span>(<span class="pl-s1">QueryDesc</span> <span class="pl-c1">*</span> <span class="pl-s1">queryDesc</span>, <span class="pl-s1">ScanDirection</span> <span class="pl-s1">direction</span>, <span class="pl-s1">uint64</span> <span class="pl-s1">count</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">executor</span>\<span class="pl-s1">execMain</span>.<span class="pl-s1">c</span>:<span class="pl-c1">303</span>)
-<span class="pl-en">ProcessQuery</span>(<span class="pl-s1">PlannedStmt</span> <span class="pl-c1">*</span> <span class="pl-s1">plan</span>, <span class="pl-s1">const</span> <span class="pl-s1">char</span> <span class="pl-c1">*</span> <span class="pl-s1">sourceText</span>, <span class="pl-s1">ParamListInfo</span> <span class="pl-s1">params</span>, <span class="pl-s1">QueryEnvironment</span> <span class="pl-c1">*</span> <span class="pl-s1">queryEnv</span>, <span class="pl-s1">DestReceiver</span> <span class="pl-c1">*</span> <span class="pl-s1">dest</span>, <span class="pl-s1">QueryCompletion</span> <span class="pl-c1">*</span> <span class="pl-s1">qc</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">tcop</span>\<span class="pl-s1">pquery</span>.<span class="pl-s1">c</span>:<span class="pl-c1">161</span>)
-<span class="pl-en">PortalRunMulti</span>(<span class="pl-s1">Portal</span> <span class="pl-s1">portal</span>, <span class="pl-s1">_Bool</span> <span class="pl-s1">isTopLevel</span>, <span class="pl-s1">_Bool</span> <span class="pl-s1">setHoldSnapshot</span>, <span class="pl-s1">DestReceiver</span> <span class="pl-c1">*</span> <span class="pl-s1">dest</span>, <span class="pl-s1">DestReceiver</span> <span class="pl-c1">*</span> <span class="pl-s1">altdest</span>, <span class="pl-s1">QueryCompletion</span> <span class="pl-c1">*</span> <span class="pl-s1">qc</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">tcop</span>\<span class="pl-s1">pquery</span>.<span class="pl-s1">c</span>:<span class="pl-c1">1272</span>)
-<span class="pl-en">PortalRun</span>(<span class="pl-s1">Portal</span> <span class="pl-s1">portal</span>, <span class="pl-s1">long</span> <span class="pl-s1">count</span>, <span class="pl-s1">_Bool</span> <span class="pl-s1">isTopLevel</span>, <span class="pl-s1">DestReceiver</span> <span class="pl-c1">*</span> <span class="pl-s1">dest</span>, <span class="pl-s1">DestReceiver</span> <span class="pl-c1">*</span> <span class="pl-s1">altdest</span>, <span class="pl-s1">QueryCompletion</span> <span class="pl-c1">*</span> <span class="pl-s1">qc</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">tcop</span>\<span class="pl-s1">pquery</span>.<span class="pl-s1">c</span>:<span class="pl-c1">788</span>)
-<span class="pl-en">exec_simple_query</span>(<span class="pl-s1">const</span> <span class="pl-s1">char</span> <span class="pl-c1">*</span> <span class="pl-s1">query_string</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">tcop</span>\<span class="pl-s1">postgres</span>.<span class="pl-s1">c</span>:<span class="pl-c1">1274</span>)
-<span class="pl-en">PostgresMain</span>(<span class="pl-s1">const</span> <span class="pl-s1">char</span> <span class="pl-c1">*</span> <span class="pl-s1">dbname</span>, <span class="pl-s1">const</span> <span class="pl-s1">char</span> <span class="pl-c1">*</span> <span class="pl-s1">username</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">tcop</span>\<span class="pl-s1">postgres</span>.<span class="pl-s1">c</span>:<span class="pl-c1">4767</span>)
-<span class="pl-en">BackendMain</span>(<span class="pl-s1">const</span> <span class="pl-s1">void</span> <span class="pl-c1">*</span> <span class="pl-s1">startup_data</span>, <span class="pl-s1">size_t</span> <span class="pl-s1">startup_data_len</span>) (\<span class="pl-smi">home</span>\<span class="pl-s1">postgres</span>\<span class="pl-s1">code</span>\<span class="pl-c1">18</span>\<span class="pl-s1">src</span>\<span class="pl-s1">backend</span>\<span class="pl-s1">tcop</span>\<span class="pl-s1">backend_startup</span>.<span class="pl-s1">c</span>:<span class="pl-c1">124</span>)</pre></div>
+<pre lang="c" class="notranslate"><code class="notranslate">toast_save_datum(Relation rel, Datum value, struct varlena * oldexternal, int options) (\home\postgres\code\18\src\backend\access\common\toast_internals.c:198)
+toast_tuple_externalize(ToastTupleContext * ttc, int attribute, int options) (\home\postgres\code\18\src\backend\access\table\toast_helper.c:263)
+heap_toast_insert_or_update(Relation rel, HeapTuple newtup, HeapTuple oldtup, int options) (\home\postgres\code\18\src\backend\access\heap\heaptoast.c:217)
+heap_prepare_insert(Relation relation, HeapTuple tup, TransactionId xid, CommandId cid, int options) (\home\postgres\code\18\src\backend\access\heap\heapam.c:2305)
+heap_insert(Relation relation, HeapTuple tup, CommandId cid, int options, BulkInsertState bistate) (\home\postgres\code\18\src\backend\access\heap\heapam.c:2098)
+heapam_tuple_insert(Relation relation, TupleTableSlot * slot, CommandId cid, int options, BulkInsertState bistate) (\home\postgres\code\18\src\backend\access\heap\heapam_handler.c:255)
+table_tuple_insert(Relation rel, TupleTableSlot * slot, CommandId cid, int options, struct BulkInsertStateData * bistate) (\home\postgres\code\18\src\include\access\tableam.h:1365)
+ExecInsert(ModifyTableContext * context, ResultRelInfo * resultRelInfo, TupleTableSlot * slot, _Bool canSetTag, TupleTableSlot ** inserted_tuple, ResultRelInfo ** insert_destrel) (\home\postgres\code\18\src\backend\executor\nodeModifyTable.c:1234)
+ExecModifyTable(PlanState * pstate) (\home\postgres\code\18\src\backend\executor\nodeModifyTable.c:4468)
+ExecProcNodeFirst(PlanState * node) (\home\postgres\code\18\src\backend\executor\execProcnode.c:469)
+ExecProcNode(PlanState * node) (\home\postgres\code\18\src\include\executor\executor.h:315)
+ExecutePlan(QueryDesc * queryDesc, CmdType operation, _Bool sendTuples, uint64 numberTuples, ScanDirection direction, DestReceiver * dest) (\home\postgres\code\18\src\backend\executor\execMain.c:1678)
+standard_ExecutorRun(QueryDesc * queryDesc, ScanDirection direction, uint64 count) (\home\postgres\code\18\src\backend\executor\execMain.c:366)
+ExecutorRun(QueryDesc * queryDesc, ScanDirection direction, uint64 count) (\home\postgres\code\18\src\backend\executor\execMain.c:303)
+ProcessQuery(PlannedStmt * plan, const char * sourceText, ParamListInfo params, QueryEnvironment * queryEnv, DestReceiver * dest, QueryCompletion * qc) (\home\postgres\code\18\src\backend\tcop\pquery.c:161)
+PortalRunMulti(Portal portal, _Bool isTopLevel, _Bool setHoldSnapshot, DestReceiver * dest, DestReceiver * altdest, QueryCompletion * qc) (\home\postgres\code\18\src\backend\tcop\pquery.c:1272)
+PortalRun(Portal portal, long count, _Bool isTopLevel, DestReceiver * dest, DestReceiver * altdest, QueryCompletion * qc) (\home\postgres\code\18\src\backend\tcop\pquery.c:788)
+exec_simple_query(const char * query_string) (\home\postgres\code\18\src\backend\tcop\postgres.c:1274)
+PostgresMain(const char * dbname, const char * username) (\home\postgres\code\18\src\backend\tcop\postgres.c:4767)
+BackendMain(const void * startup_data, size_t startup_data_len) (\home\postgres\code\18\src\backend\tcop\backend_startup.c:124)
+</code></pre>
 <h1>为什么不推荐使用SELECT *</h1>
 <p>这是一个老生常谈的问题，就是在应用程序开发中，推荐需要获取什么数据就去查询对应的字段，而不是直接SELECT * 一把梭。可是还是有人觉得无所谓，觉得我直接查询更多的数据给前端，前端想用哪个字段就用哪个字段，emmmm~<br>
 这里可以用toast构建个简单的场景，演示一下为什么不推荐使用SELECT *。</p>
-<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql
-psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
-Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+<pre lang="sql" class="notranslate"><code class="notranslate">postgres@zxm-VMware-Virtual-Platform:~$ psql
+psql (16.10)
+Type "help" for help.
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> create table t(a int, b text);</span>
+postgres=# create table t(a int, b text);
 CREATE TABLE
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> DO $$</span>
-<span class="pl-k">begin</span>
-for i <span class="pl-k">in</span> <span class="pl-c1">1</span> .. <span class="pl-c1">1000</span> loop
-<span class="pl-k">insert into</span> t <span class="pl-k">values</span>(i, random_string(<span class="pl-c1">2005</span>));
+postgres=# DO $$
+begin
+for i in 1 .. 1000 loop
+insert into t values(i, random_string(2005));
 end loop;
 end; $$ language plpgsql;
 DO
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select count(*) from t;</span>
+postgres=# select count(*) from t;
  count 
-<span class="pl-c"><span class="pl-c">--</span>-----</span>
-  <span class="pl-c1">1000</span>
-(<span class="pl-c1">1</span> row)
+-------
+  1000
+(1 row)
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \q</span>
-postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql <span class="pl-k">-</span>o <span class="pl-k">/</span>dev<span class="pl-k">/</span><span class="pl-k">null</span>
-psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
-Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+postgres=# \q
+postgres@zxm-VMware-Virtual-Platform:~$ psql -o /dev/null
+psql (16.10)
+Type "help" for help.
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \timing</span>
-Timing is <span class="pl-k">on</span>.
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">2</span>.<span class="pl-c1">137</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">180</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">095</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">867</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">863</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">111</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">045</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">892</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">1</span>.<span class="pl-c1">259</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select a from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">776</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \q</span>
-postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~$ psql <span class="pl-k">-</span>o <span class="pl-k">/</span>dev<span class="pl-k">/</span><span class="pl-k">null</span>
-psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
-Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
+postgres=# \timing
+Timing is on.
+postgres=# select a from t;
+Time: 2.137 ms
+postgres=# select a from t;
+Time: 1.180 ms
+postgres=# select a from t;
+Time: 1.095 ms
+postgres=# select a from t;
+Time: 0.867 ms
+postgres=# select a from t;
+Time: 0.863 ms
+postgres=# select a from t;
+Time: 1.111 ms
+postgres=# select a from t;
+Time: 1.045 ms
+postgres=# select a from t;
+Time: 0.892 ms
+postgres=# select a from t;
+Time: 1.259 ms
+postgres=# select a from t;
+Time: 0.776 ms
+postgres=# \q
+postgres@zxm-VMware-Virtual-Platform:~$ psql -o /dev/null
+psql (16.10)
+Type "help" for help.
 
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \timing</span>
-Timing is <span class="pl-k">on</span>.
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">27</span>.<span class="pl-c1">057</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">26</span>.<span class="pl-c1">083</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">19</span>.<span class="pl-c1">612</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">19</span>.<span class="pl-c1">230</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">19</span>.<span class="pl-c1">653</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">14</span>.<span class="pl-c1">698</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">13</span>.<span class="pl-c1">891</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">14</span>.<span class="pl-c1">165</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">14</span>.<span class="pl-c1">738</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> select * from t;</span>
-<span class="pl-k">Time</span>: <span class="pl-c1">18</span>.<span class="pl-c1">510</span> ms
-postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> </span></pre></div>
+postgres=# \timing
+Timing is on.
+postgres=# select * from t;
+Time: 27.057 ms
+postgres=# select * from t;
+Time: 26.083 ms
+postgres=# select * from t;
+Time: 19.612 ms
+postgres=# select * from t;
+Time: 19.230 ms
+postgres=# select * from t;
+Time: 19.653 ms
+postgres=# select * from t;
+Time: 14.698 ms
+postgres=# select * from t;
+Time: 13.891 ms
+postgres=# select * from t;
+Time: 14.165 ms
+postgres=# select * from t;
+Time: 14.738 ms
+postgres=# select * from t;
+Time: 18.510 ms
+postgres=# 
+</code></pre>
 <p>感觉这都不需要再解释了。</p>
 <blockquote>
 <p>更多内容参考灿灿老师翻译的 <a href="https://postgres-internals.cn/docs/chapter01/#118-toast" rel="nofollow">https://postgres-internals.cn/docs/chapter01/#118-toast</a></p>
@@ -736,7 +740,7 @@ if("08/31/2025"!=""){
 </script></div>
 </body>
 <script>
-var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z', 'copy': 'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z', 'check': 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'};
+var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z'};
 var utterancesLoad=0;
 
 let themeSettings={
@@ -809,70 +813,7 @@ function iFrameLoading(){
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const createClipboardHTML = (codeContent, additionalClasses = '') => `
-        <pre class="notranslate"><code class="notranslate">${codeContent}</code></pre>
-        <div class="clipboard-container position-absolute right-0 top-0 ${additionalClasses}">
-            <clipboard-copy class="ClipboardButton btn m-2 p-0" role="button" style="display: inherit;">
-                <svg height="16" width="16" class="octicon octicon-copy m-2"><path d="${IconList["copy"]}"></path></svg>
-                <svg height="16" width="16" class="octicon octicon-check color-fg-success m-2 d-none"><path d="${IconList["check"]}"></path></svg>
-            </clipboard-copy>
-            <div class="copy-feedback">Copied!</div>
-        </div>
-    `;
 
-    const handleCodeElements = (selector = '') => {
-        document.querySelectorAll(selector).forEach(codeElement => {
-            const codeContent = codeElement.innerHTML;
-            const newStructure = document.createElement('div');
-            newStructure.className = 'snippet-clipboard-content position-relative overflow-auto';
-            newStructure.innerHTML = createClipboardHTML(codeContent);
-
-            const parentElement = codeElement.parentElement;
-            if (selector.includes('highlight')) {
-                parentElement.insertBefore(newStructure, codeElement.nextSibling);
-                parentElement.removeChild(codeElement);
-            } else {
-                parentElement.parentElement.replaceChild(newStructure, parentElement);
-            }
-        });
-    };
-
-    handleCodeElements('pre.notranslate > code.notranslate');
-    handleCodeElements('div.highlight > pre.notranslate');
-
-    let currentFeedback = null;
-    document.querySelectorAll('clipboard-copy').forEach(copyButton => {
-        copyButton.addEventListener('click', () => {
-            const codeContent = copyButton.closest('.snippet-clipboard-content').innerText;
-            const tempTextArea = document.createElement('textarea');
-            tempTextArea.value = codeContent;
-            document.body.appendChild(tempTextArea);
-            tempTextArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempTextArea);
-
-            const copyIcon = copyButton.querySelector('.octicon-copy');
-            const checkIcon = copyButton.querySelector('.octicon-check');
-            const copyFeedback = copyButton.nextElementSibling;
-
-            if (currentFeedback && currentFeedback !== copyFeedback) {currentFeedback.style.display = 'none';}
-            currentFeedback = copyFeedback;
-
-            copyIcon.classList.add('d-none');
-            checkIcon.classList.remove('d-none');
-            copyFeedback.style.display = 'block';
-            copyButton.style.borderColor = 'var(--color-success-fg)';
-
-            setTimeout(() => {
-                copyIcon.classList.remove('d-none');
-                checkIcon.classList.add('d-none');
-                copyFeedback.style.display = 'none';
-                copyButton.style.borderColor = '';
-            }, 2000);
-        });
-    });
-});
 
 </script>
 
