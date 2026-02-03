@@ -27,7 +27,7 @@
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/yong-PEG-yu-cpp-peglib-qing-song-gao-ding-jie-xi.html">
 <meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
 <title>用PEG与cpp-peglib轻松搞定解析</title>
-<link href="//unpkg.com/@wooorm/starry-night@2.1.1/style/both.css" rel="stylesheet" />
+
 
 
 </head>
@@ -122,52 +122,55 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 <p>比如要解析<code class="notranslate">(0.123, -.987, 2.4, 3)</code>这样的向量，用cpp-peglib只需3步：定义语法、绑定语义动作、执行解析。</p>
 <h4>1. 定义PEG语法</h4>
 <p>首先用PEG描述向量的格式，明确“Vector由什么组成”“Number是什么样的”：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate">#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">"</span>peglib.h<span class="pl-pds">"</span></span>
-#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">&lt;</span>vector<span class="pl-pds">&gt;</span></span>
-#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">&lt;</span>fmt/format.h<span class="pl-pds">&gt;</span></span> <span class="pl-c"><span class="pl-c">//</span> 用于打印结果</span>
+<pre lang="cpp" class="notranslate"><code class="notranslate">#include "peglib.h"
+#include &lt;vector&gt;
+#include &lt;fmt/format.h&gt; // 用于打印结果
 
-<span class="pl-k">int</span> <span class="pl-en">main</span>(<span class="pl-k">int</span> argc, <span class="pl-k">char</span>** argv) {
-    <span class="pl-c"><span class="pl-c">//</span> 1. 定义PEG语法</span>
-    peg::parser <span class="pl-smi">parser</span>(<span class="pl-s"><span class="pl-pds">R"(</span></span>
-<span class="pl-s">        Vector      &lt;- '(' Number (',' Number)* ')'  # 向量结构：(数字, 数字, ...)</span>
-<span class="pl-s">        Number      &lt;- [+-]?[0-9]*([.][0-9]*)?       # 数字：支持正负、整数、小数</span>
-<span class="pl-s">        %whitespace &lt;- [\t ]*                        # 自动忽略空格、制表符</span>
-<span class="pl-s">    <span class="pl-pds">)"</span></span>);</pre></div>
+int main(int argc, char** argv) {
+    // 1. 定义PEG语法
+    peg::parser parser(R"(
+        Vector      &lt;- '(' Number (',' Number)* ')'  # 向量结构：(数字, 数字, ...)
+        Number      &lt;- [+-]?[0-9]*([.][0-9]*)?       # 数字：支持正负、整数、小数
+        %whitespace &lt;- [\t ]*                        # 自动忽略空格、制表符
+    )");
+</code></pre>
 <h4>2. 绑定“语义动作”：把匹配的文本转成数据</h4>
 <p>语法只负责“匹配文本”，而我们需要的是“解析出的数值”（比如把<code class="notranslate">"0.123"</code>转成<code class="notranslate">double</code>）。cpp-peglib允许给每个规则绑定一个函数，这个函数就是“语义动作”：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate">    <span class="pl-c"><span class="pl-c">//</span> 给Number规则绑定动作：将匹配的文本转成double</span>
-    parser[<span class="pl-s"><span class="pl-pds">"</span>Number<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
-        <span class="pl-c"><span class="pl-c">//</span> vs.token_to_number&lt;double&gt;()：直接把匹配的文本转成double</span>
-        <span class="pl-k">return</span> vs.<span class="pl-smi">token_to_number</span>&lt;<span class="pl-k">double</span>&gt;();
+<pre lang="cpp" class="notranslate"><code class="notranslate">    // 给Number规则绑定动作：将匹配的文本转成double
+    parser["Number"] = [](const peg::SemanticValues&amp; vs) {
+        // vs.token_to_number&lt;double&gt;()：直接把匹配的文本转成double
+        return vs.token_to_number&lt;double&gt;();
     };
 
-    <span class="pl-c"><span class="pl-c">//</span> 给Vector规则绑定动作：收集所有Number的结果，组成vector&lt;double&gt;</span>
-    parser[<span class="pl-s"><span class="pl-pds">"</span>Vector<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
-        <span class="pl-c"><span class="pl-c">//</span> vs是vector&lt;std::any&gt;，存储每个子规则（这里是Number）的返回值</span>
-        std::vector&lt;<span class="pl-k">double</span>&gt; result;
-        <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-k">auto</span>&amp; val : vs) {
-            <span class="pl-c"><span class="pl-c">//</span> 把std::any转成double，存入result</span>
-            result.<span class="pl-c1">push_back</span>(std::any_cast&lt;<span class="pl-k">double</span>&gt;(val));
+    // 给Vector规则绑定动作：收集所有Number的结果，组成vector&lt;double&gt;
+    parser["Vector"] = [](const peg::SemanticValues&amp; vs) {
+        // vs是vector&lt;std::any&gt;，存储每个子规则（这里是Number）的返回值
+        std::vector&lt;double&gt; result;
+        for (const auto&amp; val : vs) {
+            // 把std::any转成double，存入result
+            result.push_back(std::any_cast&lt;double&gt;(val));
         }
-        <span class="pl-c"><span class="pl-c">//</span> 也可以用cpp-peglib的简写：return vs.transform&lt;double&gt;();</span>
-        <span class="pl-k">return</span> result;
-    };</pre></div>
+        // 也可以用cpp-peglib的简写：return vs.transform&lt;double&gt;();
+        return result;
+    };
+</code></pre>
 <h4>3. 执行解析并输出结果</h4>
 <p>最后调用<code class="notranslate">parser.parse()</code>，传入要解析的字符串，就能得到解析后的向量：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate">    <span class="pl-c"><span class="pl-c">//</span> 3. 执行解析</span>
-    std::vector&lt;<span class="pl-k">double</span>&gt; vector_result;
-    <span class="pl-k">if</span> (parser.parse(argv[<span class="pl-c1">1</span>], vector_result)) {
-        <span class="pl-c"><span class="pl-c">//</span> 用fmt打印结果</span>
-        <span class="pl-c1">fmt::print</span>(<span class="pl-s"><span class="pl-pds">"</span>解析结果：<span class="pl-pds">"</span></span>);
-        <span class="pl-k">for</span> (<span class="pl-c1">size_t</span> i = <span class="pl-c1">0</span>; i &lt; vector_result.<span class="pl-c1">size</span>(); ++i) {
-            <span class="pl-c1">fmt::print</span>(<span class="pl-s"><span class="pl-pds">"</span>{}{}<span class="pl-pds">"</span></span>, vector_result[i], i == vector_result.<span class="pl-c1">size</span>()-<span class="pl-c1">1</span> ? <span class="pl-s"><span class="pl-pds">"</span><span class="pl-cce">\n</span><span class="pl-pds">"</span></span> : <span class="pl-s"><span class="pl-pds">"</span>, <span class="pl-pds">"</span></span>);
+<pre lang="cpp" class="notranslate"><code class="notranslate">    // 3. 执行解析
+    std::vector&lt;double&gt; vector_result;
+    if (parser.parse(argv[1], vector_result)) {
+        // 用fmt打印结果
+        fmt::print("解析结果：");
+        for (size_t i = 0; i &lt; vector_result.size(); ++i) {
+            fmt::print("{}{}", vector_result[i], i == vector_result.size()-1 ? "\n" : ", ");
         }
-    } <span class="pl-k">else</span> {
-        <span class="pl-c1">fmt::print</span>(<span class="pl-s"><span class="pl-pds">"</span>解析失败！<span class="pl-cce">\n</span><span class="pl-pds">"</span></span>);
+    } else {
+        fmt::print("解析失败！\n");
     }
 
-    <span class="pl-k">return</span> <span class="pl-c1">0</span>;
-}</pre></div>
+    return 0;
+}
+</code></pre>
 <p>运行程序测试，输入<code class="notranslate">./vector_parser "(0.123, -.987, 2.4, 3)"</code>，输出如下：</p>
 <pre class="notranslate"><code class="notranslate">解析结果：0.123, -0.987, 2.4, 3
 </code></pre>
@@ -176,38 +179,41 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 <p>很多解析场景的痛点不是“匹配格式”，而是“处理转义”——比如解析<code class="notranslate">"This is a \"test\" string"</code>时，如何区分“转义的<code class="notranslate">"</code>”和“字符串结束的<code class="notranslate">"</code>”？PEG的“前瞻断言”和cpp-peglib的语义动作能轻松解决这个问题。</p>
 <h3>1. 定义支持转义的字符串语法</h3>
 <p>首先用PEG描述“带转义的字符串”：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate">peg::parser <span class="pl-en">str_parser</span>(<span class="pl-s"><span class="pl-pds">R"(</span></span>
-<span class="pl-s">    QuotedString  &lt;- "\"" String "\""  # 字符串："开头 + String + "结尾</span>
-<span class="pl-s">    String        &lt;- (!"\"" Char)*     # String：零或多个Char，直到遇到"</span>
-<span class="pl-s">    Char          &lt;- ('\\.' ) / (!'\\' .)  # Char：要么是转义字符（如\"），要么是普通字符</span>
-<span class="pl-s"><span class="pl-pds">)"</span></span>);</pre></div>
+<pre lang="cpp" class="notranslate"><code class="notranslate">peg::parser str_parser(R"(
+    QuotedString  &lt;- "\"" String "\""  # 字符串："开头 + String + "结尾
+    String        &lt;- (!"\"" Char)*     # String：零或多个Char，直到遇到"
+    Char          &lt;- ('\\.' ) / (!'\\' .)  # Char：要么是转义字符（如\"），要么是普通字符
+)");
+</code></pre>
 <p>这里的关键是<code class="notranslate">! "\"" Char</code>：用<code class="notranslate">! "\""</code>判断“下一个字符是不是<code class="notranslate">"</code>”，如果是就停止匹配String，确保<code class="notranslate">"</code>只作为字符串结束符；而<code class="notranslate">Char</code>的规则用<code class="notranslate">/</code>有序选择，优先匹配转义字符（避免把<code class="notranslate">\</code>当成普通字符）。</p>
 <h3>2. 处理转义：从“匹配文本”到“干净字符”</h3>
 <p>匹配到<code class="notranslate">\"</code>后，我们需要的是<code class="notranslate">"</code>而不是<code class="notranslate">\"</code>，所以要在语义动作里处理：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate"><span class="pl-c"><span class="pl-c">//</span> 给Char绑定动作：处理转义</span>
-str_parser[<span class="pl-s"><span class="pl-pds">"</span>Char<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
-    std::string matched = vs.<span class="pl-c1">token_to_string</span>(); <span class="pl-c"><span class="pl-c">//</span> 拿到匹配的文本（如\"或a）</span>
-    <span class="pl-k">if</span> (vs.<span class="pl-c1">choice</span>() == <span class="pl-c1">0</span>) { <span class="pl-c"><span class="pl-c">//</span> choice()返回“选择运算符/的第几个分支匹配成功”，0表示转义分支</span>
-        <span class="pl-k">return</span> matched.<span class="pl-c1">substr</span>(<span class="pl-c1">1</span>); <span class="pl-c"><span class="pl-c">//</span> 截取\后面的字符（如\"→"）</span>
+<pre lang="cpp" class="notranslate"><code class="notranslate">// 给Char绑定动作：处理转义
+str_parser["Char"] = [](const peg::SemanticValues&amp; vs) {
+    std::string matched = vs.token_to_string(); // 拿到匹配的文本（如\"或a）
+    if (vs.choice() == 0) { // choice()返回“选择运算符/的第几个分支匹配成功”，0表示转义分支
+        return matched.substr(1); // 截取\后面的字符（如\"→"）
     }
-    <span class="pl-k">return</span> matched; <span class="pl-c"><span class="pl-c">//</span> 普通字符直接返回</span>
+    return matched; // 普通字符直接返回
 };
 
-<span class="pl-c"><span class="pl-c">//</span> 给String绑定动作：拼接所有Char的结果，组成完整字符串</span>
-str_parser[<span class="pl-s"><span class="pl-pds">"</span>QuotedString<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
+// 给String绑定动作：拼接所有Char的结果，组成完整字符串
+str_parser["QuotedString"] = [](const peg::SemanticValues&amp; vs) {
     std::string result;
-    <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-k">auto</span>&amp; val : vs) {
+    for (const auto&amp; val : vs) {
         result += std::any_cast&lt;std::string&gt;(val);
     }
-    <span class="pl-k">return</span> result;
-};</pre></div>
+    return result;
+};
+</code></pre>
 <p>测试输入<code class="notranslate">./string_parser "\"This is a \\\"test\\\" string\""</code>，输出如下：</p>
 <pre class="notranslate"><code class="notranslate">解析结果：This is a "test" string
 </code></pre>
 <p>cpp-peglib还提供了一个简化技巧：用<code class="notranslate">&lt; &gt;</code>指定“需要保留的token部分”，比如把<code class="notranslate">Char</code>规则改成<code class="notranslate">Char &lt;- ('\\' &lt;.&gt; ) / (!'\\' .)</code>，<code class="notranslate">&lt;.&gt;</code>表示“只保留<code class="notranslate">.</code>匹配的字符”（即<code class="notranslate">\</code>后面的部分），这样语义动作里就不用手动截取了：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate">str_parser[<span class="pl-s"><span class="pl-pds">"</span>Char<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
-    <span class="pl-k">return</span> vs.<span class="pl-c1">token_to_string</span>(); <span class="pl-c"><span class="pl-c">//</span> 直接返回保留的部分，无需截取</span>
-};</pre></div>
+<pre lang="cpp" class="notranslate"><code class="notranslate">str_parser["Char"] = [](const peg::SemanticValues&amp; vs) {
+    return vs.token_to_string(); // 直接返回保留的部分，无需截取
+};
+</code></pre>
 <h2>四、实战升级：解析Prometheus监控指标</h2>
 <p>Prometheus指标格式是典型的“非 trivial 解析场景”——包含注释（HELP/TYPE/普通）、指标行（带可选标签和时间戳）、UTF-8支持和转义规则。用cpp-peglib，200行代码就能实现一个合规的解析器。</p>
 <h3>1. Prometheus指标格式回顾</h3>
@@ -229,77 +235,81 @@ apt_upgrades_held{arch="",origin=""} 0 1712003163000
 </ul>
 <h3>2. 定义Prometheus的PEG语法</h3>
 <p>先拆解规则，从“根规则”到“最小单元”：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate">peg::parser <span class="pl-en">prom_parser</span>(<span class="pl-s"><span class="pl-pds">R"(</span></span>
-<span class="pl-s">    # 根规则：文件由多个“注释行/指标行 + 换行”组成</span>
-<span class="pl-s">    root        &lt;- (commentline / vline) '\n'+</span>
-<span class="pl-s">    # 注释行：区分HELP、TYPE、普通注释</span>
-<span class="pl-s">    commentline &lt;- ('# HELP ' name ' ' comment) / </span>
-<span class="pl-s">                   ('# TYPE ' name ' ' comment) / </span>
-<span class="pl-s">                   ('#' comment)</span>
-<span class="pl-s">    # 指标行：带标签或不带标签</span>
-<span class="pl-s">    vline       &lt;- (name ' ' value (' ' timestamp)?) / </span>
-<span class="pl-s">                   (name labels ' ' value (' ' timestamp)?)</span>
-<span class="pl-s">    # 标签集：{键=值, 键=值}</span>
-<span class="pl-s">    labels      &lt;- '{' nvpair (',' nvpair)* '}'</span>
-<span class="pl-s">    # 标签键值对：name="label_value"</span>
-<span class="pl-s">    nvpair      &lt;- name '=' "\"" label_value "\""</span>
-<span class="pl-s">    # 标签值：支持转义，直到遇到"</span>
-<span class="pl-s">    label_value &lt;- (!"\"" char)*</span>
-<span class="pl-s">    # 字符：支持转义（\、"、\n）</span>
-<span class="pl-s">    char        &lt;- ('\\.' ) / (!'\\' .)</span>
-<span class="pl-s">    # 辅助规则：注释内容（直到换行）、指标名（字母数字下划线）</span>
-<span class="pl-s">    comment     &lt;- (!'\n' .)*</span>
-<span class="pl-s">    name        &lt;- [a-zA-Z0-9_]+</span>
-<span class="pl-s">    # 值：优先匹配+Inf/-Inf/NaN，再匹配普通浮点数</span>
-<span class="pl-s">    value       &lt;- '+Inf' / '-Inf' / 'NaN' / [0-9.+e-]+</span>
-<span class="pl-s">    # 时间戳：整数（毫秒时间戳）</span>
-<span class="pl-s">    timestamp   &lt;- [+-]?[0-9]+</span>
-<span class="pl-s"><span class="pl-pds">)"</span></span>);</pre></div>
+<pre lang="cpp" class="notranslate"><code class="notranslate">peg::parser prom_parser(R"(
+    # 根规则：文件由多个“注释行/指标行 + 换行”组成
+    root        &lt;- (commentline / vline) '\n'+
+    # 注释行：区分HELP、TYPE、普通注释
+    commentline &lt;- ('# HELP ' name ' ' comment) / 
+                   ('# TYPE ' name ' ' comment) / 
+                   ('#' comment)
+    # 指标行：带标签或不带标签
+    vline       &lt;- (name ' ' value (' ' timestamp)?) / 
+                   (name labels ' ' value (' ' timestamp)?)
+    # 标签集：{键=值, 键=值}
+    labels      &lt;- '{' nvpair (',' nvpair)* '}'
+    # 标签键值对：name="label_value"
+    nvpair      &lt;- name '=' "\"" label_value "\""
+    # 标签值：支持转义，直到遇到"
+    label_value &lt;- (!"\"" char)*
+    # 字符：支持转义（\、"、\n）
+    char        &lt;- ('\\.' ) / (!'\\' .)
+    # 辅助规则：注释内容（直到换行）、指标名（字母数字下划线）
+    comment     &lt;- (!'\n' .)*
+    name        &lt;- [a-zA-Z0-9_]+
+    # 值：优先匹配+Inf/-Inf/NaN，再匹配普通浮点数
+    value       &lt;- '+Inf' / '-Inf' / 'NaN' / [0-9.+e-]+
+    # 时间戳：整数（毫秒时间戳）
+    timestamp   &lt;- [+-]?[0-9]+
+)");
+</code></pre>
 <p>这里有个关键设计：<code class="notranslate">value</code>规则把<code class="notranslate">+Inf</code>/<code class="notranslate">-Inf</code>/<code class="notranslate">NaN</code>放在前面。因为如果先匹配<code class="notranslate">[0-9.+e-]+</code>，<code class="notranslate">+Inf</code>会被拆成<code class="notranslate">+</code>和<code class="notranslate">Inf</code>，导致解析失败。PEG的“有序选择”正好解决了这个问题——先匹配特殊值，再匹配普通值。</p>
 <h3>3. 绑定语义动作：处理特殊值与转义</h3>
 <h4>（1）处理指标值（含Inf/NaN）</h4>
 <p>Prometheus的<code class="notranslate">value</code>支持特殊浮点数，需要在语义动作里单独处理：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate">#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">&lt;</span>limits<span class="pl-pds">&gt;</span></span> <span class="pl-c"><span class="pl-c">//</span> 用于获取Inf/NaN</span>
+<pre lang="cpp" class="notranslate"><code class="notranslate">#include &lt;limits&gt; // 用于获取Inf/NaN
 
-prom_parser[<span class="pl-s"><span class="pl-pds">"</span>value<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
-    <span class="pl-k">switch</span> (vs.<span class="pl-c1">choice</span>()) {
-        <span class="pl-k">case</span> <span class="pl-c1">0</span>: <span class="pl-k">return</span> std::numeric_limits&lt;<span class="pl-k">double</span>&gt;::<span class="pl-c1">infinity</span>(); <span class="pl-c"><span class="pl-c">//</span> +Inf</span>
-        <span class="pl-k">case</span> <span class="pl-c1">1</span>: <span class="pl-k">return</span> -std::numeric_limits&lt;<span class="pl-k">double</span>&gt;::<span class="pl-c1">infinity</span>(); <span class="pl-c"><span class="pl-c">//</span> -Inf</span>
-        <span class="pl-k">case</span> <span class="pl-c1">2</span>: <span class="pl-k">return</span> std::numeric_limits&lt;<span class="pl-k">double</span>&gt;::<span class="pl-c1">quiet_NaN</span>(); <span class="pl-c"><span class="pl-c">//</span> NaN</span>
-        <span class="pl-k">default</span>: <span class="pl-k">return</span> vs.<span class="pl-smi">token_to_number</span>&lt;<span class="pl-k">double</span>&gt;(); <span class="pl-c"><span class="pl-c">//</span> 普通浮点数</span>
+prom_parser["value"] = [](const peg::SemanticValues&amp; vs) {
+    switch (vs.choice()) {
+        case 0: return std::numeric_limits&lt;double&gt;::infinity(); // +Inf
+        case 1: return -std::numeric_limits&lt;double&gt;::infinity(); // -Inf
+        case 2: return std::numeric_limits&lt;double&gt;::quiet_NaN(); // NaN
+        default: return vs.token_to_number&lt;double&gt;(); // 普通浮点数
     }
-};</pre></div>
+};
+</code></pre>
 <h4>（2）处理标签值的转义</h4>
 <p>根据Prometheus规范，标签值只能转义<code class="notranslate">\</code>、<code class="notranslate">"</code>、<code class="notranslate">\n</code>，其他转义字符需报错：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate">prom_parser[<span class="pl-s"><span class="pl-pds">"</span>char<span class="pl-pds">"</span></span>] = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
-    std::string matched = vs.<span class="pl-c1">token_to_string</span>();
-    <span class="pl-k">if</span> (vs.<span class="pl-c1">choice</span>() == <span class="pl-c1">0</span>) { <span class="pl-c"><span class="pl-c">//</span> 转义分支</span>
-        <span class="pl-k">char</span> c = matched.<span class="pl-c1">at</span>(<span class="pl-c1">1</span>);
-        <span class="pl-c"><span class="pl-c">//</span> 检查是否为合规转义</span>
-        <span class="pl-k">if</span> (c != <span class="pl-s"><span class="pl-pds">'</span><span class="pl-cce">\\</span><span class="pl-pds">'</span></span> &amp;&amp; c != <span class="pl-s"><span class="pl-pds">'</span>"<span class="pl-pds">'</span></span> &amp;&amp; c != <span class="pl-s"><span class="pl-pds">'</span>n<span class="pl-pds">'</span></span>) {
-            <span class="pl-k">throw</span> <span class="pl-smi">std::runtime_error</span>(<span class="pl-c1">fmt::format</span>(<span class="pl-s"><span class="pl-pds">"</span>非法转义：<span class="pl-cce">\\</span>{}<span class="pl-pds">"</span></span>, c));
+<pre lang="cpp" class="notranslate"><code class="notranslate">prom_parser["char"] = [](const peg::SemanticValues&amp; vs) {
+    std::string matched = vs.token_to_string();
+    if (vs.choice() == 0) { // 转义分支
+        char c = matched.at(1);
+        // 检查是否为合规转义
+        if (c != '\\' &amp;&amp; c != '"' &amp;&amp; c != 'n') {
+            throw std::runtime_error(fmt::format("非法转义：\\{}", c));
         }
-        <span class="pl-c"><span class="pl-c">//</span> 把\n转成换行符</span>
-        <span class="pl-k">return</span> c == <span class="pl-s"><span class="pl-pds">'</span>n<span class="pl-pds">'</span></span> ? <span class="pl-c1">std::string</span>(<span class="pl-c1">1</span>, <span class="pl-s"><span class="pl-pds">'</span><span class="pl-cce">\n</span><span class="pl-pds">'</span></span>) : <span class="pl-c1">std::string</span>(<span class="pl-c1">1</span>, c);
+        // 把\n转成换行符
+        return c == 'n' ? std::string(1, '\n') : std::string(1, c);
     }
-    <span class="pl-k">return</span> matched; <span class="pl-c"><span class="pl-c">//</span> 普通字符</span>
-};</pre></div>
+    return matched; // 普通字符
+};
+</code></pre>
 <h4>（3）收集指标数据</h4>
 <p>最后定义一个<code class="notranslate">PromMetric</code>结构体，存储解析后的指标信息（名称、标签、值、时间戳、HELP/TYPE），并在语义动作里填充数据（完整代码可参考<a href="https://berthub.eu/articles/posts/practical-peg-parsing/" rel="nofollow">网页示例</a>的<code class="notranslate">promparser.cc</code>）。</p>
 <h2>五、避坑指南：正则表达式不用“完美”</h2>
 <p>在PEG里用正则时，很多人会陷入“追求完美正则”的误区——比如为了匹配浮点数，写一个长达几十字符的正则（如<code class="notranslate">[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?</code>）。但实际上，PEG的正则只需“匹配文本范围”，无需“完整验证格式”。</p>
 <p>比如<code class="notranslate">Number &lt;- [+-]?[0-9]*([.][0-9]*)?</code>会匹配<code class="notranslate">+</code>、<code class="notranslate">.</code>这类“非合法浮点数”，但我们可以用cpp-peglib的<code class="notranslate">predicate</code>钩子在解析后验证：</p>
-<div class="highlight highlight-source-c++"><pre class="notranslate"><span class="pl-c"><span class="pl-c">//</span> 给Number添加验证：确保是合法浮点数</span>
-parser[<span class="pl-s"><span class="pl-pds">"</span>Number<span class="pl-pds">"</span></span>].predicate = [](<span class="pl-k">const</span> peg::SemanticValues&amp; vs) {
-    std::string token = vs.<span class="pl-c1">token_to_string</span>();
-    <span class="pl-c"><span class="pl-c">//</span> 尝试把token转成double，失败则返回false（解析报错）</span>
-    <span class="pl-k">try</span> {
-        <span class="pl-c1">std::stod</span>(token);
-        <span class="pl-k">return</span> <span class="pl-c1">true</span>;
-    } <span class="pl-k">catch</span> (...) {
-        <span class="pl-k">return</span> <span class="pl-c1">false</span>;
+<pre lang="cpp" class="notranslate"><code class="notranslate">// 给Number添加验证：确保是合法浮点数
+parser["Number"].predicate = [](const peg::SemanticValues&amp; vs) {
+    std::string token = vs.token_to_string();
+    // 尝试把token转成double，失败则返回false（解析报错）
+    try {
+        std::stod(token);
+        return true;
+    } catch (...) {
+        return false;
     }
-};</pre></div>
+};
+</code></pre>
 <p>这样既简化了正则语法，又能通过“解析后验证”确保数据合法性，还能自定义错误信息（比如“无效数字：+”），比复杂正则更灵活。</p>
 <h2>六、cpp-peglib的进阶能力</h2>
 <p>除了基础解析，cpp-peglib还有很多实用特性，能应对更复杂的场景：</p>
