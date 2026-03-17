@@ -19,7 +19,7 @@
 <meta property="og:url" content="https://Z-Xiao-M.github.io/github.io/post/jiang-PostgreSQL-de-biao-zhuan-huan-cheng-parquet-de-ji-zhong-fang-fa.html">
 <meta property="og:image" content="https://z-xiao-m.github.io/github.io/avatar.svg">
 <title>将PostgreSQL的表转换成parquet的几种方法</title>
-
+<link href="//unpkg.com/@wooorm/starry-night@2.1.1/style/both.css" rel="stylesheet" />
 
 
 </head>
@@ -43,7 +43,17 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
     body {padding: 8px;}
     .postTitle{font-size:24px;}
 }
-
+.copy-feedback {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    color: var(--color-fg-on-emphasis);
+    background-color: var(--color-fg-muted);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
 </style>
 <style>#postBody{font-size:20px}</style>
 
@@ -93,206 +103,200 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 <blockquote>
 <p>来自老乡的blog <a href="https://github.com/digoal/blog/blob/master/202311/20231130_01.md">https://github.com/digoal/blog/blob/master/202311/20231130_01.md</a></p>
 </blockquote>
-<pre lang="sql" class="notranslate"><code class="notranslate">psql -c "copy (select id, md5(random()::text) as info, clock_timestamp() ts from generate_series(1,10000) id) to stdout with (format csv, header on)" | duckdb -c "COPY (SELECT * FROM read_csv('/dev/stdin', delim=',', header=true, columns={'id': 'INTEGER', 'info': 'VARCHAR', 'ts': 'timestamp'})) TO '/tmp/test.parquet' (FORMAT 'parquet', COMPRESSION 'ZSTD', ROW_GROUP_SIZE 100000);"
-</code></pre>
+<div class="highlight highlight-source-sql"><pre class="notranslate">psql <span class="pl-k">-</span>c <span class="pl-s"><span class="pl-pds">"</span>copy (select id, md5(random()::text) as info, clock_timestamp() ts from generate_series(1,10000) id) to stdout with (format csv, header on)<span class="pl-pds">"</span></span> | duckdb <span class="pl-k">-</span>c <span class="pl-s"><span class="pl-pds">"</span>COPY (SELECT * FROM read_csv('/dev/stdin', delim=',', header=true, columns={'id': 'INTEGER', 'info': 'VARCHAR', 'ts': 'timestamp'})) TO '/tmp/test.parquet' (FORMAT 'parquet', COMPRESSION 'ZSTD', ROW_GROUP_SIZE 100000);<span class="pl-pds">"</span></span></pre></div>
 <p>主要分成两个部分</p>
-<pre lang="sql" class="notranslate"><code class="notranslate">-- postgresql执行
-copy (select id, md5(random()::text) as info, clock_timestamp() ts from generate_series(1,10000) id) to stdout with (format csv, header on)
--- duckdb执行
-COPY (SELECT * FROM read_csv('/dev/stdin', delim=',', header=true, columns={'id': 'INTEGER', 'info': 'VARCHAR', 'ts': 'timestamp'})) TO '/tmp/test.parquet' (FORMAT 'parquet', COMPRESSION 'ZSTD', ROW_GROUP_SIZE 100000);
-</code></pre>
+<div class="highlight highlight-source-sql"><pre class="notranslate"><span class="pl-c"><span class="pl-c">--</span> postgresql执行</span>
+copy (<span class="pl-k">select</span> id, md5(random()::<span class="pl-k">text</span>) <span class="pl-k">as</span> info, clock_timestamp() ts <span class="pl-k">from</span> generate_series(<span class="pl-c1">1</span>,<span class="pl-c1">10000</span>) id) to stdout with (format csv, header <span class="pl-k">on</span>)
+<span class="pl-c"><span class="pl-c">--</span> duckdb执行</span>
+COPY (<span class="pl-k">SELECT</span> <span class="pl-k">*</span> <span class="pl-k">FROM</span> read_csv(<span class="pl-s"><span class="pl-pds">'</span>/dev/stdin<span class="pl-pds">'</span></span>, delim<span class="pl-k">=</span><span class="pl-s"><span class="pl-pds">'</span>,<span class="pl-pds">'</span></span>, header<span class="pl-k">=</span>true, columns<span class="pl-k">=</span>{<span class="pl-s"><span class="pl-pds">'</span>id<span class="pl-pds">'</span></span>: <span class="pl-s"><span class="pl-pds">'</span>INTEGER<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>info<span class="pl-pds">'</span></span>: <span class="pl-s"><span class="pl-pds">'</span>VARCHAR<span class="pl-pds">'</span></span>, <span class="pl-s"><span class="pl-pds">'</span>ts<span class="pl-pds">'</span></span>: <span class="pl-s"><span class="pl-pds">'</span>timestamp<span class="pl-pds">'</span></span>})) TO <span class="pl-s"><span class="pl-pds">'</span>/tmp/test.parquet<span class="pl-pds">'</span></span> (FORMAT <span class="pl-s"><span class="pl-pds">'</span>parquet<span class="pl-pds">'</span></span>, COMPRESSION <span class="pl-s"><span class="pl-pds">'</span>ZSTD<span class="pl-pds">'</span></span>, ROW_GROUP_SIZE <span class="pl-c1">100000</span>);</pre></div>
 <p>简单演示</p>
-<pre lang="sql" class="notranslate"><code class="notranslate">postgres@zxm-VMware-Virtual-Platform:~/test$ psql -c "copy (select id, md5(random()::text) as info, clock_timestamp() ts from generate_series(1,10000) id) to stdout with (format csv, header on)" | duckdb -c "COPY (SELECT * FROM read_csv('/dev/stdin', delim=',', header=true, columns={'id': 'INTEGER', 'info': 'VARCHAR', 'ts': 'timestamp'})) TO '/tmp/test.parquet' (FORMAT 'parquet', COMPRESSION 'ZSTD', ROW_GROUP_SIZE 100000);"  
-postgres@zxm-VMware-Virtual-Platform:~/test$ file /tmp/test.parquet
-/tmp/test.parquet: Apache Parquet
-postgres@zxm-VMware-Virtual-Platform:~/test$ duckdb
-DuckDB v1.3.2 (Ossivalis) 0b83e5d2f6
-Enter ".help" for usage hints.
-Connected to a transient in-memory database.
-Use ".open FILENAME" to reopen on a persistent database.
-D select count(*) from '/tmp/test.parquet';
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ psql <span class="pl-k">-</span>c <span class="pl-s"><span class="pl-pds">"</span>copy (select id, md5(random()::text) as info, clock_timestamp() ts from generate_series(1,10000) id) to stdout with (format csv, header on)<span class="pl-pds">"</span></span> | duckdb <span class="pl-k">-</span>c <span class="pl-s"><span class="pl-pds">"</span>COPY (SELECT * FROM read_csv('/dev/stdin', delim=',', header=true, columns={'id': 'INTEGER', 'info': 'VARCHAR', 'ts': 'timestamp'})) TO '/tmp/test.parquet' (FORMAT 'parquet', COMPRESSION 'ZSTD', ROW_GROUP_SIZE 100000);<span class="pl-pds">"</span></span>  
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ file <span class="pl-k">/</span>tmp<span class="pl-k">/</span><span class="pl-c1">test</span>.<span class="pl-c1">parquet</span>
+<span class="pl-k">/</span>tmp<span class="pl-k">/</span><span class="pl-c1">test</span>.<span class="pl-c1">parquet</span>: Apache Parquet
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ duckdb
+DuckDB <span class="pl-c1">v1</span>.<span class="pl-c1">3</span>.<span class="pl-c1">2</span> (Ossivalis) 0b83e5d2f6
+Enter <span class="pl-s"><span class="pl-pds">"</span>.help<span class="pl-pds">"</span></span> for usage hints.
+Connected to a transient <span class="pl-k">in</span><span class="pl-k">-</span>memory database.
+Use <span class="pl-s"><span class="pl-pds">"</span>.open FILENAME<span class="pl-pds">"</span></span> to reopen <span class="pl-k">on</span> a persistent database.
+D <span class="pl-k">select</span> <span class="pl-c1">count</span>(<span class="pl-k">*</span>) <span class="pl-k">from</span> <span class="pl-s"><span class="pl-pds">'</span>/tmp/test.parquet<span class="pl-pds">'</span></span>;
 ┌──────────────┐
 │ count_star() │
 │    int64     │
 ├──────────────┤
-│    10000     │
+│    <span class="pl-c1">10000</span>     │
 └──────────────┘
-D select * from '/tmp/test.parquet' limit 5;
+D <span class="pl-k">select</span> <span class="pl-k">*</span> <span class="pl-k">from</span> <span class="pl-s"><span class="pl-pds">'</span>/tmp/test.parquet<span class="pl-pds">'</span></span> <span class="pl-k">limit</span> <span class="pl-c1">5</span>;
 ┌───────┬──────────────────────────────────┬────────────────────────────┐
 │  id   │               info               │             ts             │
-│ int32 │             varchar              │         timestamp          │
+│ int32 │             <span class="pl-k">varchar</span>              │         <span class="pl-k">timestamp</span>          │
 ├───────┼──────────────────────────────────┼────────────────────────────┤
-│     1 │ ebacc378cc0186bc3dc9eb55aae01e66 │ 2025-09-23 09:43:43.807629 │
-│     2 │ 31c4f9c72131e3c345b67ca3cb0be76f │ 2025-09-23 09:43:43.807645 │
-│     3 │ b280ef0e548239ddadcf3f20922b6203 │ 2025-09-23 09:43:43.807648 │
-│     4 │ fd34351a122b6410380c486f295c849a │ 2025-09-23 09:43:43.80765  │
-│     5 │ 84ebc3f89f473d213fbb5bb933428a9b │ 2025-09-23 09:43:43.807653 │
+│     <span class="pl-c1">1</span> │ ebacc378cc0186bc3dc9eb55aae01e66 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">09</span>:<span class="pl-c1">43</span>:<span class="pl-c1">43</span>.<span class="pl-c1">807629</span> │
+│     <span class="pl-c1">2</span> │ 31c4f9c72131e3c345b67ca3cb0be76f │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">09</span>:<span class="pl-c1">43</span>:<span class="pl-c1">43</span>.<span class="pl-c1">807645</span> │
+│     <span class="pl-c1">3</span> │ b280ef0e548239ddadcf3f20922b6203 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">09</span>:<span class="pl-c1">43</span>:<span class="pl-c1">43</span>.<span class="pl-c1">807648</span> │
+│     <span class="pl-c1">4</span> │ fd34351a122b6410380c486f295c849a │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">09</span>:<span class="pl-c1">43</span>:<span class="pl-c1">43</span>.<span class="pl-c1">80765</span>  │
+│     <span class="pl-c1">5</span> │ 84ebc3f89f473d213fbb5bb933428a9b │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">09</span>:<span class="pl-c1">43</span>:<span class="pl-c1">43</span>.<span class="pl-c1">807653</span> │
 └───────┴──────────────────────────────────┴────────────────────────────┘
-D 
-</code></pre>
+D </pre></div>
 <h2>duckdb-postgres</h2>
 <p>使用duckdb的插件<a href="https://github.com/duckdb/duckdb-postgres">duckdb-postgres</a>，以前也叫做postgres_scanner来着，去拉取远端PostgreSQL的数据，然后使用duckdb的copy语句</p>
-<pre lang="sql" class="notranslate"><code class="notranslate">postgres@zxm-VMware-Virtual-Platform:~/test$ psql
-psql (16.10)
-Type "help" for help.
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
 
-postgres=# create table test as select id, md5(random()::text) as info, clock_timestamp() ts from generate_series(1,10000) id;
-SELECT 10000
-postgres=# \q
-postgres@zxm-VMware-Virtual-Platform:~/test$ duckdb
-DuckDB v1.3.2 (Ossivalis) 0b83e5d2f6
-Enter ".help" for usage hints.
-Connected to a transient in-memory database.
-Use ".open FILENAME" to reopen on a persistent database.
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> create table test as select id, md5(random()::text) as info, clock_timestamp() ts from generate_series(1,10000) id;</span>
+<span class="pl-k">SELECT</span> <span class="pl-c1">10000</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \q</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ duckdb
+DuckDB <span class="pl-c1">v1</span>.<span class="pl-c1">3</span>.<span class="pl-c1">2</span> (Ossivalis) 0b83e5d2f6
+Enter <span class="pl-s"><span class="pl-pds">"</span>.help<span class="pl-pds">"</span></span> for usage hints.
+Connected to a transient <span class="pl-k">in</span><span class="pl-k">-</span>memory database.
+Use <span class="pl-s"><span class="pl-pds">"</span>.open FILENAME<span class="pl-pds">"</span></span> to reopen <span class="pl-k">on</span> a persistent database.
 D INSTALL postgres;
 D 
 D LOAD postgres;
-D ATTACH 'dbname=postgres user=postgres host=127.0.0.1 port=5432' AS db (TYPE postgres, SCHEMA 'public');
-D select count(*) from db.test;
+D ATTACH <span class="pl-s"><span class="pl-pds">'</span>dbname=postgres user=postgres host=127.0.0.1 port=5432<span class="pl-pds">'</span></span> <span class="pl-k">AS</span> db (TYPE postgres, SCHEMA <span class="pl-s"><span class="pl-pds">'</span>public<span class="pl-pds">'</span></span>);
+D <span class="pl-k">select</span> <span class="pl-c1">count</span>(<span class="pl-k">*</span>) <span class="pl-k">from</span> <span class="pl-c1">db</span>.<span class="pl-c1">test</span>;
 ┌──────────────┐
 │ count_star() │
 │    int64     │
 ├──────────────┤
-│    10000     │
+│    <span class="pl-c1">10000</span>     │
 └──────────────┘
-D COPY db.test TO '/tmp/test2.parquet';
-D  select count(*) from '/tmp/test2.parquet';
+D COPY <span class="pl-c1">db</span>.<span class="pl-c1">test</span> TO <span class="pl-s"><span class="pl-pds">'</span>/tmp/test2.parquet<span class="pl-pds">'</span></span>;
+D  <span class="pl-k">select</span> <span class="pl-c1">count</span>(<span class="pl-k">*</span>) <span class="pl-k">from</span> <span class="pl-s"><span class="pl-pds">'</span>/tmp/test2.parquet<span class="pl-pds">'</span></span>;
 ┌──────────────┐
 │ count_star() │
 │    int64     │
 ├──────────────┤
-│    10000     │
+│    <span class="pl-c1">10000</span>     │
 └──────────────┘
-D select * from '/tmp/test2.parquet' limit 5;
+D <span class="pl-k">select</span> <span class="pl-k">*</span> <span class="pl-k">from</span> <span class="pl-s"><span class="pl-pds">'</span>/tmp/test2.parquet<span class="pl-pds">'</span></span> <span class="pl-k">limit</span> <span class="pl-c1">5</span>;
 ┌───────┬──────────────────────────────────┬───────────────────────────────┐
 │  id   │               info               │              ts               │
-│ int32 │             varchar              │   timestamp with time zone    │
+│ int32 │             <span class="pl-k">varchar</span>              │   <span class="pl-k">timestamp with time zone</span>    │
 ├───────┼──────────────────────────────────┼───────────────────────────────┤
-│     1 │ 03035730b2e25daa5c0846ac4240c084 │ 2025-09-23 18:00:01.095988+08 │
-│     2 │ 76d27fc563a6bb33e58a3671494129f6 │ 2025-09-23 18:00:01.096066+08 │
-│     3 │ 8f508b8def12eab455165dd6eb8a4cd4 │ 2025-09-23 18:00:01.096071+08 │
-│     4 │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ 2025-09-23 18:00:01.096074+08 │
-│     5 │ d084e3c4d1106debae2d9efdaa2d6449 │ 2025-09-23 18:00:01.096077+08 │
+│     <span class="pl-c1">1</span> │ 03035730b2e25daa5c0846ac4240c084 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">095988</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">2</span> │ 76d27fc563a6bb33e58a3671494129f6 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096066</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">3</span> │ 8f508b8def12eab455165dd6eb8a4cd4 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096071</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">4</span> │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096074</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">5</span> │ d084e3c4d1106debae2d9efdaa2d6449 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096077</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
 └───────┴──────────────────────────────────┴───────────────────────────────┘
-D 
-</code></pre>
+D </pre></div>
 <h2>pg_duckdb</h2>
 <p>这是PostgreSQL的插件，<a href="https://github.com/duckdb/pg_duckdb">pg_duckdb</a>增强了PostgreSQL的COPY，原生的PostgreSQL的COPY是不支持指定格式为PARQUET的 <a href="https://www.postgresql.org/docs/16/sql-copy.html" rel="nofollow">https://www.postgresql.org/docs/16/sql-copy.html</a></p>
-<pre lang="sql" class="notranslate"><code class="notranslate">postgres@zxm-VMware-Virtual-Platform:~/test$ psql
-psql (16.10)
-Type "help" for help.
+<div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
 
-postgres=# \dx
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \dx</span>
                   List of installed extensions
    Name    | Version |   Schema   |         Description          
------------+---------+------------+------------------------------
- pg_duckdb | 1.1.0   | public     | DuckDB Embedded in Postgres
- plpgsql   | 1.0     | pg_catalog | PL/pgSQL procedural language
-(2 rows)
+<span class="pl-c"><span class="pl-c">--</span>---------+---------+------------+------------------------------</span>
+ pg_duckdb | <span class="pl-c1">1</span>.<span class="pl-c1">1</span>.<span class="pl-c1">0</span>   | public     | DuckDB Embedded <span class="pl-k">in</span> Postgres
+ plpgsql   | <span class="pl-c1">1</span>.<span class="pl-c1">0</span>     | pg_catalog | PL<span class="pl-k">/</span>pgSQL procedural language
+(<span class="pl-c1">2</span> rows)
 
-postgres=# COPY test TO '/tmp/test3.parquet';
-COPY 10000
-postgres=# \! ls /tmp/test3.parquet -al
--rw------- 1 postgres postgres 406699  9月 23 18:11 /tmp/test3.parquet
-postgres=# \! file /tmp/test3.parquet
-/tmp/test3.parquet: Apache Parquet
-postgres=# \q
-postgres@zxm-VMware-Virtual-Platform:~/test$ duckdb 
-DuckDB v1.3.2 (Ossivalis) 0b83e5d2f6
-Enter ".help" for usage hints.
-Connected to a transient in-memory database.
-Use ".open FILENAME" to reopen on a persistent database.
-D select count(*) from '/tmp/test3.parquet';
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> COPY test TO '/tmp/test3.parquet';</span>
+COPY <span class="pl-c1">10000</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \! ls /tmp/test3.parquet -al</span>
+<span class="pl-k">-</span>rw<span class="pl-c"><span class="pl-c">--</span>----- 1 postgres postgres 406699  9月 23 18:11 /tmp/test3.parquet</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \! file /tmp/test3.parquet</span>
+<span class="pl-k">/</span>tmp<span class="pl-k">/</span><span class="pl-c1">test3</span>.<span class="pl-c1">parquet</span>: Apache Parquet
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \q</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ duckdb 
+DuckDB <span class="pl-c1">v1</span>.<span class="pl-c1">3</span>.<span class="pl-c1">2</span> (Ossivalis) 0b83e5d2f6
+Enter <span class="pl-s"><span class="pl-pds">"</span>.help<span class="pl-pds">"</span></span> for usage hints.
+Connected to a transient <span class="pl-k">in</span><span class="pl-k">-</span>memory database.
+Use <span class="pl-s"><span class="pl-pds">"</span>.open FILENAME<span class="pl-pds">"</span></span> to reopen <span class="pl-k">on</span> a persistent database.
+D <span class="pl-k">select</span> <span class="pl-c1">count</span>(<span class="pl-k">*</span>) <span class="pl-k">from</span> <span class="pl-s"><span class="pl-pds">'</span>/tmp/test3.parquet<span class="pl-pds">'</span></span>;
 ┌──────────────┐
 │ count_star() │
 │    int64     │
 ├──────────────┤
-│    10000     │
+│    <span class="pl-c1">10000</span>     │
 └──────────────┘
-D select * from '/tmp/test3.parquet' limit 5;
+D <span class="pl-k">select</span> <span class="pl-k">*</span> <span class="pl-k">from</span> <span class="pl-s"><span class="pl-pds">'</span>/tmp/test3.parquet<span class="pl-pds">'</span></span> <span class="pl-k">limit</span> <span class="pl-c1">5</span>;
 ┌───────┬──────────────────────────────────┬───────────────────────────────┐
 │  id   │               info               │              ts               │
-│ int32 │             varchar              │   timestamp with time zone    │
+│ int32 │             <span class="pl-k">varchar</span>              │   <span class="pl-k">timestamp with time zone</span>    │
 ├───────┼──────────────────────────────────┼───────────────────────────────┤
-│     1 │ 03035730b2e25daa5c0846ac4240c084 │ 2025-09-23 18:00:01.095988+08 │
-│     2 │ 76d27fc563a6bb33e58a3671494129f6 │ 2025-09-23 18:00:01.096066+08 │
-│     3 │ 8f508b8def12eab455165dd6eb8a4cd4 │ 2025-09-23 18:00:01.096071+08 │
-│     4 │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ 2025-09-23 18:00:01.096074+08 │
-│     5 │ d084e3c4d1106debae2d9efdaa2d6449 │ 2025-09-23 18:00:01.096077+08 │
+│     <span class="pl-c1">1</span> │ 03035730b2e25daa5c0846ac4240c084 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">095988</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">2</span> │ 76d27fc563a6bb33e58a3671494129f6 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096066</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">3</span> │ 8f508b8def12eab455165dd6eb8a4cd4 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096071</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">4</span> │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096074</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">5</span> │ d084e3c4d1106debae2d9efdaa2d6449 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096077</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
 └───────┴──────────────────────────────────┴───────────────────────────────┘
 D .exit
-postgres@zxm-VMware-Virtual-Platform:~/test$ psql
-psql (16.10)
-Type "help" for help.
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ psql
+psql (<span class="pl-c1">16</span>.<span class="pl-c1">10</span>)
+Type <span class="pl-s"><span class="pl-pds">"</span>help<span class="pl-pds">"</span></span> for help.
 
-postgres=# COPY test TO '/tmp/test4' WITH (FORMAT PARQUET);
-COPY 10000
-postgres=# \! ls /tmp/test4 -al
--rw------- 1 postgres postgres 406699  9月 23 18:19 /tmp/test4
-postgres=# \! file /tmp/test4
-/tmp/test4: Apache Parquet
-postgres=# \q
-postgres@zxm-VMware-Virtual-Platform:~/test$ duckdb 
-DuckDB v1.3.2 (Ossivalis) 0b83e5d2f6
-Enter ".help" for usage hints.
-Connected to a transient in-memory database.
-Use ".open FILENAME" to reopen on a persistent database.
-D select count(*) from read_parquet('/tmp/test4');
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> COPY test TO '/tmp/test4' WITH (FORMAT PARQUET);</span>
+COPY <span class="pl-c1">10000</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \! ls /tmp/test4 -al</span>
+<span class="pl-k">-</span>rw<span class="pl-c"><span class="pl-c">--</span>----- 1 postgres postgres 406699  9月 23 18:19 /tmp/test4</span>
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \! file /tmp/test4</span>
+<span class="pl-k">/</span>tmp<span class="pl-k">/</span>test4: Apache Parquet
+postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span> \q</span>
+postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>test$ duckdb 
+DuckDB <span class="pl-c1">v1</span>.<span class="pl-c1">3</span>.<span class="pl-c1">2</span> (Ossivalis) 0b83e5d2f6
+Enter <span class="pl-s"><span class="pl-pds">"</span>.help<span class="pl-pds">"</span></span> for usage hints.
+Connected to a transient <span class="pl-k">in</span><span class="pl-k">-</span>memory database.
+Use <span class="pl-s"><span class="pl-pds">"</span>.open FILENAME<span class="pl-pds">"</span></span> to reopen <span class="pl-k">on</span> a persistent database.
+D <span class="pl-k">select</span> <span class="pl-c1">count</span>(<span class="pl-k">*</span>) <span class="pl-k">from</span> read_parquet(<span class="pl-s"><span class="pl-pds">'</span>/tmp/test4<span class="pl-pds">'</span></span>);
 ┌──────────────┐
 │ count_star() │
 │    int64     │
 ├──────────────┤
-│    10000     │
+│    <span class="pl-c1">10000</span>     │
 └──────────────┘
-D select * from read_parquet('/tmp/test4') limit 5;
+D <span class="pl-k">select</span> <span class="pl-k">*</span> <span class="pl-k">from</span> read_parquet(<span class="pl-s"><span class="pl-pds">'</span>/tmp/test4<span class="pl-pds">'</span></span>) <span class="pl-k">limit</span> <span class="pl-c1">5</span>;
 ┌───────┬──────────────────────────────────┬───────────────────────────────┐
 │  id   │               info               │              ts               │
-│ int32 │             varchar              │   timestamp with time zone    │
+│ int32 │             <span class="pl-k">varchar</span>              │   <span class="pl-k">timestamp with time zone</span>    │
 ├───────┼──────────────────────────────────┼───────────────────────────────┤
-│     1 │ 03035730b2e25daa5c0846ac4240c084 │ 2025-09-23 18:00:01.095988+08 │
-│     2 │ 76d27fc563a6bb33e58a3671494129f6 │ 2025-09-23 18:00:01.096066+08 │
-│     3 │ 8f508b8def12eab455165dd6eb8a4cd4 │ 2025-09-23 18:00:01.096071+08 │
-│     4 │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ 2025-09-23 18:00:01.096074+08 │
-│     5 │ d084e3c4d1106debae2d9efdaa2d6449 │ 2025-09-23 18:00:01.096077+08 │
+│     <span class="pl-c1">1</span> │ 03035730b2e25daa5c0846ac4240c084 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">095988</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">2</span> │ 76d27fc563a6bb33e58a3671494129f6 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096066</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">3</span> │ 8f508b8def12eab455165dd6eb8a4cd4 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096071</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">4</span> │ 0e2af5b95ae49489e4c3d7bdae7bf393 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096074</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
+│     <span class="pl-c1">5</span> │ d084e3c4d1106debae2d9efdaa2d6449 │ <span class="pl-c1">2025</span><span class="pl-k">-</span><span class="pl-c1">09</span><span class="pl-k">-</span><span class="pl-c1">23</span> <span class="pl-c1">18</span>:<span class="pl-c1">00</span>:<span class="pl-c1">01</span>.<span class="pl-c1">096077</span><span class="pl-k">+</span><span class="pl-c1">08</span> │
 └───────┴──────────────────────────────────┴───────────────────────────────┘
-D 
-</code></pre>
+D </pre></div>
 <h2>pg_parquet</h2>
 <p><a href="https://github.com/CrunchyData/pg_parquet">pg_parquet</a>这也是PostgreSQL的插件，同pg_duckdb一致的用法，增强了PostgreSQL的COPY，不过它是一个rust写的插件。这里就贴一下官方的测试案例好了。</p>
-<pre lang="sql" class="notranslate"><code class="notranslate">-- create composite types
-CREATE TYPE product_item AS (id INT, name TEXT, price float4);
-CREATE TYPE product AS (id INT, name TEXT, items product_item[]);
+<div class="highlight highlight-source-sql"><pre class="notranslate"><span class="pl-c"><span class="pl-c">--</span> create composite types</span>
+<span class="pl-k">CREATE</span> <span class="pl-k">TYPE</span> <span class="pl-en">product_item</span> <span class="pl-k">AS</span> (id <span class="pl-k">INT</span>, name <span class="pl-k">TEXT</span>, price float4);
+<span class="pl-k">CREATE</span> <span class="pl-k">TYPE</span> <span class="pl-en">product</span> <span class="pl-k">AS</span> (id <span class="pl-k">INT</span>, name <span class="pl-k">TEXT</span>, items product_item[]);
 
--- create a table with complex types
-CREATE TABLE product_example (
-    id int,
+<span class="pl-c"><span class="pl-c">--</span> create a table with complex types</span>
+<span class="pl-k">CREATE</span> <span class="pl-k">TABLE</span> <span class="pl-en">product_example</span> (
+    id <span class="pl-k">int</span>,
     product product,
     products product[],
-    created_at TIMESTAMP,
-    updated_at TIMESTAMPTZ
+    created_at <span class="pl-k">TIMESTAMP</span>,
+    updated_at <span class="pl-k">TIMESTAMPTZ</span>
 );
 
--- insert some rows into the table
-insert into product_example values (
-    1,
-    ROW(1, 'product 1', ARRAY[ROW(1, 'item 1', 1.0), ROW(2, 'item 2', 2.0), NULL]::product_item[])::product,
-    ARRAY[ROW(1, NULL, NULL)::product, NULL],
+<span class="pl-c"><span class="pl-c">--</span> insert some rows into the table</span>
+<span class="pl-k">insert into</span> product_example <span class="pl-k">values</span> (
+    <span class="pl-c1">1</span>,
+    ROW(<span class="pl-c1">1</span>, <span class="pl-s"><span class="pl-pds">'</span>product 1<span class="pl-pds">'</span></span>, ARRAY[ROW(<span class="pl-c1">1</span>, <span class="pl-s"><span class="pl-pds">'</span>item 1<span class="pl-pds">'</span></span>, <span class="pl-c1">1</span>.<span class="pl-c1">0</span>), ROW(<span class="pl-c1">2</span>, <span class="pl-s"><span class="pl-pds">'</span>item 2<span class="pl-pds">'</span></span>, <span class="pl-c1">2</span>.<span class="pl-c1">0</span>), <span class="pl-k">NULL</span>]::product_item[])::product,
+    ARRAY[ROW(<span class="pl-c1">1</span>, <span class="pl-k">NULL</span>, <span class="pl-k">NULL</span>)::product, <span class="pl-k">NULL</span>],
     now(),
-    '2022-05-01 12:00:00-04'
+    <span class="pl-s"><span class="pl-pds">'</span>2022-05-01 12:00:00-04<span class="pl-pds">'</span></span>
 );
 
--- copy the table to a parquet file
-COPY product_example TO '/tmp/product_example.parquet' (format 'parquet', compression 'gzip');
+<span class="pl-c"><span class="pl-c">--</span> copy the table to a parquet file</span>
+COPY product_example TO <span class="pl-s"><span class="pl-pds">'</span>/tmp/product_example.parquet<span class="pl-pds">'</span></span> (format <span class="pl-s"><span class="pl-pds">'</span>parquet<span class="pl-pds">'</span></span>, compression <span class="pl-s"><span class="pl-pds">'</span>gzip<span class="pl-pds">'</span></span>);
 
--- show table
-SELECT * FROM product_example;
+<span class="pl-c"><span class="pl-c">--</span> show table</span>
+<span class="pl-k">SELECT</span> <span class="pl-k">*</span> <span class="pl-k">FROM</span> product_example;
 
--- copy the parquet file to the table
-COPY product_example FROM '/tmp/product_example.parquet';
+<span class="pl-c"><span class="pl-c">--</span> copy the parquet file to the table</span>
+COPY product_example <span class="pl-k">FROM</span> <span class="pl-s"><span class="pl-pds">'</span>/tmp/product_example.parquet<span class="pl-pds">'</span></span>;
 
--- show table
-SELECT * FROM product_example;
-</code></pre></div>
+<span class="pl-c"><span class="pl-c">--</span> show table</span>
+<span class="pl-k">SELECT</span> <span class="pl-k">*</span> <span class="pl-k">FROM</span> product_example;</pre></div></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>
@@ -317,7 +321,7 @@ if("08/31/2025"!=""){
 </script></div>
 </body>
 <script>
-var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z'};
+var IconList={'sun': 'M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM8 12a4 4 0 100-8 4 4 0 000 8zM8 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0V.75A.75.75 0 018 0zm0 13a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 13zM2.343 2.343a.75.75 0 011.061 0l1.06 1.061a.75.75 0 01-1.06 1.06l-1.06-1.06a.75.75 0 010-1.06zm9.193 9.193a.75.75 0 011.06 0l1.061 1.06a.75.75 0 01-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zM16 8a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0116 8zM3 8a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h1.5A.75.75 0 013 8zm10.657-5.657a.75.75 0 010 1.061l-1.061 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zm-9.193 9.193a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 11-1.061-1.06l1.06-1.061a.75.75 0 011.061 0z', 'moon': 'M9.598 1.591a.75.75 0 01.785-.175 7 7 0 11-8.967 8.967.75.75 0 01.961-.96 5.5 5.5 0 007.046-7.046.75.75 0 01.175-.786zm1.616 1.945a7 7 0 01-7.678 7.678 5.5 5.5 0 107.678-7.678z', 'sync': 'M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z', 'home': 'M6.906.664a1.749 1.749 0 0 1 2.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0 1 13.25 15h-3.5a.75.75 0 0 1-.75-.75V9H7v5.25a.75.75 0 0 1-.75.75h-3.5A1.75 1.75 0 0 1 1 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2Zm1.25 1.171a.25.25 0 0 0-.312 0l-5.25 4.2a.25.25 0 0 0-.094.196v7.019c0 .138.112.25.25.25H5.5V8.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 .75.75v5.25h2.75a.25.25 0 0 0 .25-.25V6.23a.25.25 0 0 0-.094-.195Z', 'github': 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z', 'copy': 'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z', 'check': 'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'};
 var utterancesLoad=0;
 
 let themeSettings={
@@ -391,7 +395,70 @@ function iFrameLoading(){
     }
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+    const createClipboardHTML = (codeContent, additionalClasses = '') => `
+        <pre class="notranslate"><code class="notranslate">${codeContent}</code></pre>
+        <div class="clipboard-container position-absolute right-0 top-0 ${additionalClasses}">
+            <clipboard-copy class="ClipboardButton btn m-2 p-0" role="button" style="display: inherit;">
+                <svg height="16" width="16" class="octicon octicon-copy m-2"><path d="${IconList["copy"]}"></path></svg>
+                <svg height="16" width="16" class="octicon octicon-check color-fg-success m-2 d-none"><path d="${IconList["check"]}"></path></svg>
+            </clipboard-copy>
+            <div class="copy-feedback">Copied!</div>
+        </div>
+    `;
 
+    const handleCodeElements = (selector = '') => {
+        document.querySelectorAll(selector).forEach(codeElement => {
+            const codeContent = codeElement.innerHTML;
+            const newStructure = document.createElement('div');
+            newStructure.className = 'snippet-clipboard-content position-relative overflow-auto';
+            newStructure.innerHTML = createClipboardHTML(codeContent);
+
+            const parentElement = codeElement.parentElement;
+            if (selector.includes('highlight')) {
+                parentElement.insertBefore(newStructure, codeElement.nextSibling);
+                parentElement.removeChild(codeElement);
+            } else {
+                parentElement.parentElement.replaceChild(newStructure, parentElement);
+            }
+        });
+    };
+
+    handleCodeElements('pre.notranslate > code.notranslate');
+    handleCodeElements('div.highlight > pre.notranslate');
+
+    let currentFeedback = null;
+    document.querySelectorAll('clipboard-copy').forEach(copyButton => {
+        copyButton.addEventListener('click', () => {
+            const codeContent = copyButton.closest('.snippet-clipboard-content').innerText;
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = codeContent;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            const copyIcon = copyButton.querySelector('.octicon-copy');
+            const checkIcon = copyButton.querySelector('.octicon-check');
+            const copyFeedback = copyButton.nextElementSibling;
+
+            if (currentFeedback && currentFeedback !== copyFeedback) {currentFeedback.style.display = 'none';}
+            currentFeedback = copyFeedback;
+
+            copyIcon.classList.add('d-none');
+            checkIcon.classList.remove('d-none');
+            copyFeedback.style.display = 'block';
+            copyButton.style.borderColor = 'var(--color-success-fg)';
+
+            setTimeout(() => {
+                copyIcon.classList.remove('d-none');
+                checkIcon.classList.add('d-none');
+                copyFeedback.style.display = 'none';
+                copyButton.style.borderColor = '';
+            }, 2000);
+        });
+    });
+});
 
 </script>
 
