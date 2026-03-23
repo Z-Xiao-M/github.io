@@ -389,7 +389,7 @@ WHERE th.user_id NOT IN (SELECT user_id FROM alice_follows);
 <p>简单总结：SQL/PGQ 对比SQL确实是更加直观，写起来也非常的舒服。不过值得注意的是PostgreSQL SQL/PGQ其实是“换汤不换药”。<br>
 它的本质上来说依旧还是“SQL”，只不过是当输入的是SQL/PGQ时，在rewrite阶段，改写成了等价SQL的数据结构。</p>
 <h2>pg_pgq2sql</h2>
-<p>我做了一个简单的插件——pg_pgq2sql（<a href="https://github.com/Z-Xiao-M/pg_pgq2sql%EF%BC%89%EF%BC%8C%E5%AE%83%E6%8F%90%E4%BE%9B%E7%9A%84%E5%8A%9F%E8%83%BD%E5%85%B6%E5%AE%9E%E5%B0%B1%E6%98%AFSQL/PGQ">https://github.com/Z-Xiao-M/pg_pgq2sql），它提供的功能其实就是SQL/PGQ</a> 查询被转换为等价的SQL语句。</p>
+<p>我做了一个简单的插件——<a href="https://github.com/Z-Xiao-M/pg_pgq2sql">pg_pgq2sql</a>，它提供的功能其实就是SQL/PGQ 查询被转换为等价的SQL语句。</p>
 <pre class="notranslate"><code class="notranslate">postgres=# create extension pg_pgq2sql;
 CREATE EXTENSION
 postgres=# select pg_pgq2sql($$SELECT common_name

@@ -268,7 +268,7 @@ WHERE th.user_id NOT IN (SELECT user_id FROM alice_follows);
 它的本质上来说依旧还是“SQL”，只不过是当输入的是SQL/PGQ时，在rewrite阶段，改写成了等价SQL的数据结构。
 
 ## pg_pgq2sql
-我做了一个简单的插件——pg_pgq2sql（https://github.com/Z-Xiao-M/pg_pgq2sql），它提供的功能其实就是SQL/PGQ 查询被转换为等价的SQL语句。
+我做了一个简单的插件——[pg_pgq2sql](https://github.com/Z-Xiao-M/pg_pgq2sql)，它提供的功能其实就是SQL/PGQ 查询被转换为等价的SQL语句。
 ```
 postgres=# create extension pg_pgq2sql;
 CREATE EXTENSION
