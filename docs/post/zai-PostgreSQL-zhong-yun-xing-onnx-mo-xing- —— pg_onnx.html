@@ -87,12 +87,12 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
     <div id="content">
 <div class="markdown-body" id="postBody"><h1>ONNX 简单介绍</h1>
 <p>ONNX（Open Neural Network Exchange）由微软与Facebook于2017年联合推出，推出后迅速得到了各大厂商和框架的支持。<br>
-<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/ee4e1b12-6c23-4b62-bc17-7a86832a52f3"><img width="1254" height="806" alt="Image" src="https://github.com/user-attachments/assets/ee4e1b12-6c23-4b62-bc17-7a86832a52f3" style="max-width: 100%; height: auto; max-height: 806px;"></a><br>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/ee4e1b12-6c23-4b62-bc17-7a86832a52f3"><img width="1254" height="806" alt="Image" src="https://github.com/user-attachments/assets/ee4e1b12-6c23-4b62-bc17-7a86832a52f3" style="max-width: 100%; height: auto; max-height: 806px;; aspect-ratio: 1254 / 806; background-color: var(--bgColor-muted); border-radius: 6px; display: block" class="js-gh-image-fallback"></a><br>
 其核心机制在于定义了一套与平台无关的统一算子和计算图规范：无论使用何种训练框架（如: PyTorch、TensorFlow、Scikit-learn、MXNet）构建模型，只需将其转换为ONNX格式，就能在任何支持ONNX Runtime的环境中运行——从云端服务器到边缘设备，从移动端到Web浏览器。这种标准化不仅实现了真正的"一次训练，随处部署"，更构建起一个开放的跨生态协作网络。让开发者不必疲于应对环境适配，得以挣脱框架锁定的束缚，从而专注算法创新。</p>
 <p>想了解更多详细信息请关注<a href="https://onnx.ai/" rel="nofollow">ONNX | Home</a>或<a href="https://github.com/onnx/onnx">GitHub</a></p>
 <h1>ONNX Runtime 简单介绍</h1>
 <p>ONNX Runtime（ORT）是微软推出的跨平台、高性能、专为ONNX 模型打造的AI <strong>推理引擎</strong>，其核心价值在于为 ONNX 格式模型提供统一、高效的运行环境：它支持跨平台部署，兼容 Windows、Linux、macOS、Android、iOS 等系统及 x86、ARM 等芯片架构，能适配 CPU、GPU、NPU 等各类硬件；同时提供 Python、C++、C#、JavaScript、Java 等多种API开发接口。</p>
-<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/d98c729c-42e5-4965-a751-b80441132850"><img width="1505" height="595" alt="Image" src="https://github.com/user-attachments/assets/d98c729c-42e5-4965-a751-b80441132850" style="max-width: 100%; height: auto; max-height: 595px;"></a></p>
+<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/d98c729c-42e5-4965-a751-b80441132850"><img width="1505" height="595" alt="Image" src="https://github.com/user-attachments/assets/d98c729c-42e5-4965-a751-b80441132850" style="max-width: 100%; height: auto; max-height: 595px;; aspect-ratio: 1505 / 595; background-color: var(--bgColor-muted); border-radius: 6px; display: block" class="js-gh-image-fallback"></a></p>
 <p>想了解更多详细信息请关注<a href="https://onnxruntime.ai/" rel="nofollow">ONNX Runtime | Home</a>或<a href="https://github.com/microsoft/onnxruntime">GitHub</a></p>
 <h1>现实中的痛点</h1>
 <p><strong>ML模型开发者的痛点</strong></p>
@@ -127,7 +127,7 @@ body{box-sizing: border-box;min-width: 200px;max-width: 900px;margin: 20px auto;
 <li>触发器联动：能通过 PostgreSQL 触发器，在数据插入 / 更新时自动触发推理并存储结果。</li>
 </ul>
 <p>整体架构如下图所示，来自作者23年pgday的<a href="https://pgday.postgresql.kr/static/pgday-2023pg_onnx.pdf" rel="nofollow">pdf</a>分享</p>
-<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/d9408f4d-a9ba-4fdd-b8bb-1fc84b0c52a7"><img width="1145" height="511" alt="Image" src="https://github.com/user-attachments/assets/d9408f4d-a9ba-4fdd-b8bb-1fc84b0c52a7" style="max-width: 100%; height: auto; max-height: 511px;"></a></p>
+<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/d9408f4d-a9ba-4fdd-b8bb-1fc84b0c52a7"><img width="1145" height="511" alt="Image" src="https://github.com/user-attachments/assets/d9408f4d-a9ba-4fdd-b8bb-1fc84b0c52a7" style="max-width: 100%; height: auto; max-height: 511px;; aspect-ratio: 1145 / 511; background-color: var(--bgColor-muted); border-radius: 6px; display: block" class="js-gh-image-fallback"></a></p>
 <p>采用 “PostgreSQL 扩展 + ONNX Runtime+Background Worker” 分离设计</p>
 <ul>
 <li>pg_onnx作为PostgreSQL 扩展，负责 SQL 入口接收请求（其实就是pg_onnx提供了一系列的函数）</li>
@@ -343,7 +343,7 @@ ERROR:  pg_onnx_internal_execute_session: tried creating tensor with negative va
 	<span class="pl-k">return</span> shape_copy;
 }</pre></div>
 <p>而输入这是原始张量形状和当前输入张量的元素总数分别是(-1, 3, -1, -1)和76800，导致最终计算结果为(25600, 3, -1, -1)，这和实际输入张量的形状(1, 3, 160, 160)完全是对不上的，所以导致报错。然后我就尝试着修复了一下, <strong>值得注意的是，对于bool类型的张量还是原来的处理逻辑，因为我没有这个测试场景的需求，所以待测试</strong><br>
-<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/7669678e-d792-4e77-9b07-64546b8d1e54"><img width="925" height="767" alt="Image" src="https://github.com/user-attachments/assets/7669678e-d792-4e77-9b07-64546b8d1e54" style="max-width: 100%; height: auto; max-height: 767px;"></a></p></div>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/7669678e-d792-4e77-9b07-64546b8d1e54"><img width="925" height="767" alt="Image" src="https://github.com/user-attachments/assets/7669678e-d792-4e77-9b07-64546b8d1e54" style="max-width: 100%; height: auto; max-height: 767px;; aspect-ratio: 925 / 767; background-color: var(--bgColor-muted); border-radius: 6px; display: block" class="js-gh-image-fallback"></a></p></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>

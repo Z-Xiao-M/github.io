@@ -1149,7 +1149,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 	}
 }</pre></div>
 <p>调试可以看到：<br>
-<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2"><img width="1062" height="1040" alt="Image" src="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2" style="max-width: 100%; height: auto; max-height: 1040px;"></a></p>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2"><img width="1062" height="1040" alt="Image" src="https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2" style="max-width: 100%; height: auto; max-height: 1040px;; aspect-ratio: 1062 / 1040; background-color: var(--bgColor-muted); border-radius: 6px; display: block" class="js-gh-image-fallback"></a></p>
 <p>其实主要耗时应该还是<code class="notranslate">heap_truncate</code></p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-smi">void</span>
 <span class="pl-en">heap_truncate</span>(<span class="pl-smi">List</span> <span class="pl-c1">*</span><span class="pl-s1">relids</span>)
@@ -1185,9 +1185,9 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
 	}
 }</pre></div>
 <p>调试可以看到：<br>
-<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338"><img width="1011" height="766" alt="Image" src="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338" style="max-width: 100%; height: auto; max-height: 766px;"></a></p>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338"><img width="1011" height="766" alt="Image" src="https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338" style="max-width: 100%; height: auto; max-height: 766px;; aspect-ratio: 1011 / 766; background-color: var(--bgColor-muted); border-radius: 6px; display: block" class="js-gh-image-fallback"></a></p>
 <p>heap_truncate_check_FKs中还存在遍历，调试可以看到：<br>
-<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb"><img width="1038" height="478" alt="Image" src="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb" style="max-width: 100%; height: auto; max-height: 478px;"></a></p>
+<a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb"><img width="1038" height="478" alt="Image" src="https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb" style="max-width: 100%; height: auto; max-height: 478px;; aspect-ratio: 1038 / 478; background-color: var(--bgColor-muted); border-radius: 6px; display: block" class="js-gh-image-fallback"></a></p>
 <p>加了些打印，看的更清楚一些</p>
 <div class="highlight highlight-source-sql"><pre class="notranslate">postgres@zxm<span class="pl-k">-</span>VMware<span class="pl-k">-</span>Virtual<span class="pl-k">-</span>Platform:~<span class="pl-k">/</span>code<span class="pl-k">/</span><span class="pl-c1">16</span>$ psql <span class="pl-k">-</span>o <span class="pl-k">/</span>dev<span class="pl-k">/</span><span class="pl-k">null</span>
 INFO:  PreCommit_on_commit_actions <span class="pl-k">time</span>: <span class="pl-c1">0</span>.<span class="pl-c1">000</span> ms
@@ -1356,7 +1356,7 @@ postgres<span class="pl-k">=</span><span class="pl-c"><span class="pl-c">#</span
  
  /<span class="pl-c1">*</span></pre></div>
 <p>来自tom lane的评价，因为场景比较单一，对于优化此处要增加代码复杂度，让他并不感兴趣</p>
-<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72"><img width="664" height="517" alt="Image" src="https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72" style="max-width: 100%; height: auto; max-height: 517px;"></a></p></div>
+<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72"><img width="664" height="517" alt="Image" src="https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72" style="max-width: 100%; height: auto; max-height: 517px;; aspect-ratio: 664 / 517; background-color: var(--bgColor-muted); border-radius: 6px; display: block" class="js-gh-image-fallback"></a></p></div>
 <div style="font-size:small;margin-top:8px;float:right;">❤️ 转载文章请注明出处，谢谢！❤️</div>
 
 <button class="btn btn-block" type="button" onclick="openComments()" id="cmButton">评论</button>

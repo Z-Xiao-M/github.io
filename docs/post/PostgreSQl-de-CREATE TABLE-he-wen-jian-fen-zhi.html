@@ -271,7 +271,7 @@ GetNewRelFileNumber(<span class="pl-k">Oid</span> reltablespace, Relation pg_cla
 	return <span class="pl-c1">rlocator</span>.<span class="pl-c1">locator</span>.relNumber;
 }</pre></div>
 <p>按照生成的oid，生成相对的文件路径并检查对应的文件是否存在</p>
-<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/bf01c9dd-ba8c-4464-9c30-4223d4c0a8a2"><img width="980" height="197" alt="Image" src="https://github.com/user-attachments/assets/bf01c9dd-ba8c-4464-9c30-4223d4c0a8a2" style="max-width: 100%; height: auto; max-height: 197px;"></a></p>
+<p><a target="_blank" rel="noopener noreferrer" href="https://github.com/user-attachments/assets/bf01c9dd-ba8c-4464-9c30-4223d4c0a8a2"><img width="980" height="197" alt="Image" src="https://github.com/user-attachments/assets/bf01c9dd-ba8c-4464-9c30-4223d4c0a8a2" style="max-width: 100%; height: auto; max-height: 197px;; aspect-ratio: 980 / 197; background-color: var(--bgColor-muted); border-radius: 6px; display: block" class="js-gh-image-fallback"></a></p>
 <h2>分支文件创建</h2>
 <p>分支文件创建对应的函数heapam_relation_set_new_filelocator逻辑如下：</p>
 <div class="highlight highlight-source-c"><pre class="notranslate"><span class="pl-k">static</span> <span class="pl-smi">void</span>
