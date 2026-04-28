@@ -1,2 +1,1431 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Mon, 27 Apr 2026 17:14:56 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster></channel></rss>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><title>包里装着个卡比兽</title><link>https://Z-Xiao-M.github.io/github.io</link><description>待会去码头整点薯条🍟</description><copyright>包里装着个卡比兽</copyright><docs>http://www.rssboard.org/rss-specification</docs><generator>python-feedgen</generator><image><url>https://z-xiao-m.github.io/github.io/avatar.svg</url><title>avatar</title><link>https://Z-Xiao-M.github.io/github.io</link></image><lastBuildDate>Tue, 28 Apr 2026 17:41:18 +0000</lastBuildDate><managingEditor>包里装着个卡比兽</managingEditor><ttl>60</ttl><webMaster>包里装着个卡比兽</webMaster><item><title>PostgreSQL 19devel的SQL/PGQ</title><link>https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%2019devel-de-SQL-PGQ.html</link><description>## 前言
+在前不久（估计也就是上个星期），PostgreSQL 19devel引入了一项新的功能——[SQL Property Graph Queries (SQL/PGQ)](https://github.com/postgres/postgres/commit/2f094e7ac691abc9d2fe0f4dcf0feac4a6ce1d9c)。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%2019devel-de-SQL-PGQ.html</guid><pubDate>Mon, 23 Mar 2026 08:16:47 +0000</pubDate></item><item><title>PostgreSQL库内embedding，配合pgvector完成近似搜索，搭建简易问答</title><link>https://Z-Xiao-M.github.io/github.io/post/PostgreSQL-ku-nei-embedding%EF%BC%8C-pei-he-pgvector-wan-cheng-jin-si-sou-suo-%EF%BC%8C-da-jian-jian-yi-wen-da.html</link><description># 前言
+在逛huggingface的时候，我看到了这个，有点意思，让我们来玩一玩。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PostgreSQL-ku-nei-embedding%EF%BC%8C-pei-he-pgvector-wan-cheng-jin-si-sou-suo-%EF%BC%8C-da-jian-jian-yi-wen-da.html</guid><pubDate>Wed, 19 Nov 2025 01:14:48 +0000</pubDate></item><item><title>OnnxOCR_PG_ONNX：探讨在PostgreSQL中运行ONNX模型更多可能的验证性项目</title><link>https://Z-Xiao-M.github.io/github.io/post/OnnxOCR_PG_ONNX%EF%BC%9A-tan-tao-zai-PostgreSQL-zhong-yun-xing-ONNX-mo-xing-geng-duo-ke-neng-de-yan-zheng-xing-xiang-mu.html</link><description># 前言
+在上一篇[在PostgreSQL中运行ONNX模型 —— pg_onnx](https://mp.weixin.qq.com/s/7Y4EmAUjwocC7r2dY1z3Vg)文章中，我用机器学习中最简单的模型——线性回归做了测试，可能有朋友觉得就一个线性回归并证明不了什么。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/OnnxOCR_PG_ONNX%EF%BC%9A-tan-tao-zai-PostgreSQL-zhong-yun-xing-ONNX-mo-xing-geng-duo-ke-neng-de-yan-zheng-xing-xiang-mu.html</guid><pubDate>Mon, 17 Nov 2025 09:18:27 +0000</pubDate></item><item><title>PostgreSQL CurSor的一个相对冷门用法</title><link>https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%20CurSor-de-yi-ge-xiang-dui-leng-men-yong-fa.html</link><description># CURSOR (游标) 简单介绍
+
+游标[（Cursor）](https://www.postgresql.org/docs/current/plpgsql-cursors.html)是一种用于在数据库中遍历和处理大量查询结果集的机制。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%20CurSor-de-yi-ge-xiang-dui-leng-men-yong-fa.html</guid><pubDate>Mon, 10 Nov 2025 16:51:53 +0000</pubDate></item><item><title>PL/pgSQL事务控制场景</title><link>https://Z-Xiao-M.github.io/github.io/post/PL-pgSQL-shi-wu-kong-zhi-chang-jing.html</link><description># plpgsql事务控制场景
+## 支持的场景如下
+#### 存储过程调用COMMIT/ROLLBACK
+```sql
+postgres=# CREATE TABLE test1 (a int, b text);
+CREATE TABLE
+postgres=# CREATE PROCEDURE transaction_test1(x int, y text)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    FOR i IN 0..x LOOP
+        INSERT INTO test1 (a, b) VALUES (i, y);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+END
+$$;
+CREATE PROCEDURE
+postgres=# CALL transaction_test1(9, 'foo');
+CALL
+postgres=# SELECT * FROM test1;
+ a |  b  
+---+-----
+ 0 | foo
+ 2 | foo
+ 4 | foo
+ 6 | foo
+ 8 | foo
+(5 rows)
+```
+#### 匿名块（DO）调用COMMIT/ROLLBACK
+```sql
+postgres=# TRUNCATE test1;
+TRUNCATE TABLE
+postgres=# DO
+LANGUAGE plpgsql
+$$
+BEGIN
+    FOR i IN 0..9 LOOP
+        INSERT INTO test1 (a) VALUES (i);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+END
+$$;
+DO
+postgres=# SELECT * FROM test1;
+ a | b 
+---+---
+ 0 | 
+ 2 | 
+ 4 | 
+ 6 | 
+ 8 | 
+(5 rows)
+```
+#### 存储过程嵌套调用含有事务控制语句的存储过程或者匿名块
+```sql
+postgres=# CREATE PROCEDURE transaction_test6(c text)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    CALL transaction_test1(9, c);
+END;
+$$;
+CREATE PROCEDURE
+postgres=# CALL transaction_test6('bar');
+CALL
+postgres=# SELECT * FROM test1;
+ a |  b  
+---+-----
+ 0 | bar
+ 2 | bar
+ 4 | bar
+ 6 | bar
+ 8 | bar
+(5 rows)
+
+postgres=# 
+postgres=# TRUNCATE test1;
+TRUNCATE TABLE
+postgres=# CREATE PROCEDURE transaction_test7()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DO 'BEGIN CALL transaction_test1(9, $x$baz$x$); END;';
+END;
+$$;
+CREATE PROCEDURE
+postgres=# CALL transaction_test7();
+CALL
+postgres=# 
+postgres=# SELECT * FROM test1;
+ a |  b  
+---+-----
+ 0 | baz
+ 2 | baz
+ 4 | baz
+ 6 | baz
+ 8 | baz
+(5 rows)
+```
+#### 遍历只读游标时执行COMMIT/ROLLBACK（后面的支持场景如果没有明确标识存储过程，代表现象和匿名块一致）
+```sql
+postgres=# CREATE TABLE test2 (x int);
+CREATE TABLE
+postgres=# INSERT INTO test2 VALUES (0), (1), (2), (3), (4);
+INSERT 0 5
+postgres=# TRUNCATE test1;
+TRUNCATE TABLE
+postgres=# DO LANGUAGE plpgsql $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN SELECT * FROM test2 ORDER BY x LOOP
+        INSERT INTO test1 (a) VALUES (r.x);
+        IF r.x % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+END;
+$$;
+DO
+postgres=# SELECT * FROM test1;
+ a | b 
+---+---
+ 0 | 
+ 2 | 
+ 4 | 
+(3 rows)
+```
+#### 存在EXCEPTION块（隐式子事务），且COMMIT/ROLLBACK位于异常处理之中
+```sql
+postgres=# DO LANGUAGE plpgsql $$
+BEGIN
+    FOR i IN 1..10 LOOP
+      BEGIN
+        INSERT INTO test1 VALUES (i, 'good');
+        INSERT INTO test1 VALUES (i/0, 'bad');
+      EXCEPTION
+        WHEN division_by_zero THEN
+            INSERT INTO test1 VALUES (i, 'exception');
+            IF (i % 3) &gt; 0 THEN COMMIT; ELSE ROLLBACK; END IF;
+      END;
+    END LOOP;
+END;
+$$;
+DO
+postgres=# SELECT * FROM test1;
+ a  |     b     
+----+-----------
+  1 | exception
+  2 | exception
+  4 | exception
+  5 | exception
+  7 | exception
+  8 | exception
+ 10 | exception
+(7 rows)
+```
+#### 事务链（COMMIT AND CHAIN/ROLLBACK AND CHAIN）
+```sql
+postgres=# TRUNCATE test1;
+TRUNCATE TABLE
+postgres=# DO LANGUAGE plpgsql $$
+BEGIN
+    ROLLBACK;
+    SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+    FOR i IN 0..3 LOOP
+        RAISE INFO 'transaction_isolation = %', current_setting('transaction_isolation');
+        INSERT INTO test1 (a) VALUES (i);
+        IF i % 2 = 0 THEN
+            COMMIT AND CHAIN;
+        ELSE
+            ROLLBACK AND CHAIN;
+        END IF;
+    END LOOP;
+END
+$$;
+INFO:  transaction_isolation = repeatable read
+INFO:  transaction_isolation = repeatable read
+INFO:  transaction_isolation = repeatable read
+INFO:  transaction_isolation = repeatable read
+DO
+postgres=# SELECT * FROM test1;
+ a | b 
+---+---
+ 0 | 
+ 2 | 
+(2 rows)
+```
+
+## 不支持的场景如下
+#### 函数调用COMMIT/ROLLBACK
+```sql
+postgres=# CREATE FUNCTION transaction_test2() RETURNS int
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    FOR i IN 0..9 LOOP
+        INSERT INTO test1 (a) VALUES (i);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+    RETURN 1;
+END
+$$;
+CREATE FUNCTION
+postgres=# SELECT transaction_test2();
+2025-11-07 11:11:56.311 CST [6399] ERROR:  invalid transaction termination
+2025-11-07 11:11:56.311 CST [6399] CONTEXT:  PL/pgSQL function transaction_test2() line 6 at COMMIT
+2025-11-07 11:11:56.311 CST [6399] STATEMENT:  SELECT transaction_test2();
+ERROR:  invalid transaction termination
+CONTEXT:  PL/pgSQL function transaction_test2() line 6 at COMMIT
+```
+#### 在函数内调用含有事务控制语句的存储过程或动态匿名块
+```sql
+postgres=# CREATE FUNCTION transaction_test3() RETURNS int
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    CALL transaction_test1(9, 'error');
+    RETURN 1;
+END;
+$$;
+CREATE FUNCTION
+postgres=# SELECT transaction_test3();
+ERROR:  invalid transaction termination
+CONTEXT:  PL/pgSQL function transaction_test1(integer,text) line 6 at COMMIT
+SQL statement 'CALL transaction_test1(9, 'error')'
+PL/pgSQL function transaction_test3() line 3 at CALL
+postgres=# 
+postgres=# CREATE FUNCTION transaction_test4() RETURNS int
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    EXECUTE 'DO LANGUAGE plpgsql $x$ BEGIN COMMIT; END $x$';
+    RETURN 1;
+END;
+$$;
+CREATE FUNCTION
+postgres=# SELECT transaction_test4();
+ERROR:  invalid transaction termination
+CONTEXT:  PL/pgSQL function inline_code_block line 1 at COMMIT
+SQL statement 'DO LANGUAGE plpgsql $x$ BEGIN COMMIT; END $x$'
+PL/pgSQL function transaction_test4() line 3 at EXECUTE
+```
+
+#### 在事务块中调用含有事务控制语句的存储过程或匿名块
+```sql
+postgres=# START TRANSACTION;
+START TRANSACTION
+postgres=*# CALL transaction_test1(9, 'error');
+2025-11-07 11:08:49.437 CST [5483] ERROR:  invalid transaction termination
+2025-11-07 11:08:49.437 CST [5483] CONTEXT:  PL/pgSQL function transaction_test1(integer,text) line 6 at COMMIT
+2025-11-07 11:08:49.437 CST [5483] STATEMENT:  CALL transaction_test1(9, 'error');
+ERROR:  invalid transaction termination
+CONTEXT:  PL/pgSQL function transaction_test1(integer,text) line 6 at COMMIT
+postgres=!# COMMIT;
+ROLLBACK
+postgres=#
+postgres=# START TRANSACTION;
+START TRANSACTION
+postgres=*# DO LANGUAGE plpgsql $$ BEGIN COMMIT; END $$;
+2025-11-07 11:09:44.316 CST [5483] ERROR:  invalid transaction termination
+2025-11-07 11:09:44.316 CST [5483] CONTEXT:  PL/pgSQL function inline_code_block line 1 at COMMIT
+2025-11-07 11:09:44.316 CST [5483] STATEMENT:  DO LANGUAGE plpgsql $$ BEGIN COMMIT; END $$;
+ERROR:  invalid transaction termination
+CONTEXT:  PL/pgSQL function inline_code_block line 1 at COMMIT
+postgres=!# COMMIT;
+ROLLBACK
+
+```
+#### 存储过程设置了proconfig或者标识为SECURITY DEFINER
+```sql
+postgres=# CREATE PROCEDURE transaction_test5()
+LANGUAGE plpgsql
+SET work_mem = 555
+AS $$
+BEGIN
+    COMMIT;
+END;
+$$;
+CREATE PROCEDURE
+postgres=# CALL transaction_test5();
+ERROR:  invalid transaction termination
+CONTEXT:  PL/pgSQL function transaction_test5() line 3 at COMMIT
+postgres=# 
+postgres=# CREATE PROCEDURE transaction_test5b()
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    COMMIT;
+END;
+$$;
+CREATE PROCEDURE
+postgres=# CALL transaction_test5b();
+ERROR:  invalid transaction termination
+CONTEXT:  PL/pgSQL function transaction_test5b() line 3 at COMMIT
+```
+#### 存储过程动态调用存储过程
+```sql
+postgres=# CREATE PROCEDURE transaction_test8()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    EXECUTE 'CALL transaction_test1(10, $x$baz$x$)';
+END;
+$$;
+CREATE PROCEDURE
+postgres=# CALL transaction_test8();
+ERROR:  invalid transaction termination
+CONTEXT:  PL/pgSQL function transaction_test1(integer,text) line 6 at COMMIT
+SQL statement 'CALL transaction_test1(10, $x$baz$x$)'
+PL/pgSQL function transaction_test8() line 3 at EXECUTE
+```
+#### 匿名块动态调用事务控制语句
+```sql
+postgres=# DO LANGUAGE plpgsql $$
+BEGIN
+    EXECUTE 'COMMIT';
+END;
+$$;
+ERROR:  EXECUTE of transaction commands is not implemented
+CONTEXT:  PL/pgSQL function inline_code_block line 3 at EXECUTE
+postgres=# DO LANGUAGE plpgsql $$
+BEGIN
+    EXECUTE 'ROLLBACK';
+END;
+$$;
+ERROR:  EXECUTE of transaction commands is not implemented
+CONTEXT:  PL/pgSQL function inline_code_block line 3 at EXECUTE
+```
+#### 遍历非只读游标（RETURNING子句）
+```sql
+postgres=# TRUNCATE test1;
+TRUNCATE TABLE
+postgres=# DO LANGUAGE plpgsql $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN UPDATE test2 SET x = x * 2 RETURNING x LOOP
+        INSERT INTO test1 (a) VALUES (r.x);
+        ROLLBACK;
+    END LOOP;
+END;
+$$;
+ERROR:  cannot perform transaction commands inside a cursor loop that is not read-only
+CONTEXT:  PL/pgSQL function inline_code_block line 7 at ROLLBACK
+```
+#### SAVEPOINT
+```sql
+postgres=# DO LANGUAGE plpgsql $$
+BEGIN
+    SAVEPOINT foo;
+END;
+$$;
+ERROR:  unsupported transaction command in PL/pgSQL
+CONTEXT:  PL/pgSQL function inline_code_block line 3 at SQL statement
+```
+#### 修改事务隔离级别前，未COMMIT/ROLLBACK
+```sql
+postgres=# DO LANGUAGE plpgsql $$
+BEGIN
+    RAISE INFO '%', current_setting('transaction_isolation');
+    SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+END;
+$$;
+INFO:  read committed
+ERROR:  SET TRANSACTION ISOLATION LEVEL must be called before any query
+CONTEXT:  SQL statement 'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ'
+PL/pgSQL function inline_code_block line 4 at SQL statement
+```
+
+#### 存在EXCEPTION块（隐式子事务），且COMMIT/ROLLBACK不在异常处理之中
+```sql
+postgres=# TRUNCATE test1;
+TRUNCATE TABLE
+postgres=# DO LANGUAGE plpgsql $$
+BEGIN
+    BEGIN
+        INSERT INTO test1 (a) VALUES (1);
+        COMMIT;
+        INSERT INTO test1 (a) VALUES (1/0);
+        COMMIT;
+    EXCEPTION
+        WHEN division_by_zero THEN
+            RAISE NOTICE 'caught division_by_zero';
+    END;
+END;
+$$;
+ERROR:  cannot commit while a subtransaction is active
+CONTEXT:  PL/pgSQL function inline_code_block line 5 at COMMIT
+postgres=# DO LANGUAGE plpgsql $$
+BEGIN
+    BEGIN
+        INSERT INTO test1 (a) VALUES (1);
+        ROLLBACK;
+        INSERT INTO test1 (a) VALUES (1/0);
+        ROLLBACK;
+    EXCEPTION
+        WHEN division_by_zero THEN
+            RAISE NOTICE 'caught division_by_zero';
+    END;
+END;
+$$;
+ERROR:  cannot roll back while a subtransaction is active
+CONTEXT:  PL/pgSQL function inline_code_block line 5 at ROLLBACK
+postgres=# 
+```
+
+# 声明
+上述的示例均是在`AUTOCOMMIT = 'on'`的前提之下完成的，因为在很早之前我们就聊过[`AUTOCOMMIT`](https://mp.weixin.qq.com/s/dTECp4GKJjMQyKHfOV3kCg)的一个实现机制，当`AUTOCOMMIT = 'off'`等价于在运行真正的语句之前为你开一个新的事务。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PL-pgSQL-shi-wu-kong-zhi-chang-jing.html</guid><pubDate>Thu, 06 Nov 2025 03:44:02 +0000</pubDate></item><item><title>ONNX Runtime C Example —— onnx_model</title><link>https://Z-Xiao-M.github.io/github.io/post/ONNX%20Runtime%20C%20Example%20%E2%80%94%E2%80%94%20onnx_model.html</link><description>## 契机
+我花了点时间写了一个用c语言驱动[onnxruntime](https://github.com/microsoft/onnxruntime)，然后加载onnx模型以及推理的一个简单示例（或工具）。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/ONNX%20Runtime%20C%20Example%20%E2%80%94%E2%80%94%20onnx_model.html</guid><pubDate>Thu, 30 Oct 2025 09:44:51 +0000</pubDate></item><item><title>在PostgreSQL中运行onnx模型 —— pg_onnx</title><link>https://Z-Xiao-M.github.io/github.io/post/zai-PostgreSQL-zhong-yun-xing-onnx-mo-xing-%20%E2%80%94%E2%80%94%20pg_onnx.html</link><description>#  ONNX 简单介绍
+ONNX（Open Neural Network Exchange）由微软与Facebook于2017年联合推出，推出后迅速得到了各大厂商和框架的支持。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/zai-PostgreSQL-zhong-yun-xing-onnx-mo-xing-%20%E2%80%94%E2%80%94%20pg_onnx.html</guid><pubDate>Thu, 16 Oct 2025 08:33:26 +0000</pubDate></item><item><title>本地部署Qwen3-0.6B模型</title><link>https://Z-Xiao-M.github.io/github.io/post/ben-di-bu-shu-Qwen3-0.6B-mo-xing.html</link><description>本次部署大模型我们这里使用的是[llama.cpp](https://github.com/ggml-org/llama.cpp)，待部署的模型是Qwen3-0.6B（其实很小）
+
+### [llama.cpp](https://github.com/ggml-org/llama.cpp)的源码编译安装
+
+```bash
+git clone https://github.com/ggml-org/llama.cpp
+cd llama.cpp
+cmake -B build
+cmake --build build --config Release # 可以加并行编译 如：-j4
+```
+
+编译完后的可执行文件位于llama.cpp/build/bin 我们一会需要用到其中的部分可执行程序
+
+```bash
+postgres@zxm-VMware-Virtual-Platform:~/llama.cpp/build/bin$ ls
+libggml-base.so      llama-cli                      llama-gemma3-cli  llama-lookahead      llama-passkey          llama-server              test-alloc        test-chat-template           test-log                test-rope
+libggml-cpu.so       llama-convert-llama2c-to-ggml  llama-gen-docs    llama-lookup         llama-perplexity       llama-simple              test-arg-parser   test-gbnf-validator          test-model-load-cancel  test-sampling
+libggml.so           llama-cvector-generator        llama-gguf        llama-lookup-create  llama-q8dot            llama-simple-chat         test-autorelease  test-gguf                    test-mtmd-c-api         test-thread-safety
+libllama.so          llama-diffusion-cli            llama-gguf-hash   llama-lookup-merge   llama-quantize         llama-speculative         test-backend-ops  test-grammar-integration     test-opt                test-tokenizer-0
+libmtmd.so           llama-embedding                llama-gguf-split  llama-lookup-stats   llama-qwen2vl-cli      llama-speculative-simple  test-barrier      test-grammar-parser          test-quantize-fns       test-tokenizer-1-bpe
+llama-batched        llama-eval-callback            llama-imatrix     llama-minicpmv-cli   llama-retrieval        llama-tokenize            test-c            test-json-partial            test-quantize-perf      test-tokenizer-1-spm
+llama-batched-bench  llama-export-lora              llama-llava-cli   llama-mtmd-cli       llama-run              llama-tts                 test-chat         test-json-schema-to-grammar  test-quantize-stats
+llama-bench          llama-finetune                 llama-logits      llama-parallel       llama-save-load-state  llama-vdot                test-chat-parser  test-llama-grammar           test-regex-partial
+```
+
+### &amp;#x20;下载Qwen3-0.6B
+
+模型我们可以前往huggingface下载，这里给出下载链接：&lt;https://huggingface.co/Qwen/Qwen3-0.6B-GGUF?show_file_info=Qwen3-0.6B-Q8_0.gguf&gt;
+
+&lt;img width='2552' height='1284' alt='Image' src='https://github.com/user-attachments/assets/e9a7eeb4-a918-4019-b38a-ecc1f0aeb977' /&gt;
+
+然后点击Download即可，文件大小639MB
+
+### &amp;#x20;启动模型
+
+#### 控制台启动
+
+[`llama-cli`](https://github.com/ggml-org/llama.cpp/blob/master/tools/main)是一个控制台程序，可用于与 LLM 聊天。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/ben-di-bu-shu-Qwen3-0.6B-mo-xing.html</guid><pubDate>Mon, 13 Oct 2025 05:38:23 +0000</pubDate></item><item><title>用PEG与cpp-peglib轻松搞定解析</title><link>https://Z-Xiao-M.github.io/github.io/post/yong-PEG-yu-cpp-peglib-qing-song-gao-ding-jie-xi.html</link><description>&gt; [!CAUTION]
+&gt; 以下内容来自AI总结 如有错误 需自行甄别 
+&gt; 此处用作记录 参考 https://berthub.eu/articles/posts/practical-peg-parsing/ 生成
+&gt; 或许可能替代Lex/Yacc 完成SQL的词法语法解析 duckdb有望成为先行者 官方文章[Runtime-Extensible SQL Parsers Using PEG](https://duckdb.org/2024/11/22/runtime-extensible-parsers.html)
+
+在软件开发中，“解析”是个绕不开的需求——小到解析配置文件里的向量数据，大到处理Prometheus监控指标、JSON/XML格式，甚至自定义协议。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/yong-PEG-yu-cpp-peglib-qing-song-gao-ding-jie-xi.html</guid><pubDate>Mon, 29 Sep 2025 07:22:46 +0000</pubDate></item><item><title>将PostgreSQL的表转换成parquet的几种方法</title><link>https://Z-Xiao-M.github.io/github.io/post/jiang-PostgreSQL-de-biao-zhuan-huan-cheng-parquet-de-ji-zhong-fang-fa.html</link><description># 茴香豆的茴字，怎样写的?
+读过书，……我便要考你一考。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/jiang-PostgreSQL-de-biao-zhuan-huan-cheng-parquet-de-ji-zhong-fang-fa.html</guid><pubDate>Tue, 23 Sep 2025 10:17:40 +0000</pubDate></item><item><title>Ninja</title><link>https://Z-Xiao-M.github.io/github.io/post/Ninja.html</link><description># Ninja
+Ninja 是一款专注于快速构建的轻量级构建系统，核心目标是替代传统 Make 工具，凭借高效的依赖解析与任务调度能力，在 Chrome、LLVM 等大型项目中能显著提升编译效率，但其不擅长手动编写构建规则，需配合 CMake、Meson 等工具自动生成核心构建文件 build.ninja；使用时，先按系统差异安装（Linux 用包管理器、macOS 用 Homebrew、Windows 用 Chocolatey 或官网下载），再通过 CMake 等生成 build.ninja（如创建 build 目录并执行 cmake -G Ninja ..），最后执行 ninja 命令启动编译，可按需指定目标（ninja &lt;目标名&gt;）、清理产物（ninja clean）、设置并行线程数（ninja -j N）或查看详细命令（ninja -v），它适合大型项目及频繁迭代场景，能自动检测文件变更仅重新编译受影响部分，且不建议手动维护 build.ninja。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/Ninja.html</guid><pubDate>Tue, 23 Sep 2025 06:40:23 +0000</pubDate></item><item><title>PL/pgSQL 内存管理机制详解</title><link>https://Z-Xiao-M.github.io/github.io/post/PL-pgSQL%20-nei-cun-guan-li-ji-zhi-xiang-jie.html</link><description>&gt; [!CAUTION]
+&gt; 以下内容来自AI总结 如有错误 需自行甄别 此处用作记录
+
+# PL/pgSQL 内存管理机制详解
+
+PL/pgSQL 作为 PostgreSQL 内置的过程化编程语言，其内存管理机制基于 PostgreSQL 核心的 **“内存上下文（Memory Context）”** 体系设计，旨在高效管理函数执行过程中的内存分配与释放，避免内存泄漏并优化性能。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PL-pgSQL%20-nei-cun-guan-li-ji-zhi-xiang-jie.html</guid><pubDate>Thu, 18 Sep 2025 08:28:18 +0000</pubDate></item><item><title>PG_TRY、PG_CATCH、PG_FINALLY</title><link>https://Z-Xiao-M.github.io/github.io/post/PG_TRY%E3%80%81PG_CATCH%E3%80%81PG_FINALLY.html</link><description>&gt; [!CAUTION]
+&gt; 以下内容来自AI总结 如有错误 需自行甄别 此处用作记录
+
+# 基本用途与核心宏
+这些宏用于捕获代码中可能通过ereport(ERROR)抛出的错误，并执行错误恢复逻辑。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PG_TRY%E3%80%81PG_CATCH%E3%80%81PG_FINALLY.html</guid><pubDate>Thu, 18 Sep 2025 07:26:51 +0000</pubDate></item><item><title>驴子、老虎和狮子的寓言</title><link>https://Z-Xiao-M.github.io/github.io/post/lv-zi-%E3%80%81-lao-hu-he-shi-zi-de-yu-yan.html</link><description>&gt; [!TIP]
+&gt; 原文地址：https://philosophics.blog/2022/06/30/lions-and-tigers-and-a-jackass/#comment-1919
+下面是来自[weekly](https://github.com/ruanyf/weekly/blob/master/docs/issue-317.md#%E9%A9%B4%E5%AD%90%E8%80%81%E8%99%8E%E5%92%8C%E7%8B%AE%E5%AD%90%E7%9A%84%E5%AF%93%E8%A8%80) 的翻译
+
+&lt;img width='799' height='791' alt='Image' src='https://github.com/user-attachments/assets/f9874724-3a9a-4d3c-9678-2151150d0426' /&gt;
+
+有一天，驴子和老虎发生了争论。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/lv-zi-%E3%80%81-lao-hu-he-shi-zi-de-yu-yan.html</guid><pubDate>Wed, 17 Sep 2025 08:10:51 +0000</pubDate></item><item><title>Oracle和PostgreSQL在过程语言中的事务表现</title><link>https://Z-Xiao-M.github.io/github.io/post/Oracle-he-PostgreSQL-zai-guo-cheng-yu-yan-zhong-de-shi-wu-biao-xian.html</link><description>## 异常处理执行插入操作
+### oracle 略过异常语句，默认提交
+```sql
+SQL&gt; CREATE TABLE tmp(id int);
+
+Table created.
+
+CREATE OR REPLACE PROCEDURE test_proc AS 
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN
+          INSERT INTO tmp VALUES (1); -- 插入数据-1、1
+END;
+  9  /
+
+Procedure created.
+
+SQL&gt; CALL test_proc();
+
+Call completed.
+
+SQL&gt; SELECT * FROM tmp;
+
+        ID
+----------
+        -1
+         1
+
+SQL&gt; 
+```
+### PostgreSQL 异常前的语句全部回滚
+```sql
+postgres=# CREATE TABLE tmp(id int);
+CREATE TABLE
+postgres=# CREATE OR REPLACE PROCEDURE test_proc() AS $$ 
+DECLARE
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN
+          INSERT INTO tmp VALUES (1); -- 插入数据1
+END; $$ LANGUAGE PLPGSQL;
+CREATE PROCEDURE
+postgres=# CALL test_proc();
+CALL
+postgres=# SELECT * FROM tmp;
+ id 
+----
+  1
+(1 row)
+
+postgres=# 
+```
+
+## 异常处理执行回滚操作
+### oracle 所有数据回滚
+```sql
+SQL&gt; truncate table tmp;
+
+Table truncated.
+
+CREATE OR REPLACE PROCEDURE test_proc
+AS 
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (0);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN
+          rollback;              -- 全部回滚 无数据
+END;
+ 11  /
+
+Procedure created.
+
+SQL&gt; CALL test_proc();
+
+Call completed.
+
+SQL&gt; SELECT * FROM tmp;
+
+no rows selected
+
+SQL&gt; 
+```
+### PostgreSQL 同oracle一致 全部回滚
+```sql
+postgres=# truncate table tmp;
+TRUNCATE TABLE
+postgres=# CREATE OR REPLACE PROCEDURE test_proc() AS $$ 
+DECLARE
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (0);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN
+          rollback;              -- 全部回滚 无数据
+END; $$ LANGUAGE PLPGSQL;
+CREATE PROCEDURE
+postgres=# CALL test_proc();
+CALL
+postgres=# SELECT * FROM tmp;
+ id 
+----
+(0 rows)
+
+postgres=# 
+```
+
+## 异常处理执行提交操作
+### oracle 略过异常语句 其余部分正常提交
+```sql
+SQL&gt; truncate table tmp;
+
+Table truncated.
+
+CREATE OR REPLACE PROCEDURE test_proc
+AS 
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (0);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN           -- 提交 插入数据-1、0
+          COMMIT;
+END;
+ 11  /
+
+Procedure created.
+
+SQL&gt; CALL test_proc();
+
+Call completed.
+
+SQL&gt; SELECT * FROM tmp;
+
+        ID
+----------
+        -1
+         0
+
+SQL&gt; 
+```
+### PostgreSQL 全部回滚无数据
+```sql
+postgres=# truncate table tmp;
+TRUNCATE TABLE
+postgres=# CREATE OR REPLACE PROCEDURE test_proc() AS $$ 
+DECLARE
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (0);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN           -- 提交 无数据
+          COMMIT;
+END; $$ LANGUAGE PLPGSQL;
+CREATE PROCEDURE
+postgres=# CALL test_proc();
+CALL
+postgres=# SELECT * FROM tmp;
+ id 
+----
+(0 rows)
+
+postgres=# 
+```
+
+## 测试语句
+### oracle
+```sql
+CREATE TABLE tmp(id int);
+
+CREATE OR REPLACE PROCEDURE test_proc AS 
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN
+          INSERT INTO tmp VALUES (1); -- 插入数据-1、1
+END;
+/
+CALL test_proc();
+SELECT * FROM tmp;
+
+truncate table tmp;
+CREATE OR REPLACE PROCEDURE test_proc
+AS 
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (0);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN
+          rollback;              -- 全部回滚 无数据
+END;
+/
+CALL test_proc();
+SELECT * FROM tmp;
+
+truncate table tmp;
+CREATE OR REPLACE PROCEDURE test_proc
+AS 
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (0);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN           -- 提交 插入数据-1、0
+          COMMIT;
+END;
+/
+CALL test_proc();
+SELECT * FROM tmp;
+```
+### PostgreSQL
+```sql
+CREATE TABLE tmp(id int);
+
+CREATE OR REPLACE PROCEDURE test_proc() AS $$ 
+DECLARE
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN
+          INSERT INTO tmp VALUES (1); -- 插入数据1
+END; $$ LANGUAGE PLPGSQL;
+
+CALL test_proc();
+SELECT * FROM tmp;
+
+truncate table tmp;
+CREATE OR REPLACE PROCEDURE test_proc() AS $$ 
+DECLARE
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (0);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN
+          rollback;              -- 全部回滚 无数据
+END; $$ LANGUAGE PLPGSQL;
+CALL test_proc();
+SELECT * FROM tmp;
+
+truncate table tmp;
+CREATE OR REPLACE PROCEDURE test_proc() AS $$ 
+DECLARE
+BEGIN
+  INSERT INTO tmp VALUES (-1);
+  INSERT INTO tmp VALUES (0);
+  INSERT INTO tmp VALUES (1/0);  -- 制造异常
+  EXCEPTION
+      WHEN others THEN           -- 提交 无数据
+          COMMIT;
+END; $$ LANGUAGE PLPGSQL;
+CALL test_proc();
+SELECT * FROM tmp;
+```。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/Oracle-he-PostgreSQL-zai-guo-cheng-yu-yan-zhong-de-shi-wu-biao-xian.html</guid><pubDate>Mon, 15 Sep 2025 08:38:22 +0000</pubDate></item><item><title>PostgreSQL Predefined Roles (PostgreSQL预定义角色)</title><link>https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%20Predefined%20Roles%20%28PostgreSQL-yu-ding-yi-jiao-se-%29.html</link><description>&gt; [!CAUTION]
+&gt; 以下内容来自AI总结 如有错误 需自行甄别 此处用作记录
+&gt; 原文：https://boringsql.com/posts/postgresql-predefined-roles/
+
+### 1. 一段话总结
+PostgreSQL的**预定义角色**是15个内置的专项权限集合，旨在解决传统管理中“基础权限不足”与“超级用户权限过度授予”的二元困境，无需授予超级用户权限即可实现精细化运维——按功能分为数据访问（如`pg_read_all_data`）、监控与可观测性（如`pg_monitor`）、系统操作（如`pg_signal_backend`）、文件系统访问（如`pg_read_server_files`）及特殊用途五大类；其演进从PostgreSQL 9.6（2016）的首个角色`pg_signal_backend`持续到18（2025）的`pg_signal_autovacuum_worker`，不断解决实际运维痛点；其中**pg_database_owner**为特殊角色，无默认权限、成员资格随数据库动态变化且不可显式授予，修复了`public` schema的权限问题并支持模板继承，最终实现PostgreSQL运维从临时权限管理到**系统化工夫委派**的转变。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%20Predefined%20Roles%20%28PostgreSQL-yu-ding-yi-jiao-se-%29.html</guid><pubDate>Mon, 15 Sep 2025 01:24:12 +0000</pubDate></item><item><title>openHalo Star History</title><link>https://Z-Xiao-M.github.io/github.io/post/openHalo%20Star%20History.html</link><description>&gt; 自2025年四月初至今，除了初期有过简单的宣传，后续就基本没在什么场合推广openHalo了。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/openHalo%20Star%20History.html</guid><pubDate>Wed, 10 Sep 2025 06:37:59 +0000</pubDate></item><item><title>日出</title><link>https://Z-Xiao-M.github.io/github.io/post/ri-chu.html</link><description>我拍了一些日出的照片，有的是我旅游的时候拍的，有的是我随手拍的，用作记录，此处不定期更新。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/ri-chu.html</guid><pubDate>Sun, 07 Sep 2025 14:07:47 +0000</pubDate></item><item><title>pg_uprobe——不需要修改任何代码，就可以观测内核C函数执行时间</title><link>https://Z-Xiao-M.github.io/github.io/post/pg_uprobe%E2%80%94%E2%80%94-bu-xu-yao-xiu-gai-ren-he-dai-ma-%EF%BC%8C-jiu-ke-yi-guan-ce-nei-he-C-han-shu-zhi-xing-shi-jian.html</link><description># 前言
+之前在看ebpf的时候，了解到了kprobe （内核态探针）和 uprobe （用户态探针）。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/pg_uprobe%E2%80%94%E2%80%94-bu-xu-yao-xiu-gai-ren-he-dai-ma-%EF%BC%8C-jiu-ke-yi-guan-ce-nei-he-C-han-shu-zhi-xing-shi-jian.html</guid><pubDate>Thu, 04 Sep 2025 10:25:58 +0000</pubDate></item><item><title>plpgsql中的隐式子事务</title><link>https://Z-Xiao-M.github.io/github.io/post/plpgsql-zhong-de-yin-shi-zi-shi-wu.html</link><description># 子事务
+在 PostgreSQL 中，子事务（Subtransaction）是指在一个主事务内部创建的嵌套事务，用于实现更细粒度的事务控制。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/plpgsql-zhong-de-yin-shi-zi-shi-wu.html</guid><pubDate>Thu, 04 Sep 2025 07:35:19 +0000</pubDate></item><item><title>文摘: 如果没有人读博客，为什么要写呢？</title><link>https://Z-Xiao-M.github.io/github.io/post/wen-zhai--%20-ru-guo-mei-you-ren-du-bo-ke-%EF%BC%8C-wei-shen-me-yao-xie-ni-%EF%BC%9F.html</link><description>&gt; 我偶然看到这么一段话，想简单记录一下
+
+让我们坦率一点吧，你写了一篇博客，根本就没有人读。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wen-zhai--%20-ru-guo-mei-you-ren-du-bo-ke-%EF%BC%8C-wei-shen-me-yao-xie-ni-%EF%BC%9F.html</guid><pubDate>Thu, 04 Sep 2025 05:40:35 +0000</pubDate></item><item><title>查询耗时同临时表的数量呈线性增长</title><link>https://Z-Xiao-M.github.io/github.io/post/cha-xun-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</link><description>内容演示：
+```sql
+postgres@zxm-VMware-Virtual-Platform:~/code/16$ psql -o /dev/null
+psql (16.10)
+Type 'help' for help.
+
+postgres=# \timing
+Timing is on.
+postgres=# select * from pg_database;
+Time: 0.491 ms
+postgres=# select * from pg_database;
+Time: 0.676 ms
+postgres=# select * from pg_database;
+Time: 0.573 ms
+postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
+Time: 5.771 ms
+postgres=# select * from a_gtt;
+Time: 1.721 ms
+postgres=# select * from a_gtt;
+Time: 1.383 ms
+postgres=# select * from a_gtt;
+Time: 1.703 ms
+postgres=# DO $$
+DECLARE
+  v_sql VARCHAR(100);
+BEGIN
+  FOR i IN 1..3000 LOOP
+    v_sql := 'CREATE TEMP TABLE a_gtt'||i||'(n numeric) ON COMMIT DELETE ROWS';
+    EXECUTE v_sql;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+Time: 4150.059 ms (00:04.150)
+postgres=# select * from a_gtt;
+Time: 1250.611 ms (00:01.251)
+postgres=# select * from a_gtt;
+Time: 1239.305 ms (00:01.239)
+postgres=# select * from a_gtt;
+Time: 1213.000 ms (00:01.213)
+postgres=# select * from pg_database;
+Time: 1.975 ms
+postgres=# select * from pg_database;
+Time: 0.981 ms
+postgres=# select * from pg_database;
+Time: 0.758 ms
+```
+粗略的判断，没有仔细研究，估计在于需要多次遍历大的list，以及还需要对临时表做一些额外的清理工作，这里主要耗时是在类似`truncate`的操作
+```c
+// 和on_commits 息息相关
+static List *on_commits = NIL;
+```
+在创建临时表时，如果存在ON COMMIT的动作 就会将其动作注册到这个变量中
+```c
+/* What to do at commit time for temporary relations */
+typedef enum OnCommitAction
+{
+	ONCOMMIT_NOOP,				/* No ON COMMIT clause (do nothing) */
+	ONCOMMIT_PRESERVE_ROWS,		/* ON COMMIT PRESERVE ROWS (do nothing) */
+	ONCOMMIT_DELETE_ROWS,		/* ON COMMIT DELETE ROWS */
+	ONCOMMIT_DROP				/* ON COMMIT DROP */
+} OnCommitAction;
+
+
+// heap_create_with_catalog
+	 * If there's a special on-commit action, remember it
+	 */
+	if (oncommit != ONCOMMIT_NOOP)
+		register_on_commit_action(relid, oncommit);
+
+/*
+ * Register a newly-created relation's ON COMMIT action.
+ */
+void
+register_on_commit_action(Oid relid, OnCommitAction action)
+{
+	OnCommitItem *oc;
+	MemoryContext oldcxt;
+
+	/*
+	 * We needn't bother registering the relation unless there is an ON COMMIT
+	 * action we need to take.
+	 */
+	if (action == ONCOMMIT_NOOP || action == ONCOMMIT_PRESERVE_ROWS)
+		return;
+
+	oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
+
+	oc = (OnCommitItem *) palloc(sizeof(OnCommitItem));
+	oc-&gt;relid = relid;
+	oc-&gt;oncommit = action;
+	oc-&gt;creating_subid = GetCurrentSubTransactionId();
+	oc-&gt;deleting_subid = InvalidSubTransactionId;
+
+	/*
+	 * We use lcons() here so that ON COMMIT actions are processed in reverse
+	 * order of registration.  That might not be essential but it seems
+	 * reasonable.
+	 */
+	on_commits = lcons(oc, on_commits);
+
+	MemoryContextSwitchTo(oldcxt);
+}
+```
+而在事务将要完成之前，需要处理这个list中的相关内容
+```c
+/*
+ * Perform ON COMMIT actions.
+ *
+ * This is invoked just before actually committing, since it's possible
+ * to encounter errors.
+ */
+void
+PreCommit_on_commit_actions(void)
+{
+	ListCell   *l;
+	List	   *oids_to_truncate = NIL;
+	List	   *oids_to_drop = NIL;
+
+         // 遍历
+	foreach(l, on_commits)
+	{
+		OnCommitItem *oc = (OnCommitItem *) lfirst(l);
+
+		/* Ignore entry if already dropped in this xact */
+		if (oc-&gt;deleting_subid != InvalidSubTransactionId)
+			continue;
+
+		switch (oc-&gt;oncommit)
+		{
+			case ONCOMMIT_NOOP:
+			case ONCOMMIT_PRESERVE_ROWS:
+				/* Do nothing (there shouldn't be such entries, actually) */
+				break;
+			case ONCOMMIT_DELETE_ROWS:
+
+				/*
+				 * If this transaction hasn't accessed any temporary
+				 * relations, we can skip truncating ON COMMIT DELETE ROWS
+				 * tables, as they must still be empty.
+				 */
+				if ((MyXactFlags &amp; XACT_FLAGS_ACCESSEDTEMPNAMESPACE))
+					oids_to_truncate = lappend_oid(oids_to_truncate, oc-&gt;relid); // 生成新的list
+				break;
+			case ONCOMMIT_DROP:
+				oids_to_drop = lappend_oid(oids_to_drop, oc-&gt;relid);
+				break;
+		}
+	}
+
+	/*
+	 * Truncate relations before dropping so that all dependencies between
+	 * relations are removed after they are worked on.  Doing it like this
+	 * might be a waste as it is possible that a relation being truncated will
+	 * be dropped anyway due to its parent being dropped, but this makes the
+	 * code more robust because of not having to re-check that the relation
+	 * exists at truncation time.
+	 */
+	if (oids_to_truncate != NIL)
+		heap_truncate(oids_to_truncate); // 新的list需要处理
+
+	if (oids_to_drop != NIL)
+	{
+		ObjectAddresses *targetObjects = new_object_addresses();
+
+		foreach(l, oids_to_drop)
+		{
+			ObjectAddress object;
+
+			object.classId = RelationRelationId;
+			object.objectId = lfirst_oid(l);
+			object.objectSubId = 0;
+
+			Assert(!object_address_present(&amp;object, targetObjects));
+
+			add_exact_object_address(&amp;object, targetObjects);
+		}
+
+		/*
+		 * Object deletion might involve toast table access (to clean up
+		 * toasted catalog entries), so ensure we have a valid snapshot.
+		 */
+		PushActiveSnapshot(GetTransactionSnapshot());
+
+		/*
+		 * Since this is an automatic drop, rather than one directly initiated
+		 * by the user, we pass the PERFORM_DELETION_INTERNAL flag.
+		 */
+		performMultipleDeletions(targetObjects, DROP_CASCADE,
+								 PERFORM_DELETION_INTERNAL | PERFORM_DELETION_QUIETLY);
+
+		PopActiveSnapshot();
+
+#ifdef USE_ASSERT_CHECKING
+
+		/*
+		 * Note that table deletion will call remove_on_commit_action, so the
+		 * entry should get marked as deleted.
+		 */
+		foreach(l, on_commits)
+		{
+			OnCommitItem *oc = (OnCommitItem *) lfirst(l);
+
+			if (oc-&gt;oncommit != ONCOMMIT_DROP)
+				continue;
+
+			Assert(oc-&gt;deleting_subid != InvalidSubTransactionId);
+		}
+#endif
+	}
+}
+``` 
+调试可以看到：
+&lt;img width='1062' height='1040' alt='Image' src='https://github.com/user-attachments/assets/8e0198e4-ef63-47a3-96f3-7b8399fac7d2' /&gt;
+
+其实主要耗时应该还是`heap_truncate`
+```c
+void
+heap_truncate(List *relids)
+{
+	List	   *relations = NIL;
+	ListCell   *cell;
+
+        // 遍历
+	/* Open relations for processing, and grab exclusive access on each */
+	foreach(cell, relids)
+	{
+		Oid			rid = lfirst_oid(cell);
+		Relation	rel;
+
+		rel = table_open(rid, AccessExclusiveLock);
+		relations = lappend(relations, rel);  // 生成新的list
+	}
+
+	/* Don't allow truncate on tables that are referenced by foreign keys */
+	heap_truncate_check_FKs(relations, true); // 其实这内部还有遍历
+
+        // 再次遍历
+	/* OK to do it */
+	foreach(cell, relations)
+	{
+		Relation	rel = lfirst(cell);
+
+		/* Truncate the relation */
+		heap_truncate_one_rel(rel);  // 估计大部分的耗时在此处
+
+		/* Close the relation, but keep exclusive lock on it until commit */
+		table_close(rel, NoLock);
+	}
+}
+```
+调试可以看到：
+&lt;img width='1011' height='766' alt='Image' src='https://github.com/user-attachments/assets/8bcde450-2946-43ef-8db6-d67742f15338' /&gt;
+
+
+heap_truncate_check_FKs中还存在遍历，调试可以看到：
+&lt;img width='1038' height='478' alt='Image' src='https://github.com/user-attachments/assets/6db8a667-7d7d-4988-8873-48f9657627bb' /&gt;
+
+加了些打印，看的更清楚一些
+
+```sql
+postgres@zxm-VMware-Virtual-Platform:~/code/16$ psql -o /dev/null
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+psql (16.10)
+Type 'help' for help.
+
+postgres=# \timing
+Timing is on.
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 1.724 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 0.636 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.000 ms
+
+Time: 0.634 ms
+postgres=# CREATE TEMP TABLE a_gtt (n numeric) ON COMMIT DELETE ROWS;
+INFO:  heap_truncate time: 0.534 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.618 ms
+
+Time: 16.613 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.756 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.834 ms
+
+Time: 2.341 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.727 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.789 ms
+
+Time: 1.372 ms
+postgres=# select * from a_gtt;
+INFO:  heap_truncate time: 0.838 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.918 ms
+
+Time: 1.746 ms
+postgres=# DO $$
+DECLARE
+  v_sql VARCHAR(100);
+BEGIN
+  FOR i IN 1..3000 LOOP
+    v_sql := 'CREATE TEMP TABLE a_gtt'||i||'(n numeric) ON COMMIT DELETE ROWS';
+    EXECUTE v_sql;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+INFO:  heap_truncate time: 1048.421 ms
+
+INFO:  PreCommit_on_commit_actions time: 1048.570 ms
+
+Time: 3854.843 ms (00:03.855)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.053 ms
+
+INFO:  heap_truncate time: 1234.707 ms
+
+INFO:  PreCommit_on_commit_actions time: 1234.880 ms
+
+Time: 1242.413 ms (00:01.242)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.039 ms
+
+INFO:  heap_truncate time: 1199.870 ms
+
+INFO:  PreCommit_on_commit_actions time: 1200.038 ms
+
+Time: 1207.323 ms (00:01.207)
+postgres=# select * from a_gtt;
+INFO:  PreCommit_on_commit_actions time: 0.038 ms
+
+INFO:  heap_truncate time: 1384.979 ms
+
+INFO:  PreCommit_on_commit_actions time: 1385.284 ms
+
+Time: 1393.626 ms (00:01.394)
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.063 ms
+
+INFO:  PreCommit_on_commit_actions time: 0.092 ms
+
+Time: 2.293 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.111 ms
+
+Time: 0.963 ms
+postgres=# select * from pg_database;
+INFO:  PreCommit_on_commit_actions time: 0.103 ms
+
+Time: 0.933 ms
+postgres=# 
+```
+没修改什么代码
+```c
+diff --git a/src/backend/catalog/heap.c b/src/backend/catalog/heap.c
+index e67ffc37b7d..d3d85cb1264 100644
+--- a/src/backend/catalog/heap.c
++++ b/src/backend/catalog/heap.c
+@@ -75,6 +75,7 @@
+ #include 'utils/lsyscache.h'
+ #include 'utils/syscache.h'
+ 
++#include 'portability/instr_time.h'
+ 
+ /* Potentially set by pg_upgrade_support functions */
+ Oid                    binary_upgrade_next_heap_pg_class_oid = InvalidOid;
+@@ -3070,6 +3071,9 @@ heap_truncate(List *relids)
+ {
+        List       *relations = NIL;
+        ListCell   *cell;
++       instr_time  start;
++       instr_time  duration;
++       INSTR_TIME_SET_CURRENT(start);
+ 
+        /* Open relations for processing, and grab exclusive access on each */
+        foreach(cell, relids)
+@@ -3095,6 +3099,10 @@ heap_truncate(List *relids)
+                /* Close the relation, but keep exclusive lock on it until commit */
+                table_close(rel, NoLock);
+        }
++
++       INSTR_TIME_SET_CURRENT(duration);
++       INSTR_TIME_SUBTRACT(duration, start);
++       elog(INFO, 'heap_truncate time: %.3f ms\n', INSTR_TIME_GET_MILLISEC(duration));
+ }
+ 
+ /*
+diff --git a/src/backend/commands/tablecmds.c b/src/backend/commands/tablecmds.c
+index 016ae0a65f9..0172ec8bc5e 100644
+--- a/src/backend/commands/tablecmds.c
++++ b/src/backend/commands/tablecmds.c
+@@ -105,6 +105,8 @@
+ #include 'utils/typcache.h'
+ #include 'utils/usercontext.h'
+ 
++#include 'portability/instr_time.h'
++
+ /*
+  * ON COMMIT action list
+  */
+@@ -17120,6 +17122,9 @@ PreCommit_on_commit_actions(void)
+        ListCell   *l;
+        List       *oids_to_truncate = NIL;
+        List       *oids_to_drop = NIL;
++       instr_time  start;
++       instr_time  duration;
++       INSTR_TIME_SET_CURRENT(start);
+ 
+        foreach(l, on_commits)
+        {
+@@ -17211,6 +17216,10 @@ PreCommit_on_commit_actions(void)
+                }
+ #endif
+        }
++
++       INSTR_TIME_SET_CURRENT(duration);
++       INSTR_TIME_SUBTRACT(duration, start);
++       elog(INFO, 'PreCommit_on_commit_actions time: %.3f ms\n', INSTR_TIME_GET_MILLISEC(duration));
+ }
+ 
+ /*
+```
+来自tom lane的评价，因为场景比较单一，对于优化此处要增加代码复杂度，让他并不感兴趣
+
+&lt;img width='664' height='517' alt='Image' src='https://github.com/user-attachments/assets/e05f943c-057d-4d46-882e-2b0fdd31ac72' /&gt;。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/cha-xun-hao-shi-tong-lin-shi-biao-de-shu-liang-cheng-xian-xing-zeng-chang.html</guid><pubDate>Wed, 03 Sep 2025 09:19:04 +0000</pubDate></item><item><title>简单解析下PostgreSQL的Toast</title><link>https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-PostgreSQL-de-Toast.html</link><description># 什么是TOAST
+
+PostgreSQL 的 TOAST（The Oversized-Attribute Storage Technique，超大属性存储技术）是针对大尺寸数据（如长文本、二进制数据等）的存储优化机制，当字段数据超过阈值时，会自动将其压缩或拆分后存储到独立的 TOAST 表中，主表仅保留引用指针，既解决了单条记录存储容量受限问题，又通过透明操作、多种存储策略和独立表设计，平衡了存储效率与访问性能，对 TEXT、BYTEA、JSONB 等可能存储大数据的类型尤为有效。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/jian-dan-jie-xi-xia-PostgreSQL-de-Toast.html</guid><pubDate>Wed, 03 Sep 2025 05:42:58 +0000</pubDate></item><item><title>PostgreSQl的CREATE TABLE和文件分支</title><link>https://Z-Xiao-M.github.io/github.io/post/PostgreSQl-de-CREATE%20TABLE-he-wen-jian-fen-zhi.html</link><description># 文件分支
+
+在 PostgreSQL 中，一个表的所有信息分别存储在几个不同的分支中，每个分支包含特定类型的数据，分支文件的存放路径通常为\$PGDATA/base/\[数据库OID]/xxx，当其大小达到 1GB （默认值，可以编译时修改）时，就会创建该分支的另一个文件 (这些文件有时被称为段)。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PostgreSQl-de-CREATE%20TABLE-he-wen-jian-fen-zhi.html</guid><pubDate>Tue, 02 Sep 2025 10:13:12 +0000</pubDate></item><item><title>两表别名一致能做关联查询吗？</title><link>https://Z-Xiao-M.github.io/github.io/post/liang-biao-bie-ming-yi-zhi-neng-zuo-guan-lian-cha-xun-ma-%EF%BC%9F.html</link><description>### 两表别名一致能做关联查询吗
+按照正常的理解，一般是不能的，就像PostgreSQL
+```sql
+postgres=# create table t10(id1 int, name1 varchar(32));
+CREATE TABLE
+postgres=# create table t11(id2 int, name2 varchar(32));
+CREATE TABLE
+postgres=# insert into t10 values(1,'test1');
+INSERT 0 1
+postgres=# insert into t10 values(2,'test2');
+INSERT 0 1
+postgres=# insert into t11 values(1,'test3');
+INSERT 0 1
+postgres=# select bc.name2 from t10 bc left join t11 bc on bc.id1 = bc.id2;
+ERROR:  table name 'bc' specified more than once
+postgres=# 
+```
+但是Oracle不一样，它还真能执行，执行结果如下
+
+```sql
+SQL&gt; create table t10(id1 int, name1 varchar2(32));
+
+Table created.
+
+SQL&gt; create table t11(id2 int, name2 varchar2(32));
+
+Table created.
+
+SQL&gt; insert into t10 values(1,'test1');
+
+1 row created.
+
+SQL&gt; insert into t10 values(2,'test2');
+
+1 row created.
+
+SQL&gt; insert into t11 values(1,'test3');
+
+1 row created.
+
+SQL&gt; EXPLAIN PLAN FOR select bc.name2 from t10 bc left join t11 bc on bc.id1 = bc.id2;
+
+Explained.
+
+SQL&gt; SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+
+PLAN_TABLE_OUTPUT
+--------------------------------------------------------------------------------
+Plan hash value: 1151093956
+
+---------------------------------------------------------------------------
+| Id  | Operation          | Name | Rows  | Bytes | Cost (%CPU)| Time     |
+---------------------------------------------------------------------------
+|   0 | SELECT STATEMENT   |      |     2 |    88 |     6   (0)| 00:00:01 |
+|*  1 |  HASH JOIN OUTER   |      |     2 |    88 |     6   (0)| 00:00:01 |
+|   2 |   TABLE ACCESS FULL| T10  |     2 |    26 |     3   (0)| 00:00:01 |
+|   3 |   TABLE ACCESS FULL| T11  |     1 |    31 |     3   (0)| 00:00:01 |
+---------------------------------------------------------------------------
+
+
+PLAN_TABLE_OUTPUT
+--------------------------------------------------------------------------------
+Predicate Information (identified by operation id):
+---------------------------------------------------
+
+   1 - access('BC'.'ID1'='BC'.'ID2'(+))
+
+Note
+-----
+   - dynamic statistics used: dynamic sampling (level=2)
+
+19 rows selected.
+
+SQL&gt; select bc.name2 from t10 bc left join t11 bc on bc.id1 = bc.id2;
+
+NAME2
+--------------------------------------------------------------------------------
+test3
+
+
+SQL&gt; 
+``` 
+想不通oracle为什么要支持这种写法，此处用作记录~
+
+。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/liang-biao-bie-ming-yi-zhi-neng-zuo-guan-lian-cha-xun-ma-%EF%BC%9F.html</guid><pubDate>Mon, 01 Sep 2025 08:11:22 +0000</pubDate></item><item><title>Oracle"特色"——常量/变量充当函数入参默认值</title><link>https://Z-Xiao-M.github.io/github.io/post/Oracle--te-se--%E2%80%94%E2%80%94-chang-liang---bian-liang-chong-dang-han-shu-ru-can-mo-ren-zhi.html</link><description>诚如今天的主题所言：'同学，你能接受常量/变量充当函数入参默认值吗？'
+
+在PL/SQL中，函数入参默认值不就是输入参数类型后面的DEFAULT，就好比示例中的256，通常来说都是一个写定了的数据值。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/Oracle--te-se--%E2%80%94%E2%80%94-chang-liang---bian-liang-chong-dang-han-shu-ru-can-mo-ren-zhi.html</guid><pubDate>Mon, 01 Sep 2025 07:15:05 +0000</pubDate></item><item><title>Oracle"特色"——自定义带默认值的复合类型</title><link>https://Z-Xiao-M.github.io/github.io/post/Oracle--te-se--%E2%80%94%E2%80%94-zi-ding-yi-dai-mo-ren-zhi-de-fu-he-lei-xing.html</link><description>今天的这个主题就很显而易见了，这个我觉得怪怪的想要进行分享的原因是：
+
+**你甚至可以在Oracle数据库内部定义出带默认值的复合类型！！！主要其实也是我玩PG玩多了，没瞅见过自带默认值的复合类型。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/Oracle--te-se--%E2%80%94%E2%80%94-zi-ding-yi-dai-mo-ren-zhi-de-fu-he-lei-xing.html</guid><pubDate>Mon, 01 Sep 2025 07:14:11 +0000</pubDate></item><item><title>"颗粒度"没对齐——让人费解的CHAR（1）</title><link>https://Z-Xiao-M.github.io/github.io/post/--ke-li-du---mei-dui-qi-%E2%80%94%E2%80%94-rang-ren-fei-jie-de-CHAR%EF%BC%881%EF%BC%89.html</link><description>看到今天的主题，可能有不少的朋友会吐槽一个Oracle的CHAR（1）类型有什么让人费解的这不是简简单单吗？而且CHAR（1）在各个数据库中也都支持的呀？我想说的是大伙，别着急咱们接下来慢慢看。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/--ke-li-du---mei-dui-qi-%E2%80%94%E2%80%94-rang-ren-fei-jie-de-CHAR%EF%BC%881%EF%BC%89.html</guid><pubDate>Mon, 01 Sep 2025 07:12:58 +0000</pubDate></item><item><title>羲和（halo）数据库集合类型系列——学会可变数组(Varray)的正确使用</title><link>https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88halo%EF%BC%89-shu-ju-ku-ji-he-lei-xing-xi-lie-%E2%80%94%E2%80%94-xue-hui-ke-bian-shu-zu-%28Varray%29-de-zheng-que-shi-yong.html</link><description>一、前言  
+
+前不久，咱们带来了关于羲和数据库集合类型中的嵌套表、关联数组的使用，因为中途临时有事情要忙，所以小咕了一会，相关链接如下
+
+[羲和（halo）数据库集合类型系列——学会嵌套表(Nested Table)的正确使用](https://www.modb.pro/db/1844644828275109888)  
+
+[羲和（halo）数据库集合类型系列——关联数组（Associative Array）](https://www.modb.pro/db/1845638860305432576)  
+
+今天要给大家带来的是**羲和（halo）数据库集合类型基础用法最终章——****可变数组(Varray)****相关内容。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88halo%EF%BC%89-shu-ju-ku-ji-he-lei-xing-xi-lie-%E2%80%94%E2%80%94-xue-hui-ke-bian-shu-zu-%28Varray%29-de-zheng-que-shi-yong.html</guid><pubDate>Mon, 01 Sep 2025 07:10:44 +0000</pubDate></item><item><title>羲和（halo）数据库集合类型系列——关联数组（Associative Array）</title><link>https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88halo%EF%BC%89-shu-ju-ku-ji-he-lei-xing-xi-lie-%E2%80%94%E2%80%94-guan-lian-shu-zu-%EF%BC%88Associative%20Array%EF%BC%89.html</link><description>一、前言
+====
+
+前不久，咱们带来了关于羲和数据库集合类型中的嵌套表的使用，顺带和Oracle19c对比了一下，基本功能上大差不差，前文链接如下
+
+[羲和（halo）数据库集合类型系列——学会嵌套表(Nested Table)的正确使用](https://www.modb.pro/db/1844644828275109888)  
+
+上次将两款数据库的测试内容和运行结果一起截图，结果贴到文章中反而显得不是很清楚，像我这种眼神不太好使的同学，还需要多点一下图片。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88halo%EF%BC%89-shu-ju-ku-ji-he-lei-xing-xi-lie-%E2%80%94%E2%80%94-guan-lian-shu-zu-%EF%BC%88Associative%20Array%EF%BC%89.html</guid><pubDate>Mon, 01 Sep 2025 07:09:48 +0000</pubDate></item><item><title>羲和（halo）数据库集合类型系列——学会嵌套表(Nested Table)的正确使用</title><link>https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88halo%EF%BC%89-shu-ju-ku-ji-he-lei-xing-xi-lie-%E2%80%94%E2%80%94-xue-hui-qian-tao-biao-%28Nested%20Table%29-de-zheng-que-shi-yong.html</link><description>一、集合类型
+======
+
+在Oracle数据库中集合类型分为以下三种，分别为关联数组(Associative Array)、嵌套表(Nested Table)和可变数组(VARRAY)。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88halo%EF%BC%89-shu-ju-ku-ji-he-lei-xing-xi-lie-%E2%80%94%E2%80%94-xue-hui-qian-tao-biao-%28Nested%20Table%29-de-zheng-que-shi-yong.html</guid><pubDate>Mon, 01 Sep 2025 07:08:57 +0000</pubDate></item><item><title>如何使用羲和（Halo）数据库的动态SQL语句功能</title><link>https://Z-Xiao-M.github.io/github.io/post/ru-he-shi-yong-xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-de-dong-tai-SQL-yu-ju-gong-neng.html</link><description>一、前言
+====
+
+SQL语句在**程序编译**期间就已经确定，绝大多数的编译情况属于这种类型，我们称之为静态SQL。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/ru-he-shi-yong-xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-de-dong-tai-SQL-yu-ju-gong-neng.html</guid><pubDate>Mon, 01 Sep 2025 07:08:07 +0000</pubDate></item><item><title>羲和（Halo）数据库RAW类型初体验</title><link>https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-RAW-lei-xing-chu-ti-yan.html</link><description>一、RAW类型回顾
+=========
+
+在Oracle数据库中，RAW类型是一种可变长数据类型，一般用于存储二进制数据。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-RAW-lei-xing-chu-ti-yan.html</guid><pubDate>Mon, 01 Sep 2025 07:07:24 +0000</pubDate></item><item><title>打破认知幻像：你写的SQL是否如你心意？</title><link>https://Z-Xiao-M.github.io/github.io/post/da-po-ren-zhi-huan-xiang-%EF%BC%9A-ni-xie-de-SQL-shi-fou-ru-ni-xin-yi-%EF%BC%9F.html</link><description>一、前言
+====
+
+最近网上冲浪的时候，翻着翻着翻到一篇有趣的文章，估摸着应该是盖老师写的。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/da-po-ren-zhi-huan-xiang-%EF%BC%9A-ni-xie-de-SQL-shi-fou-ru-ni-xin-yi-%EF%BC%9F.html</guid><pubDate>Mon, 01 Sep 2025 06:55:16 +0000</pubDate></item><item><title>Oracle、PostgreSQL、羲和（Halo）数据库中的的IN、OUT 和 INOUT参数模式</title><link>https://Z-Xiao-M.github.io/github.io/post/Oracle%E3%80%81PostgreSQL%E3%80%81-xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-zhong-de-de-IN%E3%80%81OUT%20-he-%20INOUT-can-shu-mo-shi.html</link><description>一、前言
+----
+
+前些天看到PostgreSQL分会在微信上的一则翻译分享，标题为Oracle 与 PostgreSQL 中的 IN、OUT 和 INOUT 参数。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/Oracle%E3%80%81PostgreSQL%E3%80%81-xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-zhong-de-de-IN%E3%80%81OUT%20-he-%20INOUT-can-shu-mo-shi.html</guid><pubDate>Mon, 01 Sep 2025 06:53:37 +0000</pubDate></item><item><title>羲和（Halo）数据库——DBMS_RANDOM浅尝</title><link>https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-%E2%80%94%E2%80%94DBMS_RANDOM-qian-chang.html</link><description>&lt;html&gt;
+&lt;body&gt;
+&lt;!--StartFragment--&gt;&lt;p style='padding: 0px; margin: 10px 0px; box-sizing: border-box; font-size: 14px; line-height: 1.5; color: rgb(0, 0, 0); font-family: PingFangSC-Regular, &amp;quot;Microsoft Yahei&amp;quot;; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;'&gt;在ORACLE中DBMS_RANDOM用于生成随机数、随机字符串等。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-%E2%80%94%E2%80%94DBMS_RANDOM-qian-chang.html</guid><pubDate>Mon, 01 Sep 2025 06:52:44 +0000</pubDate></item><item><title>羲和（Halo）数据库——DBMS_SQL浅尝</title><link>https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-%E2%80%94%E2%80%94DBMS_SQL-qian-chang.html</link><description>本文将向大家展示如何在羲和（Halo）数据库中使用DBMS\_SQL，本文测试案例除部分表结构和部分测试数据之外，其余均来自ORACLE官方测试文档，所有测试案例放置文章末尾以供学习使用。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/xi-he-%EF%BC%88Halo%EF%BC%89-shu-ju-ku-%E2%80%94%E2%80%94DBMS_SQL-qian-chang.html</guid><pubDate>Mon, 01 Sep 2025 06:47:36 +0000</pubDate></item><item><title>聊聊pg_bulkload的大概的实现逻辑</title><link>https://Z-Xiao-M.github.io/github.io/post/liao-liao-pg_bulkload-de-da-gai-de-shi-xian-luo-ji.html</link><description>&gt; 好好好，好久不见，最近偶然了解到了pg\_bulkload这一插件，然后花了点时间看了看它是如何实现的，又想到好久没有写东西了，咕了太久，有点怪不好意思的，所以决定写点东西，摆脱鸽子🕊的嫌疑。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/liao-liao-pg_bulkload-de-da-gai-de-shi-xian-luo-ji.html</guid><pubDate>Mon, 01 Sep 2025 06:32:59 +0000</pubDate></item><item><title>没有from是否能够执行count操作</title><link>https://Z-Xiao-M.github.io/github.io/post/mei-you-from-shi-fou-neng-gou-zhi-xing-count-cao-zuo.html</link><description>一、场景构建
+======
+
+这是一个非常简单的场景，这里存在一张表，表名t，往其中随便插入三行数据，然后执行查询语句：`select count(*) from t;`
+
+    create table t(id integer);
+    insert into t values(1),(2),(3);
+    select count(*) from t;
+
+执行结果
+
+    postgres=# create table t(id integer);
+    CREATE TABLE
+    postgres=# insert into t values(1),(2),(3);
+    INSERT 0 3
+    postgres=# select count(*) from t;
+     count 
+    -------
+         3
+    (1 row)
+
+可以看到执行count结果为3，这在正常不过了。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/mei-you-from-shi-fou-neng-gou-zhi-xing-count-cao-zuo.html</guid><pubDate>Mon, 01 Sep 2025 06:30:27 +0000</pubDate></item><item><title>外国CTO也感兴趣的开源数据库项目——openHalo</title><link>https://Z-Xiao-M.github.io/github.io/post/wai-guo-CTO-ye-gan-xing-qu-de-kai-yuan-shu-ju-ku-xiang-mu-%E2%80%94%E2%80%94openHalo.html</link><description>一、openHalo
+==========
+
+大概三个礼拜前，也就是四月一（愚人节）的时候，我们将羲和（Halo）数据库关于MySQL兼容能力这一块，独立做成了一个项目，并且在github上开源了出去。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wai-guo-CTO-ye-gan-xing-qu-de-kai-yuan-shu-ju-ku-xiang-mu-%E2%80%94%E2%80%94openHalo.html</guid><pubDate>Mon, 01 Sep 2025 06:29:44 +0000</pubDate></item><item><title>PostgreSQL——关于autocommit功能的实现</title><link>https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%E2%80%94%E2%80%94-guan-yu-autocommit-gong-neng-de-shi-xian.html</link><description>一、前言
+====
+
+文章标题为PostgreSQL——关于autocommit功能的实现，其实更为准确来说应该是psql——关于autocommit功能的实现，因为这个参数其实属于psql。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%E2%80%94%E2%80%94-guan-yu-autocommit-gong-neng-de-shi-xian.html</guid><pubDate>Mon, 01 Sep 2025 06:27:09 +0000</pubDate></item><item><title>玩一玩系列——玩玩pg_dirtyread</title><link>https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-pg_dirtyread.html</link><description>一、前言
+====
+
+很早其实就知道有这么一个插件存在，叫做pg\_dirtyread，就是一直没去上手玩玩，趁着有空，写点东西。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-pg_dirtyread.html</guid><pubDate>Mon, 01 Sep 2025 06:26:19 +0000</pubDate></item><item><title>看懂PostgreSQL where子句中条件的先后执行顺序</title><link>https://Z-Xiao-M.github.io/github.io/post/kan-dong-PostgreSQL%20where-zi-ju-zhong-tiao-jian-de-xian-hou-zhi-xing-shun-xu.html</link><description>一、前言
+====
+
+前几天有个同事问了我一个问题，问题简化之后，大概如下面描述：在PostgreSQL中，存在一张表ta，表中数据存在两个值，分别是零和一。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/kan-dong-PostgreSQL%20where-zi-ju-zhong-tiao-jian-de-xian-hou-zhi-xing-shun-xu.html</guid><pubDate>Mon, 01 Sep 2025 06:25:25 +0000</pubDate></item><item><title>玩一玩系列——玩玩postgres_fdw</title><link>https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-postgres_fdw.html</link><description>一、前言
+====
+
+本文仅记录和分享一下关于PostgreSQL的FDW（外部数据包装器）的简单介绍和使用，此次不包含源码分析。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-postgres_fdw.html</guid><pubDate>Mon, 01 Sep 2025 06:21:16 +0000</pubDate></item><item><title>玩一玩系列——玩玩login_hook</title><link>https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-login_hook.html</link><description>一、PostgreSQL登录事件触发器
+===================
+
+在PostgreSQL17版本引入了登录事件触发器，可以用于登录之后记录一些信息或者完成一些初始化动作。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/wan-yi-wan-xi-lie-%E2%80%94%E2%80%94-wan-wan-login_hook.html</guid><pubDate>Mon, 01 Sep 2025 06:20:15 +0000</pubDate></item><item><title>明明想执行的SQL是DELETE、UPDATE，但为什么看到的是SELECT（FDW的实现原理解析）</title><link>https://Z-Xiao-M.github.io/github.io/post/ming-ming-xiang-zhi-xing-de-SQL-shi-DELETE%E3%80%81UPDATE%EF%BC%8C-dan-wei-shen-me-kan-dao-de-shi-SELECT%EF%BC%88FDW-de-shi-xian-yuan-li-jie-xi-%EF%BC%89.html</link><description>一、场景复现
+======
+
+开门见山，一个关于oracle\_fdw的简单场景如下：
+
+    halo0root=# \d+ emp
+                                                   Foreign table 'public.emp'
+     Column |         Type          | Collation | Nullable | Default | FDW options  | Storage  | Stats target | Description 
+    --------+-----------------------+-----------+----------+---------+--------------+----------+--------------+-------------
+     name   | character varying(20) |           | not null |         | (key 'true') | extended |              | 
+     age    | numeric               |           |          |         |              | main     |              | 
+    Server: oradb
+    FDW options: (schema 'ZM', 'table' 'EMP')
+    
+    halo0root=# \des+
+                                                          List of foreign servers
+     Name  | Owner | Foreign-data wrapper | Access privileges | Type | Version |               FDW options                | Description 
+    -------+-------+----------------------+-------------------+------+---------+------------------------------------------+-------------
+     oradb | halo  | oracle_fdw           |                   |      |         | (dbserver '//10.16.6.188:1521/orclpdb1') | 
+    (1 row)
+    
+    halo0root=# EXPLAIN VERBOSE DELETE FROM emp WHERE age = 25;
+                                                            QUERY PLAN                                                         
+    ---------------------------------------------------------------------------------------------------------------------------
+     Delete on public.emp  (cost=10000.00..20000.00 rows=0 width=0)
+       Oracle statement: DELETE FROM 'ZM'.'EMP' WHERE 'NAME' = :k1
+       -&gt;  Foreign Scan on public.emp  (cost=10000.00..20000.00 rows=1000 width=58)
+             Output: name
+             Oracle query: SELECT /*9ad36f25074bd711*/ r1.'NAME', r1.'AGE' FROM 'ZM'.'EMP' r1 WHERE (r1.'AGE' = 25) FOR UPDATE
+             Oracle plan: SELECT STATEMENT
+             Oracle plan:   FOR UPDATE
+             Oracle plan:     BUFFER SORT
+             Oracle plan:       TABLE ACCESS FULL EMP  (filter 'R1'.'AGE'=25)
+     Query Identifier: -1174117518881599247
+    (10 rows)
+
+这里可以很明显的看到，虽然我们敲得是EXPLAIN VERBOSE DELETE ...，但是实际的Oracle query却是SELECT，同时UPDATE也是如此
+
+    halo0root=# EXPLAIN VERBOSE UPDATE emp SET name = 'zzz' WHERE age = 25;
+                                                            QUERY PLAN                                                         
+    ---------------------------------------------------------------------------------------------------------------------------
+     Update on public.emp  (cost=10000.00..20000.00 rows=0 width=0)
+       Oracle statement: UPDATE 'ZM'.'EMP' SET 'NAME' = :p1 WHERE 'NAME' = :k1
+       -&gt;  Foreign Scan on public.emp  (cost=10000.00..20000.00 rows=1000 width=230)
+             Output: 'zzz'::character varying(20), name, emp.*
+             Oracle query: SELECT /*9ad36f25074bd711*/ r1.'NAME', r1.'AGE' FROM 'ZM'.'EMP' r1 WHERE (r1.'AGE' = 25) FOR UPDATE
+             Oracle plan: SELECT STATEMENT
+             Oracle plan:   FOR UPDATE
+             Oracle plan:     BUFFER SORT
+             Oracle plan:       TABLE ACCESS FULL EMP  (filter 'R1'.'AGE'=25)
+     Query Identifier: -2711433616002583057
+    (10 rows)
+
+那么问题就如文章标题所述了，这是为什么呢？
+
+  
+
+二、原理分析
+======
+
+原因其实也很简单，因为对于PostgreSQL而言，外部表是一种很特殊的存在，它仅仅只是一个远端表的映射，实际的数据依旧还是存储在远端，
+
+当我们在本地的PostgreSQL访问外部表的时候，实际上就是将当前的查询语句，下发至远端数据库，再将查询到的数据传回本地的PostgreSQL中参与实际的计算之类的。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/ming-ming-xiang-zhi-xing-de-SQL-shi-DELETE%E3%80%81UPDATE%EF%BC%8C-dan-wei-shen-me-kan-dao-de-shi-SELECT%EF%BC%88FDW-de-shi-xian-yuan-li-jie-xi-%EF%BC%89.html</guid><pubDate>Mon, 01 Sep 2025 06:19:02 +0000</pubDate></item><item><title>在PostgreSQL中，你不仅可以看到Bad Apple，还可以看故人唱跳、rap、打篮球</title><link>https://Z-Xiao-M.github.io/github.io/post/zai-PostgreSQL-zhong-%EF%BC%8C-ni-bu-jin-ke-yi-kan-dao-Bad%20Apple%EF%BC%8C-huan-ke-yi-kan-gu-ren-chang-tiao-%E3%80%81rap%E3%80%81-da-lan-qiu.html</link><description>一、前言
+====
+
+也是在前不久，我翻到了一个“有趣”的项目，如标题所言，这个PostgreSQL插件项目就是可能做到在psql客户端播放Bad Apple，和鸽鸽的唱跳、rap、打篮球的名场面。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/zai-PostgreSQL-zhong-%EF%BC%8C-ni-bu-jin-ke-yi-kan-dao-Bad%20Apple%EF%BC%8C-huan-ke-yi-kan-gu-ren-chang-tiao-%E3%80%81rap%E3%80%81-da-lan-qiu.html</guid><pubDate>Mon, 01 Sep 2025 06:18:11 +0000</pubDate></item><item><title>简单聊聊PostgreSQL中的多态伪类型</title><link>https://Z-Xiao-M.github.io/github.io/post/jian-dan-liao-liao-PostgreSQL-zhong-de-duo-tai-wei-lei-xing.html</link><description>一、前言
+====
+
+也是好久没有写文章了，主要是前阵子比较忙，还有外加上喜欢骑车出去兜风，以至于一而再，再而三的咕咕。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/jian-dan-liao-liao-PostgreSQL-zhong-de-duo-tai-wei-lei-xing.html</guid><pubDate>Sun, 31 Aug 2025 08:18:02 +0000</pubDate></item><item><title>搭建一个多主复制数据回环场景</title><link>https://Z-Xiao-M.github.io/github.io/post/da-jian-yi-ge-duo-zhu-fu-zhi-shu-ju-hui-huan-chang-jing.html</link><description>一、前言
+====
+
+最近也是看着看着，看到了逻辑复制这块，事实上我很少接触过这块，所以就当练练手了。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/da-jian-yi-ge-duo-zhu-fu-zhi-shu-ju-hui-huan-chang-jing.html</guid><pubDate>Sun, 31 Aug 2025 08:03:25 +0000</pubDate></item><item><title>PostgreSQL——关于临时表的二三事</title><link>https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%E2%80%94%E2%80%94-guan-yu-lin-shi-biao-de-er-san-shi.html</link><description># 一、前言
+
+说起临时表，多数的DBA同学们第一时间都会想到Oracle的全局临时表，而对于PG而言，虽然存在对应的全局临时表语法，但是并没有实质的全局临时表功能。</description><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/post/PostgreSQL%E2%80%94%E2%80%94-guan-yu-lin-shi-biao-de-er-san-shi.html</guid><pubDate>Sun, 31 Aug 2025 04:06:59 +0000</pubDate></item><item><title>关于</title><link>https://Z-Xiao-M.github.io/github.io/about.html</link><guid isPermaLink="true">https://Z-Xiao-M.github.io/github.io/about.html</guid><pubDate>Sun, 31 Aug 2025 07:27:51 +0000</pubDate></item></channel></rss>
